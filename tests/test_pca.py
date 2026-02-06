@@ -150,7 +150,8 @@ class TestTrainPCA:
         output = tmp_path / "model.pkl"
 
         result = train_pca(
-            img_dir, output,
+            img_dir,
+            output,
             n_components=3,
             previous_hash="abc123",
             sequence_number=7,
@@ -182,7 +183,8 @@ class TestTrainPCA:
         parent_id = uuid4()
 
         result = train_pca(
-            img_dir, output,
+            img_dir,
+            output,
             n_components=3,
             dataset_provenance_id=parent_id,
         )

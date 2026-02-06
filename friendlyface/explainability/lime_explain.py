@@ -74,9 +74,7 @@ class LimeExplanation:
                 }
                 for r in self.top_regions
             ],
-            "feature_importance_map_hash": sha256_hex(
-                self.feature_importance_map.tobytes().hex()
-            ),
+            "feature_importance_map_hash": sha256_hex(self.feature_importance_map.tobytes().hex()),
             "confidence_decomposition": self.confidence_decomposition,
             "num_superpixels": self.num_superpixels,
             "num_samples": self.num_samples,
@@ -119,9 +117,7 @@ def _segment_image(image_array: np.ndarray, num_superpixels: int = 50) -> np.nda
     return segments
 
 
-def _get_superpixel_bbox(
-    segments: np.ndarray, sp_id: int
-) -> tuple[int, int, int, int]:
+def _get_superpixel_bbox(segments: np.ndarray, sp_id: int) -> tuple[int, int, int, int]:
     """Get bounding box (min_row, min_col, max_row, max_col) for a superpixel."""
     rows, cols = np.where(segments == sp_id)
     if len(rows) == 0:
@@ -229,9 +225,7 @@ def generate_lime_explanation(
         region_importances[sp_id] = weight
 
     # Sort by absolute importance, take top-K
-    sorted_regions = sorted(
-        region_importances.items(), key=lambda x: abs(x[1]), reverse=True
-    )
+    sorted_regions = sorted(region_importances.items(), key=lambda x: abs(x[1]), reverse=True)
     actual_k = min(top_k, len(sorted_regions))
 
     top_regions = [

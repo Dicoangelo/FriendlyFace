@@ -98,7 +98,7 @@ class ForensicService:
                 if event.previous_hash != events[i - 1].event_hash:
                     errors.append(
                         f"Event {event.id} previous_hash doesn't match "
-                        f"event {events[i-1].id} hash"
+                        f"event {events[i - 1].id} hash"
                     )
 
         return {"valid": len(errors) == 0, "count": len(events), "errors": errors}
@@ -134,13 +134,17 @@ class ForensicService:
                 explanation_artifacts = None
 
         # Collect artifacts from events when not explicitly provided
-        if recognition_artifacts is None and (layer_filters is None or "recognition" in (layer_filters or [])):
+        if recognition_artifacts is None and (
+            layer_filters is None or "recognition" in (layer_filters or [])
+        ):
             recognition_artifacts = await self._collect_recognition_artifacts(event_ids)
         if fl_artifacts is None and (layer_filters is None or "fl" in (layer_filters or [])):
             fl_artifacts = await self._collect_fl_artifacts(event_ids)
         if bias_report is None and (layer_filters is None or "bias" in (layer_filters or [])):
             bias_report = await self._collect_bias_artifacts(event_ids)
-        if explanation_artifacts is None and (layer_filters is None or "explanation" in (layer_filters or [])):
+        if explanation_artifacts is None and (
+            layer_filters is None or "explanation" in (layer_filters or [])
+        ):
             explanation_artifacts = await self._collect_explanation_artifacts(event_ids)
 
         # Gather Merkle proofs for each event
@@ -175,17 +179,21 @@ class ForensicService:
             if event is None:
                 continue
             if event.event_type == EventType.INFERENCE_RESULT:
-                artifacts["inference_events"].append({
-                    "event_id": str(event.id),
-                    "event_hash": event.event_hash,
-                    "payload": event.payload,
-                })
+                artifacts["inference_events"].append(
+                    {
+                        "event_id": str(event.id),
+                        "event_hash": event.event_hash,
+                        "payload": event.payload,
+                    }
+                )
             elif event.event_type in (EventType.TRAINING_START, EventType.TRAINING_COMPLETE):
-                artifacts["training_events"].append({
-                    "event_id": str(event.id),
-                    "event_hash": event.event_hash,
-                    "payload": event.payload,
-                })
+                artifacts["training_events"].append(
+                    {
+                        "event_id": str(event.id),
+                        "event_hash": event.event_hash,
+                        "payload": event.payload,
+                    }
+                )
         if not artifacts["inference_events"] and not artifacts["training_events"]:
             return None
         return artifacts
@@ -199,18 +207,22 @@ class ForensicService:
             if event is None:
                 continue
             if event.event_type == EventType.FL_ROUND:
-                rounds.append({
-                    "event_id": str(event.id),
-                    "event_hash": event.event_hash,
-                    "payload": event.payload,
-                })
-            elif event.event_type == EventType.SECURITY_ALERT:
-                if event.payload.get("alert_type") == "data_poisoning":
-                    security_alerts.append({
+                rounds.append(
+                    {
                         "event_id": str(event.id),
                         "event_hash": event.event_hash,
                         "payload": event.payload,
-                    })
+                    }
+                )
+            elif event.event_type == EventType.SECURITY_ALERT:
+                if event.payload.get("alert_type") == "data_poisoning":
+                    security_alerts.append(
+                        {
+                            "event_id": str(event.id),
+                            "event_hash": event.event_hash,
+                            "payload": event.payload,
+                        }
+                    )
         if not rounds and not security_alerts:
             return None
         return {"rounds": rounds, "security_alerts": security_alerts}
@@ -223,11 +235,13 @@ class ForensicService:
             if event is None:
                 continue
             if event.event_type == EventType.BIAS_AUDIT:
-                audits.append({
-                    "event_id": str(event.id),
-                    "event_hash": event.event_hash,
-                    "payload": event.payload,
-                })
+                audits.append(
+                    {
+                        "event_id": str(event.id),
+                        "event_hash": event.event_hash,
+                        "payload": event.payload,
+                    }
+                )
         if not audits:
             return None
         return {"audits": audits}
@@ -240,11 +254,13 @@ class ForensicService:
             if event is None:
                 continue
             if event.event_type == EventType.EXPLANATION_GENERATED:
-                explanations.append({
-                    "event_id": str(event.id),
-                    "event_hash": event.event_hash,
-                    "payload": event.payload,
-                })
+                explanations.append(
+                    {
+                        "event_id": str(event.id),
+                        "event_hash": event.event_hash,
+                        "payload": event.payload,
+                    }
+                )
         if not explanations:
             return None
         return {"explanations": explanations}
@@ -266,10 +282,12 @@ class ForensicService:
         # 2. Merkle proof verification
         proof_results = []
         for proof in bundle.merkle_proofs:
-            proof_results.append({
-                "leaf_hash": proof.leaf_hash,
-                "valid": proof.verify(),
-            })
+            proof_results.append(
+                {
+                    "leaf_hash": proof.leaf_hash,
+                    "valid": proof.verify(),
+                }
+            )
         results["merkle_proofs_valid"] = all(p["valid"] for p in proof_results)
         results["merkle_proofs"] = proof_results
 
@@ -288,13 +306,9 @@ class ForensicService:
                 bundle.recognition_artifacts, "recognition"
             )
         if bundle.fl_artifacts is not None:
-            layer_results["fl"] = await self._verify_layer_events(
-                bundle.fl_artifacts, "fl"
-            )
+            layer_results["fl"] = await self._verify_layer_events(bundle.fl_artifacts, "fl")
         if bundle.bias_report is not None:
-            layer_results["bias"] = await self._verify_layer_events(
-                bundle.bias_report, "bias"
-            )
+            layer_results["bias"] = await self._verify_layer_events(bundle.bias_report, "bias")
         if bundle.explanation_artifacts is not None:
             layer_results["explanation"] = await self._verify_layer_events(
                 bundle.explanation_artifacts, "explanation"
@@ -317,9 +331,7 @@ class ForensicService:
 
         return results
 
-    async def _verify_layer_events(
-        self, artifacts: dict, layer_name: str
-    ) -> dict[str, Any]:
+    async def _verify_layer_events(self, artifacts: dict, layer_name: str) -> dict[str, Any]:
         """Verify that events referenced in layer artifacts exist and have valid hashes."""
         result: dict[str, Any] = {"layer": layer_name, "valid": True, "errors": []}
         # Extract event entries from the artifacts dict
@@ -332,6 +344,7 @@ class ForensicService:
             if eid_str is None:
                 continue
             from uuid import UUID as _UUID
+
             event = await self.db.get_event(_UUID(eid_str))
             if event is None:
                 result["valid"] = False
@@ -340,9 +353,7 @@ class ForensicService:
             stored_hash = entry.get("event_hash")
             if stored_hash and stored_hash != event.event_hash:
                 result["valid"] = False
-                result["errors"].append(
-                    f"Event {eid_str} hash mismatch in {layer_name} artifacts"
-                )
+                result["errors"].append(f"Event {eid_str} hash mismatch in {layer_name} artifacts")
         return result
 
     def add_provenance_node(

@@ -250,9 +250,7 @@ class ConsentManager:
                     "reason": "consent_revoked",
                 },
             )
-            raise ConsentError(
-                f"Consent revoked for subject={subject_id} purpose={purpose}"
-            )
+            raise ConsentError(f"Consent revoked for subject={subject_id} purpose={purpose}")
 
         if record.is_expired(now):
             # Consent has expired — block
@@ -267,9 +265,7 @@ class ConsentManager:
                     "expired_at": record.expiry,
                 },
             )
-            raise ConsentError(
-                f"Consent expired for subject={subject_id} purpose={purpose}"
-            )
+            raise ConsentError(f"Consent expired for subject={subject_id} purpose={purpose}")
 
     async def get_consent_status(
         self,

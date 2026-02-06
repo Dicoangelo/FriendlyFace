@@ -36,9 +36,7 @@ async def client(tmp_path):
     await _service.initialize()
 
     # Reset in-memory state
-    _service.merkle = __import__(
-        "friendlyface.core.merkle", fromlist=["MerkleTree"]
-    ).MerkleTree()
+    _service.merkle = __import__("friendlyface.core.merkle", fromlist=["MerkleTree"]).MerkleTree()
     _service._event_index = {}
     _service.provenance = __import__(
         "friendlyface.core.provenance", fromlist=["ProvenanceDAG"]

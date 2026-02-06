@@ -188,10 +188,7 @@ class TestForensicEvents:
         assert result.rounds[0].event.previous_hash == "GENESIS"
         # Each subsequent event chains from the previous
         for i in range(1, len(result.rounds)):
-            assert (
-                result.rounds[i].event.previous_hash
-                == result.rounds[i - 1].event.event_hash
-            )
+            assert result.rounds[i].event.previous_hash == result.rounds[i - 1].event.event_hash
 
     def test_custom_previous_hash_and_sequence(self):
         result = run_fl_simulation(
@@ -247,31 +244,19 @@ class TestProvenanceNodes:
         # Round 1: no parents (no parent_provenance_id given)
         assert result.rounds[0].provenance_node.parents == []
         # Round 2: parent is round 1
-        assert result.rounds[1].provenance_node.parents == [
-            result.rounds[0].provenance_node.id
-        ]
-        assert result.rounds[1].provenance_node.relations == [
-            ProvenanceRelation.DERIVED_FROM
-        ]
+        assert result.rounds[1].provenance_node.parents == [result.rounds[0].provenance_node.id]
+        assert result.rounds[1].provenance_node.relations == [ProvenanceRelation.DERIVED_FROM]
         # Round 3: parent is round 2
-        assert result.rounds[2].provenance_node.parents == [
-            result.rounds[1].provenance_node.id
-        ]
+        assert result.rounds[2].provenance_node.parents == [result.rounds[1].provenance_node.id]
 
     def test_provenance_first_round_links_to_parent(self):
         parent_id = uuid4()
-        result = run_fl_simulation(
-            n_clients=2, n_rounds=2, parent_provenance_id=parent_id
-        )
+        result = run_fl_simulation(n_clients=2, n_rounds=2, parent_provenance_id=parent_id)
         # Round 1 links to the provided parent
         assert parent_id in result.rounds[0].provenance_node.parents
-        assert result.rounds[0].provenance_node.relations == [
-            ProvenanceRelation.DERIVED_FROM
-        ]
+        assert result.rounds[0].provenance_node.relations == [ProvenanceRelation.DERIVED_FROM]
         # Round 2 links to round 1 (not the original parent)
-        assert result.rounds[1].provenance_node.parents == [
-            result.rounds[0].provenance_node.id
-        ]
+        assert result.rounds[1].provenance_node.parents == [result.rounds[0].provenance_node.id]
 
     def test_provenance_no_parent_by_default(self):
         result = run_fl_simulation(n_clients=2, n_rounds=1)

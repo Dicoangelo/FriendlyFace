@@ -231,9 +231,7 @@ class TestCompareExplanations:
         assert data["total_shap"] == 0
 
     async def test_compare_event_not_found(self, client):
-        resp = await client.get(
-            "/explainability/compare/00000000-0000-0000-0000-000000000000"
-        )
+        resp = await client.get("/explainability/compare/00000000-0000-0000-0000-000000000000")
         assert resp.status_code == 404
 
 

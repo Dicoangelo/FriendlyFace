@@ -274,13 +274,9 @@ class BiasAuditRecord(BaseModel):
     demographic_parity_gap: float = Field(
         description="Max gap in positive prediction rates across groups"
     )
-    equalized_odds_gap: float = Field(
-        description="Max gap in TPR/FPR across groups"
-    )
+    equalized_odds_gap: float = Field(description="Max gap in TPR/FPR across groups")
     groups_evaluated: list[str] = Field(default_factory=list)
-    compliant: bool = Field(
-        default=True, description="EU AI Act Article 5/14 compliance flag"
-    )
+    compliant: bool = Field(default=True, description="EU AI Act Article 5/14 compliance flag")
     details: dict[str, Any] = Field(default_factory=dict)
 
 

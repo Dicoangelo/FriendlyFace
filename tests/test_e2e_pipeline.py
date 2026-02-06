@@ -73,9 +73,7 @@ async def client(tmp_path):
     await _service.initialize()
 
     # Reset in-memory state
-    _service.merkle = __import__(
-        "friendlyface.core.merkle", fromlist=["MerkleTree"]
-    ).MerkleTree()
+    _service.merkle = __import__("friendlyface.core.merkle", fromlist=["MerkleTree"]).MerkleTree()
     _service._event_index = {}
     _service.provenance = __import__(
         "friendlyface.core.provenance", fromlist=["ProvenanceDAG"]
@@ -282,9 +280,7 @@ class TestE2EPipeline:
         assert "shap" in methods
 
         # Verify comparison endpoint works
-        compare_resp = await client.get(
-            f"/explainability/compare/{inference_event_id}"
-        )
+        compare_resp = await client.get(f"/explainability/compare/{inference_event_id}")
         assert compare_resp.status_code == 200
         compare_data = compare_resp.json()
         assert compare_data["total_lime"] >= 1
@@ -418,9 +414,7 @@ class TestE2EPipeline:
         layer_arts = verify_data.get("layer_artifacts", {})
         for layer in ("recognition", "bias", "explanation"):
             assert layer in layer_arts, f"Missing layer: {layer}"
-            assert layer_arts[layer]["valid"] is True, (
-                f"Layer {layer} verification failed"
-            )
+            assert layer_arts[layer]["valid"] is True, f"Layer {layer} verification failed"
 
         # Verify bundle is retrievable
         get_bundle_resp = await client.get(f"/bundles/{bundle_id}")
@@ -442,9 +436,7 @@ class TestE2EPipeline:
         # ---------------------------------------------------------------
         for event_id in collected_event_ids:
             proof_resp = await client.get(f"/merkle/proof/{event_id}")
-            assert proof_resp.status_code == 200, (
-                f"Merkle proof failed for event {event_id}"
-            )
+            assert proof_resp.status_code == 200, f"Merkle proof failed for event {event_id}"
             proof_data = proof_resp.json()
             assert proof_data["leaf_hash"] != ""
             assert proof_data["root_hash"] != ""
@@ -554,9 +546,7 @@ class TestE2EPipeline:
 
         events_resp = await client.get("/events")
         events = events_resp.json()
-        consent_events = [
-            e for e in events if e["event_type"] == "consent_update"
-        ]
+        consent_events = [e for e in events if e["event_type"] == "consent_update"]
         assert len(consent_events) == 2
 
         # After revocation, consent check should deny

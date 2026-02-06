@@ -225,7 +225,9 @@ class TestRunInference:
         image_bytes = _make_test_image()
 
         result = run_inference(
-            image_bytes, pca_path, svm_path,
+            image_bytes,
+            pca_path,
+            svm_path,
             previous_hash="prev_hash_123",
             sequence_number=5,
         )
@@ -251,7 +253,9 @@ class TestRunInference:
         parent_id = uuid4()
 
         result = run_inference(
-            image_bytes, pca_path, svm_path,
+            image_bytes,
+            pca_path,
+            svm_path,
             model_provenance_id=parent_id,
         )
 

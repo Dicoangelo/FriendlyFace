@@ -126,9 +126,7 @@ class TestConsentRecord:
 
 class TestGrantConsent:
     async def test_grant_creates_record(self, consent_mgr):
-        record = await consent_mgr.grant_consent(
-            "subj1", "recognition", actor="test"
-        )
+        record = await consent_mgr.grant_consent("subj1", "recognition", actor="test")
         assert record.subject_id == "subj1"
         assert record.purpose == "recognition"
         assert record.granted is True
@@ -137,9 +135,7 @@ class TestGrantConsent:
     async def test_grant_logs_forensic_event(self, consent_mgr, service):
         await consent_mgr.grant_consent("subj1", "recognition", actor="test")
         events = await service.get_all_events()
-        consent_events = [
-            e for e in events if e.event_type == EventType.CONSENT_UPDATE
-        ]
+        consent_events = [e for e in events if e.event_type == EventType.CONSENT_UPDATE]
         assert len(consent_events) == 1
         assert consent_events[0].payload["action"] == "grant"
         assert consent_events[0].payload["subject_id"] == "subj1"
@@ -177,15 +173,12 @@ class TestRevokeConsent:
 
     async def test_revoke_logs_forensic_event(self, consent_mgr, service):
         await consent_mgr.grant_consent("subj1", "recognition", actor="test")
-        await consent_mgr.revoke_consent(
-            "subj1", "recognition", reason="withdrawn", actor="test"
-        )
+        await consent_mgr.revoke_consent("subj1", "recognition", reason="withdrawn", actor="test")
         events = await service.get_all_events()
         revoke_events = [
             e
             for e in events
-            if e.event_type == EventType.CONSENT_UPDATE
-            and e.payload.get("action") == "revoke"
+            if e.event_type == EventType.CONSENT_UPDATE and e.payload.get("action") == "revoke"
         ]
         assert len(revoke_events) == 1
         assert revoke_events[0].payload["revocation_reason"] == "withdrawn"
@@ -219,16 +212,12 @@ class TestCheckConsent:
 
     async def test_expired_returns_false(self, consent_mgr):
         past_expiry = datetime.now(timezone.utc) - timedelta(hours=1)
-        await consent_mgr.grant_consent(
-            "subj1", "recognition", expiry=past_expiry, actor="test"
-        )
+        await consent_mgr.grant_consent("subj1", "recognition", expiry=past_expiry, actor="test")
         assert await consent_mgr.check_consent("subj1", "recognition") is False
 
     async def test_not_expired_returns_true(self, consent_mgr):
         future_expiry = datetime.now(timezone.utc) + timedelta(days=30)
-        await consent_mgr.grant_consent(
-            "subj1", "recognition", expiry=future_expiry, actor="test"
-        )
+        await consent_mgr.grant_consent("subj1", "recognition", expiry=future_expiry, actor="test")
         assert await consent_mgr.check_consent("subj1", "recognition") is True
 
     async def test_different_purposes_independent(self, consent_mgr):
@@ -258,81 +247,56 @@ class TestRequireConsent:
 
     async def test_raises_when_no_consent(self, consent_mgr):
         with pytest.raises(ConsentError, match="No consent record found"):
-            await consent_mgr.require_consent(
-                "subj1", "recognition", actor="test"
-            )
+            await consent_mgr.require_consent("subj1", "recognition", actor="test")
 
     async def test_raises_when_revoked(self, consent_mgr):
         await consent_mgr.grant_consent("subj1", "recognition", actor="test")
         await consent_mgr.revoke_consent("subj1", "recognition", actor="test")
         with pytest.raises(ConsentError, match="Consent revoked"):
-            await consent_mgr.require_consent(
-                "subj1", "recognition", actor="test"
-            )
+            await consent_mgr.require_consent("subj1", "recognition", actor="test")
 
     async def test_raises_when_expired(self, consent_mgr):
         past_expiry = datetime.now(timezone.utc) - timedelta(hours=1)
-        await consent_mgr.grant_consent(
-            "subj1", "recognition", expiry=past_expiry, actor="test"
-        )
+        await consent_mgr.grant_consent("subj1", "recognition", expiry=past_expiry, actor="test")
         with pytest.raises(ConsentError, match="Consent expired"):
-            await consent_mgr.require_consent(
-                "subj1", "recognition", actor="test"
-            )
+            await consent_mgr.require_consent("subj1", "recognition", actor="test")
 
-    async def test_block_logs_forensic_event_no_consent(
-        self, consent_mgr, service
-    ):
+    async def test_block_logs_forensic_event_no_consent(self, consent_mgr, service):
         with pytest.raises(ConsentError):
-            await consent_mgr.require_consent(
-                "subj1", "recognition", actor="test"
-            )
+            await consent_mgr.require_consent("subj1", "recognition", actor="test")
         events = await service.get_all_events()
         block_events = [
             e
             for e in events
-            if e.event_type == EventType.CONSENT_UPDATE
-            and e.payload.get("action") == "block"
+            if e.event_type == EventType.CONSENT_UPDATE and e.payload.get("action") == "block"
         ]
         assert len(block_events) == 1
         assert block_events[0].payload["reason"] == "no_consent_record"
 
-    async def test_block_logs_forensic_event_revoked(
-        self, consent_mgr, service
-    ):
+    async def test_block_logs_forensic_event_revoked(self, consent_mgr, service):
         await consent_mgr.grant_consent("subj1", "recognition", actor="test")
         await consent_mgr.revoke_consent("subj1", "recognition", actor="test")
         with pytest.raises(ConsentError):
-            await consent_mgr.require_consent(
-                "subj1", "recognition", actor="test"
-            )
+            await consent_mgr.require_consent("subj1", "recognition", actor="test")
         events = await service.get_all_events()
         block_events = [
             e
             for e in events
-            if e.event_type == EventType.CONSENT_UPDATE
-            and e.payload.get("action") == "block"
+            if e.event_type == EventType.CONSENT_UPDATE and e.payload.get("action") == "block"
         ]
         assert len(block_events) == 1
         assert block_events[0].payload["reason"] == "consent_revoked"
 
-    async def test_block_logs_forensic_event_expired(
-        self, consent_mgr, service
-    ):
+    async def test_block_logs_forensic_event_expired(self, consent_mgr, service):
         past_expiry = datetime.now(timezone.utc) - timedelta(hours=1)
-        await consent_mgr.grant_consent(
-            "subj1", "recognition", expiry=past_expiry, actor="test"
-        )
+        await consent_mgr.grant_consent("subj1", "recognition", expiry=past_expiry, actor="test")
         with pytest.raises(ConsentError):
-            await consent_mgr.require_consent(
-                "subj1", "recognition", actor="test"
-            )
+            await consent_mgr.require_consent("subj1", "recognition", actor="test")
         events = await service.get_all_events()
         block_events = [
             e
             for e in events
-            if e.event_type == EventType.CONSENT_UPDATE
-            and e.payload.get("action") == "block"
+            if e.event_type == EventType.CONSENT_UPDATE and e.payload.get("action") == "block"
         ]
         assert len(block_events) == 1
         assert block_events[0].payload["reason"] == "consent_expired"
@@ -368,9 +332,7 @@ class TestConsentStatus:
 
     async def test_status_expired(self, consent_mgr):
         past = datetime.now(timezone.utc) - timedelta(hours=1)
-        await consent_mgr.grant_consent(
-            "subj1", "recognition", expiry=past, actor="test"
-        )
+        await consent_mgr.grant_consent("subj1", "recognition", expiry=past, actor="test")
         status = await consent_mgr.get_consent_status("subj1", "recognition")
         assert status["has_consent"] is True
         assert status["granted"] is True
@@ -434,36 +396,20 @@ class TestConsentExpiry:
     async def test_check_with_custom_now(self, consent_mgr):
         """Consent valid at one time, expired at another."""
         expiry = datetime(2025, 6, 1, tzinfo=timezone.utc)
-        await consent_mgr.grant_consent(
-            "subj1", "recognition", expiry=expiry, actor="test"
-        )
+        await consent_mgr.grant_consent("subj1", "recognition", expiry=expiry, actor="test")
 
         before_expiry = datetime(2025, 5, 1, tzinfo=timezone.utc)
-        assert (
-            await consent_mgr.check_consent(
-                "subj1", "recognition", now=before_expiry
-            )
-            is True
-        )
+        assert await consent_mgr.check_consent("subj1", "recognition", now=before_expiry) is True
 
         after_expiry = datetime(2025, 7, 1, tzinfo=timezone.utc)
-        assert (
-            await consent_mgr.check_consent(
-                "subj1", "recognition", now=after_expiry
-            )
-            is False
-        )
+        assert await consent_mgr.check_consent("subj1", "recognition", now=after_expiry) is False
 
     async def test_require_with_custom_now_expired(self, consent_mgr):
         expiry = datetime(2025, 6, 1, tzinfo=timezone.utc)
-        await consent_mgr.grant_consent(
-            "subj1", "recognition", expiry=expiry, actor="test"
-        )
+        await consent_mgr.grant_consent("subj1", "recognition", expiry=expiry, actor="test")
         after = datetime(2025, 7, 1, tzinfo=timezone.utc)
         with pytest.raises(ConsentError, match="Consent expired"):
-            await consent_mgr.require_consent(
-                "subj1", "recognition", actor="test", now=after
-            )
+            await consent_mgr.require_consent("subj1", "recognition", actor="test", now=after)
 
 
 # ---------------------------------------------------------------------------
@@ -479,9 +425,7 @@ class TestForensicChainIntegrity:
 
         # Two CONSENT_UPDATE events expected
         events = await service.get_all_events()
-        consent_events = [
-            e for e in events if e.event_type == EventType.CONSENT_UPDATE
-        ]
+        consent_events = [e for e in events if e.event_type == EventType.CONSENT_UPDATE]
         assert len(consent_events) == 2
 
         # All events must verify
@@ -492,9 +436,7 @@ class TestForensicChainIntegrity:
         integrity = await service.verify_chain_integrity()
         assert integrity["valid"] is True
 
-    async def test_consent_events_chained_correctly(
-        self, consent_mgr, service
-    ):
+    async def test_consent_events_chained_correctly(self, consent_mgr, service):
         """Consent events should be properly hash-chained with other events."""
         # Record a non-consent event first
         await service.record_event(

@@ -157,9 +157,7 @@ class Database:
         return self._row_to_event(row)
 
     async def get_all_events(self) -> list[ForensicEvent]:
-        cursor = await self.db.execute(
-            "SELECT * FROM forensic_events ORDER BY sequence_number ASC"
-        )
+        cursor = await self.db.execute("SELECT * FROM forensic_events ORDER BY sequence_number ASC")
         rows = await cursor.fetchall()
         return [self._row_to_event(r) for r in rows]
 
@@ -274,10 +272,14 @@ class Database:
 
         proofs = [MerkleProof.model_validate(p) for p in json.loads(row["merkle_proofs"])]
 
-        recognition = json.loads(row["recognition_artifacts"]) if row["recognition_artifacts"] else None
+        recognition = (
+            json.loads(row["recognition_artifacts"]) if row["recognition_artifacts"] else None
+        )
         fl = json.loads(row["fl_artifacts"]) if row["fl_artifacts"] else None
         bias_rpt = json.loads(row["bias_report"]) if row["bias_report"] else None
-        explanation = json.loads(row["explanation_artifacts"]) if row["explanation_artifacts"] else None
+        explanation = (
+            json.loads(row["explanation_artifacts"]) if row["explanation_artifacts"] else None
+        )
 
         return ForensicBundle(
             id=UUID(row["id"]),
@@ -318,20 +320,15 @@ class Database:
         )
         await self.db.commit()
 
-
     async def get_bias_audit(self, audit_id: UUID) -> BiasAuditRecord | None:
-        cursor = await self.db.execute(
-            "SELECT * FROM bias_audits WHERE id = ?", (str(audit_id),)
-        )
+        cursor = await self.db.execute("SELECT * FROM bias_audits WHERE id = ?", (str(audit_id),))
         row = await cursor.fetchone()
         if row is None:
             return None
         return self._row_to_bias_audit(row)
 
     async def get_all_bias_audits(self) -> list[BiasAuditRecord]:
-        cursor = await self.db.execute(
-            "SELECT * FROM bias_audits ORDER BY timestamp ASC"
-        )
+        cursor = await self.db.execute("SELECT * FROM bias_audits ORDER BY timestamp ASC")
         rows = await cursor.fetchall()
         return [self._row_to_bias_audit(r) for r in rows]
 
@@ -378,9 +375,7 @@ class Database:
         )
         await self.db.commit()
 
-    async def get_latest_consent(
-        self, subject_id: str, purpose: str
-    ) -> dict[str, Any] | None:
+    async def get_latest_consent(self, subject_id: str, purpose: str) -> dict[str, Any] | None:
         """Get the most recent consent record for a subject+purpose pair."""
         cursor = await self.db.execute(
             """SELECT * FROM consent_records
@@ -434,9 +429,7 @@ class Database:
         Returns dict with total_subjects, subjects_with_active_consent,
         and coverage_pct.
         """
-        cursor = await self.db.execute(
-            "SELECT COUNT(DISTINCT subject_id) FROM consent_records"
-        )
+        cursor = await self.db.execute("SELECT COUNT(DISTINCT subject_id) FROM consent_records")
         row = await cursor.fetchone()
         total_subjects = row[0] if row else 0
 
@@ -475,9 +468,7 @@ class Database:
         row = await cursor.fetchone()
         total = row[0] if row else 0
 
-        cursor = await self.db.execute(
-            "SELECT COUNT(*) FROM bias_audits WHERE compliant = 1"
-        )
+        cursor = await self.db.execute("SELECT COUNT(*) FROM bias_audits WHERE compliant = 1")
         row = await cursor.fetchone()
         compliant = row[0] if row else 0
 
@@ -497,17 +488,12 @@ class Database:
         total_inferences = row[0] if row else 0
 
         cursor = await self.db.execute(
-            "SELECT COUNT(*) FROM forensic_events"
-            " WHERE event_type = 'explanation_generated'"
+            "SELECT COUNT(*) FROM forensic_events WHERE event_type = 'explanation_generated'"
         )
         row = await cursor.fetchone()
         total_explanations = row[0] if row else 0
 
-        coverage = (
-            (total_explanations / total_inferences * 100.0)
-            if total_inferences > 0
-            else 0.0
-        )
+        coverage = (total_explanations / total_inferences * 100.0) if total_inferences > 0 else 0.0
         return {
             "total_inferences": total_inferences,
             "total_explanations": total_explanations,

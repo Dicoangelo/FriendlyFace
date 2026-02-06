@@ -58,10 +58,7 @@ class GroupResult:
     @property
     def total(self) -> int:
         return (
-            self.true_positives
-            + self.false_positives
-            + self.true_negatives
-            + self.false_negatives
+            self.true_positives + self.false_positives + self.true_negatives + self.false_negatives
         )
 
     @property
@@ -278,9 +275,7 @@ class BiasAuditor:
             ValueError: If fewer than 2 groups are provided.
         """
         if len(group_results) < 2:
-            raise ValueError(
-                "At least 2 demographic groups are required for a bias audit"
-            )
+            raise ValueError("At least 2 demographic groups are required for a bias audit")
 
         # 1. Compute per-group metrics
         per_group = [compute_group_metrics(g) for g in group_results]
@@ -288,9 +283,7 @@ class BiasAuditor:
         # 2. Compute aggregate metrics
         dp_gap = compute_demographic_parity_gap(per_group)
         eo_gap = compute_equalized_odds_gap(per_group)
-        fairness_score = compute_overall_fairness_score(
-            dp_gap, eo_gap, self.thresholds
-        )
+        fairness_score = compute_overall_fairness_score(dp_gap, eo_gap, self.thresholds)
 
         # 3. Check compliance
         group_names = [g.group_name for g in group_results]

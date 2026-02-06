@@ -344,10 +344,13 @@ async def train_model(req: TrainRequest):
     labels = np.array(req.labels)
 
     # Re-load images and transform through PCA to get SVM features
-    image_vectors = np.stack([
-        np.asarray(Image.open(fp).convert("L"), dtype=np.float64).ravel()
-        for fp in sorted(dataset_dir.iterdir()) if fp.is_file()
-    ])
+    image_vectors = np.stack(
+        [
+            np.asarray(Image.open(fp).convert("L"), dtype=np.float64).ravel()
+            for fp in sorted(dataset_dir.iterdir())
+            if fp.is_file()
+        ]
+    )
     features = pca_result.model.transform(image_vectors)
 
     try:
@@ -578,14 +581,16 @@ async def get_fl_status():
     for sim_id, sim in _fl_simulations.items():
         completed_rounds = len(sim.rounds)
         total_rounds = sim.n_rounds
-        simulations.append({
-            "simulation_id": sim_id,
-            "n_clients": sim.n_clients,
-            "n_rounds": total_rounds,
-            "completed_rounds": completed_rounds,
-            "status": "completed" if completed_rounds == total_rounds else "in_progress",
-            "final_model_hash": sim.final_model_hash,
-        })
+        simulations.append(
+            {
+                "simulation_id": sim_id,
+                "n_clients": sim.n_clients,
+                "n_rounds": total_rounds,
+                "completed_rounds": completed_rounds,
+                "status": "completed" if completed_rounds == total_rounds else "in_progress",
+                "final_model_hash": sim.final_model_hash,
+            }
+        )
     return {
         "total_simulations": len(_fl_simulations),
         "simulations": simulations,
@@ -732,7 +737,9 @@ async def get_model(model_id: str):
     # Build provenance chain from the SVM provenance node (includes PCA parent)
     svm_prov_id = UUID(model["svm_provenance_id"])
     provenance_chain = _service.get_provenance_chain(svm_prov_id)
-    provenance_data = [n.model_dump(mode="json") for n in provenance_chain] if provenance_chain else []
+    provenance_data = (
+        [n.model_dump(mode="json") for n in provenance_chain] if provenance_chain else []
+    )
 
     return {
         **model,
@@ -780,9 +787,7 @@ class ConsentGrantRequest(BaseModel):
     """Request body for POST /consent/grant."""
 
     subject_id: str = Field(description="Subject identifier")
-    purpose: str = Field(
-        description="Purpose of consent (e.g. recognition, training)"
-    )
+    purpose: str = Field(description="Purpose of consent (e.g. recognition, training)")
     expiry: str | None = Field(
         default=None,
         description="Optional ISO-8601 expiry datetime",
@@ -894,6 +899,7 @@ _recognition_event_count: int = 0
 
 class BiasAuditRequest(BaseModel):
     """Request body for POST /fairness/audit."""
+
     groups: list[dict[str, Any]] = Field(
         description=(
             "List of group result dicts, each with: "
@@ -908,8 +914,10 @@ class BiasAuditRequest(BaseModel):
 
 class AutoAuditConfigRequest(BaseModel):
     """Request body for POST /fairness/config."""
+
     auto_audit_interval: int = Field(
-        default=50, ge=1,
+        default=50,
+        ge=1,
         description="Trigger auto-audit after every N recognition events",
     )
 
@@ -1089,10 +1097,20 @@ async def _maybe_auto_audit():
         # Use synthetic balanced groups as baseline auto-audit.
         # In production, this would pull real demographic performance data.
         groups = [
-            GroupResult("auto_group_a", true_positives=80, false_positives=10,
-                        true_negatives=90, false_negatives=20),
-            GroupResult("auto_group_b", true_positives=80, false_positives=10,
-                        true_negatives=90, false_negatives=20),
+            GroupResult(
+                "auto_group_a",
+                true_positives=80,
+                false_positives=10,
+                true_negatives=90,
+                false_negatives=20,
+            ),
+            GroupResult(
+                "auto_group_b",
+                true_positives=80,
+                false_positives=10,
+                true_negatives=90,
+                false_negatives=20,
+            ),
         ]
         auditor = BiasAuditor(
             _service,
@@ -1230,11 +1248,13 @@ async def compare_explanations(event_id: UUID):
         raise HTTPException(status_code=404, detail="Inference event not found")
 
     lime_results = [
-        e for e in _explanations.values()
+        e
+        for e in _explanations.values()
         if e["inference_event_id"] == str(event_id) and e["method"] == "lime"
     ]
     shap_results = [
-        e for e in _explanations.values()
+        e
+        for e in _explanations.values()
         if e["inference_event_id"] == str(event_id) and e["method"] == "shap"
     ]
 

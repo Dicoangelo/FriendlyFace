@@ -120,41 +120,48 @@ def make_three_groups_mixed() -> list[GroupResult]:
 
 class TestGroupResult:
     def test_total(self):
-        g = GroupResult("test", true_positives=10, false_positives=5,
-                        true_negatives=80, false_negatives=5)
+        g = GroupResult(
+            "test", true_positives=10, false_positives=5, true_negatives=80, false_negatives=5
+        )
         assert g.total == 100
 
     def test_positive_prediction_rate(self):
-        g = GroupResult("test", true_positives=10, false_positives=10,
-                        true_negatives=70, false_negatives=10)
+        g = GroupResult(
+            "test", true_positives=10, false_positives=10, true_negatives=70, false_negatives=10
+        )
         # 20 positive predictions out of 100 total = 0.2
         assert g.positive_prediction_rate == pytest.approx(0.2)
 
     def test_true_positive_rate(self):
-        g = GroupResult("test", true_positives=80, false_positives=10,
-                        true_negatives=90, false_negatives=20)
+        g = GroupResult(
+            "test", true_positives=80, false_positives=10, true_negatives=90, false_negatives=20
+        )
         # TPR = 80 / (80 + 20) = 0.8
         assert g.true_positive_rate == pytest.approx(0.8)
 
     def test_false_positive_rate(self):
-        g = GroupResult("test", true_positives=80, false_positives=10,
-                        true_negatives=90, false_negatives=20)
+        g = GroupResult(
+            "test", true_positives=80, false_positives=10, true_negatives=90, false_negatives=20
+        )
         # FPR = 10 / (10 + 90) = 0.1
         assert g.false_positive_rate == pytest.approx(0.1)
 
     def test_zero_actual_positives_tpr(self):
-        g = GroupResult("test", true_positives=0, false_positives=5,
-                        true_negatives=95, false_negatives=0)
+        g = GroupResult(
+            "test", true_positives=0, false_positives=5, true_negatives=95, false_negatives=0
+        )
         assert g.true_positive_rate == 0.0
 
     def test_zero_actual_negatives_fpr(self):
-        g = GroupResult("test", true_positives=50, false_positives=0,
-                        true_negatives=0, false_negatives=50)
+        g = GroupResult(
+            "test", true_positives=50, false_positives=0, true_negatives=0, false_negatives=50
+        )
         assert g.false_positive_rate == 0.0
 
     def test_empty_group(self):
-        g = GroupResult("empty", true_positives=0, false_positives=0,
-                        true_negatives=0, false_negatives=0)
+        g = GroupResult(
+            "empty", true_positives=0, false_positives=0, true_negatives=0, false_negatives=0
+        )
         assert g.total == 0
         assert g.positive_prediction_rate == 0.0
         assert g.true_positive_rate == 0.0
@@ -168,8 +175,9 @@ class TestGroupResult:
 
 class TestComputeGroupMetrics:
     def test_basic(self):
-        g = GroupResult("test", true_positives=80, false_positives=10,
-                        true_negatives=90, false_negatives=20)
+        g = GroupResult(
+            "test", true_positives=80, false_positives=10, true_negatives=90, false_negatives=20
+        )
         m = compute_group_metrics(g)
         assert m.group_name == "test"
         assert m.sample_count == 200
@@ -237,35 +245,25 @@ class TestEqualizedOddsGap:
 
 class TestOverallFairnessScore:
     def test_perfect_fairness(self):
-        score = compute_overall_fairness_score(
-            0.0, 0.0, FairnessThresholds(0.1, 0.1)
-        )
+        score = compute_overall_fairness_score(0.0, 0.0, FairnessThresholds(0.1, 0.1))
         assert score == pytest.approx(1.0)
 
     def test_at_threshold(self):
-        score = compute_overall_fairness_score(
-            0.1, 0.1, FairnessThresholds(0.1, 0.1)
-        )
+        score = compute_overall_fairness_score(0.1, 0.1, FairnessThresholds(0.1, 0.1))
         # Each metric scores 0.5, average = 0.5
         assert score == pytest.approx(0.5)
 
     def test_at_double_threshold(self):
-        score = compute_overall_fairness_score(
-            0.2, 0.2, FairnessThresholds(0.1, 0.1)
-        )
+        score = compute_overall_fairness_score(0.2, 0.2, FairnessThresholds(0.1, 0.1))
         assert score == pytest.approx(0.0)
 
     def test_mixed_gaps(self):
-        score = compute_overall_fairness_score(
-            0.0, 0.1, FairnessThresholds(0.1, 0.1)
-        )
+        score = compute_overall_fairness_score(0.0, 0.1, FairnessThresholds(0.1, 0.1))
         # DP: 1.0, EO: 0.5, average = 0.75
         assert score == pytest.approx(0.75)
 
     def test_beyond_double_threshold_clamps_to_zero(self):
-        score = compute_overall_fairness_score(
-            0.5, 0.5, FairnessThresholds(0.1, 0.1)
-        )
+        score = compute_overall_fairness_score(0.5, 0.5, FairnessThresholds(0.1, 0.1))
         assert score == pytest.approx(0.0)
 
 

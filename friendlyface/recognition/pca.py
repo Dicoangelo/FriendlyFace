@@ -45,9 +45,7 @@ def _load_images(image_dir: Path) -> np.ndarray:
             continue
         img = Image.open(fp).convert("L")
         if img.size != IMAGE_SIZE:
-            raise ValueError(
-                f"Image {fp.name} has size {img.size}, expected {IMAGE_SIZE}"
-            )
+            raise ValueError(f"Image {fp.name} has size {img.size}, expected {IMAGE_SIZE}")
         vectors.append(np.asarray(img, dtype=np.float64).ravel())
 
     if not vectors:
@@ -158,9 +156,7 @@ def train_pca(
             "n_samples": n_samples,
             "dataset_hash": dataset_hash,
             "output_path": str(output_path),
-            "explained_variance_ratio_sum": float(
-                np.sum(pca.explained_variance_ratio_)
-            ),
+            "explained_variance_ratio_sum": float(np.sum(pca.explained_variance_ratio_)),
         },
         previous_hash=previous_hash,
         sequence_number=sequence_number,

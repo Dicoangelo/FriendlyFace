@@ -39,6 +39,10 @@ CREATE TABLE IF NOT EXISTS forensic_bundles (
     merkle_proofs JSONB NOT NULL DEFAULT '[]',
     provenance_chain JSONB NOT NULL DEFAULT '[]',
     bias_audit TEXT,
+    recognition_artifacts JSONB,
+    fl_artifacts JSONB,
+    bias_report JSONB,
+    explanation_artifacts JSONB,
     zk_proof_placeholder TEXT,
     did_credential_placeholder TEXT,
     bundle_hash TEXT NOT NULL DEFAULT ''
@@ -56,12 +60,28 @@ CREATE TABLE IF NOT EXISTS bias_audits (
     details JSONB NOT NULL DEFAULT '{}'
 );
 
+-- consent_records: Append-only consent management
+CREATE TABLE IF NOT EXISTS consent_records (
+    id UUID PRIMARY KEY,
+    subject_id TEXT NOT NULL,
+    purpose TEXT NOT NULL,
+    granted BOOLEAN NOT NULL DEFAULT TRUE,
+    timestamp TIMESTAMPTZ NOT NULL,
+    expiry TIMESTAMPTZ,
+    revocation_reason TEXT,
+    event_id UUID REFERENCES forensic_events(id)
+);
+
+CREATE INDEX IF NOT EXISTS idx_consent_subject_purpose
+    ON consent_records (subject_id, purpose, timestamp);
+
 -- Enable Row Level Security (RLS) on all tables.
 -- Policies should be configured separately per deployment.
 ALTER TABLE forensic_events ENABLE ROW LEVEL SECURITY;
 ALTER TABLE provenance_nodes ENABLE ROW LEVEL SECURITY;
 ALTER TABLE forensic_bundles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE bias_audits ENABLE ROW LEVEL SECURITY;
+ALTER TABLE consent_records ENABLE ROW LEVEL SECURITY;
 
 -- Allow service_role full access (needed for the backend).
 CREATE POLICY "service_role_all_forensic_events" ON forensic_events
@@ -71,4 +91,6 @@ CREATE POLICY "service_role_all_provenance_nodes" ON provenance_nodes
 CREATE POLICY "service_role_all_forensic_bundles" ON forensic_bundles
     FOR ALL USING (auth.role() = 'service_role');
 CREATE POLICY "service_role_all_bias_audits" ON bias_audits
+    FOR ALL USING (auth.role() = 'service_role');
+CREATE POLICY "service_role_all_consent_records" ON consent_records
     FOR ALL USING (auth.role() = 'service_role');

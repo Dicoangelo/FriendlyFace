@@ -12,11 +12,14 @@ class TestHealth:
 
 class TestEvents:
     async def test_record_event(self, client):
-        resp = await client.post("/events", json={
-            "event_type": "training_start",
-            "actor": "test_agent",
-            "payload": {"model": "resnet50"},
-        })
+        resp = await client.post(
+            "/events",
+            json={
+                "event_type": "training_start",
+                "actor": "test_agent",
+                "payload": {"model": "resnet50"},
+            },
+        )
         assert resp.status_code == 201
         data = resp.json()
         assert data["event_type"] == "training_start"
@@ -25,14 +28,20 @@ class TestEvents:
         assert data["sequence_number"] == 0
 
     async def test_hash_chain(self, client):
-        r1 = await client.post("/events", json={
-            "event_type": "training_start",
-            "actor": "agent",
-        })
-        r2 = await client.post("/events", json={
-            "event_type": "training_complete",
-            "actor": "agent",
-        })
+        r1 = await client.post(
+            "/events",
+            json={
+                "event_type": "training_start",
+                "actor": "agent",
+            },
+        )
+        r2 = await client.post(
+            "/events",
+            json={
+                "event_type": "training_complete",
+                "actor": "agent",
+            },
+        )
 
         e1 = r1.json()
         e2 = r2.json()
@@ -40,19 +49,25 @@ class TestEvents:
         assert e2["sequence_number"] == 1
 
     async def test_list_events(self, client):
-        await client.post("/events", json={
-            "event_type": "inference_request",
-            "actor": "agent",
-        })
+        await client.post(
+            "/events",
+            json={
+                "event_type": "inference_request",
+                "actor": "agent",
+            },
+        )
         resp = await client.get("/events")
         assert resp.status_code == 200
         assert len(resp.json()) >= 1
 
     async def test_get_event_by_id(self, client):
-        r = await client.post("/events", json={
-            "event_type": "bias_audit",
-            "actor": "auditor",
-        })
+        r = await client.post(
+            "/events",
+            json={
+                "event_type": "bias_audit",
+                "actor": "auditor",
+            },
+        )
         eid = r.json()["id"]
         resp = await client.get(f"/events/{eid}")
         assert resp.status_code == 200
@@ -70,10 +85,13 @@ class TestMerkle:
         assert resp.json()["merkle_root"] is None
 
     async def test_merkle_proof_after_events(self, client):
-        r = await client.post("/events", json={
-            "event_type": "inference_result",
-            "actor": "model",
-        })
+        r = await client.post(
+            "/events",
+            json={
+                "event_type": "inference_result",
+                "actor": "model",
+            },
+        )
         eid = r.json()["id"]
 
         resp = await client.get(f"/merkle/proof/{eid}")
@@ -83,17 +101,23 @@ class TestMerkle:
         assert proof["root_hash"] != ""
 
     async def test_merkle_root_updates(self, client):
-        await client.post("/events", json={
-            "event_type": "training_start",
-            "actor": "a",
-        })
+        await client.post(
+            "/events",
+            json={
+                "event_type": "training_start",
+                "actor": "a",
+            },
+        )
         r1 = await client.get("/merkle/root")
         root1 = r1.json()["merkle_root"]
 
-        await client.post("/events", json={
-            "event_type": "training_complete",
-            "actor": "a",
-        })
+        await client.post(
+            "/events",
+            json={
+                "event_type": "training_complete",
+                "actor": "a",
+            },
+        )
         r2 = await client.get("/merkle/root")
         root2 = r2.json()["merkle_root"]
 
@@ -103,23 +127,32 @@ class TestMerkle:
 class TestBundles:
     async def test_create_and_verify_bundle(self, client):
         # Create events
-        r1 = await client.post("/events", json={
-            "event_type": "inference_request",
-            "actor": "user",
-        })
-        r2 = await client.post("/events", json={
-            "event_type": "inference_result",
-            "actor": "model",
-            "payload": {"score": 0.95},
-        })
+        r1 = await client.post(
+            "/events",
+            json={
+                "event_type": "inference_request",
+                "actor": "user",
+            },
+        )
+        r2 = await client.post(
+            "/events",
+            json={
+                "event_type": "inference_result",
+                "actor": "model",
+                "payload": {"score": 0.95},
+            },
+        )
 
         eid1 = r1.json()["id"]
         eid2 = r2.json()["id"]
 
         # Create bundle
-        br = await client.post("/bundles", json={
-            "event_ids": [eid1, eid2],
-        })
+        br = await client.post(
+            "/bundles",
+            json={
+                "event_ids": [eid1, eid2],
+            },
+        )
         assert br.status_code == 201
         bundle = br.json()
         assert bundle["status"] == "complete"
@@ -133,13 +166,19 @@ class TestBundles:
         assert result["status"] == "verified"
 
     async def test_get_bundle(self, client):
-        r = await client.post("/events", json={
-            "event_type": "consent_recorded",
-            "actor": "subject",
-        })
-        br = await client.post("/bundles", json={
-            "event_ids": [r.json()["id"]],
-        })
+        r = await client.post(
+            "/events",
+            json={
+                "event_type": "consent_recorded",
+                "actor": "subject",
+            },
+        )
+        br = await client.post(
+            "/bundles",
+            json={
+                "event_ids": [r.json()["id"]],
+            },
+        )
         bid = br.json()["id"]
 
         resp = await client.get(f"/bundles/{bid}")
@@ -157,10 +196,13 @@ class TestChainIntegrity:
 
     async def test_chain_integrity_with_events(self, client):
         for i in range(5):
-            await client.post("/events", json={
-                "event_type": "inference_request",
-                "actor": f"agent_{i}",
-            })
+            await client.post(
+                "/events",
+                json={
+                    "event_type": "inference_request",
+                    "actor": f"agent_{i}",
+                },
+            )
         resp = await client.get("/chain/integrity")
         data = resp.json()
         assert data["valid"]
@@ -169,11 +211,14 @@ class TestChainIntegrity:
 
 class TestProvenance:
     async def test_add_and_get_provenance(self, client):
-        r = await client.post("/provenance", json={
-            "entity_type": "dataset",
-            "entity_id": "faces_v1",
-            "metadata": {"size": 10000},
-        })
+        r = await client.post(
+            "/provenance",
+            json={
+                "entity_type": "dataset",
+                "entity_id": "faces_v1",
+                "metadata": {"size": 10000},
+            },
+        )
         assert r.status_code == 201
         node = r.json()
         assert node["entity_type"] == "dataset"
@@ -184,22 +229,31 @@ class TestProvenance:
         assert len(chain) == 1
 
     async def test_provenance_chain(self, client):
-        r1 = await client.post("/provenance", json={
-            "entity_type": "dataset",
-            "entity_id": "d1",
-        })
-        r2 = await client.post("/provenance", json={
-            "entity_type": "model",
-            "entity_id": "m1",
-            "parents": [r1.json()["id"]],
-            "relations": ["derived_from"],
-        })
-        r3 = await client.post("/provenance", json={
-            "entity_type": "inference",
-            "entity_id": "inf1",
-            "parents": [r2.json()["id"]],
-            "relations": ["generated_by"],
-        })
+        r1 = await client.post(
+            "/provenance",
+            json={
+                "entity_type": "dataset",
+                "entity_id": "d1",
+            },
+        )
+        r2 = await client.post(
+            "/provenance",
+            json={
+                "entity_type": "model",
+                "entity_id": "m1",
+                "parents": [r1.json()["id"]],
+                "relations": ["derived_from"],
+            },
+        )
+        r3 = await client.post(
+            "/provenance",
+            json={
+                "entity_type": "inference",
+                "entity_id": "inf1",
+                "parents": [r2.json()["id"]],
+                "relations": ["generated_by"],
+            },
+        )
 
         resp = await client.get(f"/provenance/{r3.json()['id']}")
         chain = resp.json()

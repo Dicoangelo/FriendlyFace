@@ -189,9 +189,7 @@ class TestCreateBundleWithLayerFilters:
         e1 = await service.record_event(
             EventType.INFERENCE_RESULT, actor="model", payload={"score": 0.9}
         )
-        e2 = await service.record_event(
-            EventType.FL_ROUND, actor="fl", payload={"round": 1}
-        )
+        e2 = await service.record_event(EventType.FL_ROUND, actor="fl", payload={"round": 1})
         bundle = await service.create_bundle(
             event_ids=[e1.id, e2.id],
             layer_filters=["recognition"],

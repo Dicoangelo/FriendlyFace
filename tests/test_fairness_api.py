@@ -19,6 +19,7 @@ import pytest
 # Helpers
 # ---------------------------------------------------------------------------
 
+
 def _unbiased_groups():
     """Two groups with identical metrics."""
     return [
@@ -66,9 +67,12 @@ def _biased_groups():
 
 class TestManualBiasAudit:
     async def test_trigger_unbiased_audit(self, client):
-        resp = await client.post("/fairness/audit", json={
-            "groups": _unbiased_groups(),
-        })
+        resp = await client.post(
+            "/fairness/audit",
+            json={
+                "groups": _unbiased_groups(),
+            },
+        )
         assert resp.status_code == 201
         data = resp.json()
         assert data["compliant"] is True
@@ -82,11 +86,14 @@ class TestManualBiasAudit:
         assert "group_b" in data["groups_evaluated"]
 
     async def test_trigger_biased_audit(self, client):
-        resp = await client.post("/fairness/audit", json={
-            "groups": _biased_groups(),
-            "demographic_parity_threshold": 0.1,
-            "equalized_odds_threshold": 0.1,
-        })
+        resp = await client.post(
+            "/fairness/audit",
+            json={
+                "groups": _biased_groups(),
+                "demographic_parity_threshold": 0.1,
+                "equalized_odds_threshold": 0.1,
+            },
+        )
         assert resp.status_code == 201
         data = resp.json()
         assert data["compliant"] is False
@@ -94,36 +101,48 @@ class TestManualBiasAudit:
         assert len(data["alerts"]) > 0
 
     async def test_audit_with_custom_thresholds(self, client):
-        resp = await client.post("/fairness/audit", json={
-            "groups": _unbiased_groups(),
-            "demographic_parity_threshold": 0.001,
-            "equalized_odds_threshold": 0.001,
-        })
+        resp = await client.post(
+            "/fairness/audit",
+            json={
+                "groups": _unbiased_groups(),
+                "demographic_parity_threshold": 0.001,
+                "equalized_odds_threshold": 0.001,
+            },
+        )
         assert resp.status_code == 201
         data = resp.json()
         assert data["compliant"] is True
 
     async def test_audit_with_metadata(self, client):
-        resp = await client.post("/fairness/audit", json={
-            "groups": _unbiased_groups(),
-            "metadata": {"model_version": "v2.1"},
-        })
+        resp = await client.post(
+            "/fairness/audit",
+            json={
+                "groups": _unbiased_groups(),
+                "metadata": {"model_version": "v2.1"},
+            },
+        )
         assert resp.status_code == 201
 
     async def test_audit_fewer_than_two_groups_rejected(self, client):
-        resp = await client.post("/fairness/audit", json={
-            "groups": [_unbiased_groups()[0]],
-        })
+        resp = await client.post(
+            "/fairness/audit",
+            json={
+                "groups": [_unbiased_groups()[0]],
+            },
+        )
         assert resp.status_code == 400
         assert "2 demographic groups" in resp.json()["detail"]
 
     async def test_audit_missing_group_field_rejected(self, client):
-        resp = await client.post("/fairness/audit", json={
-            "groups": [
-                {"group_name": "a", "true_positives": 10},
-                {"group_name": "b", "true_positives": 10},
-            ],
-        })
+        resp = await client.post(
+            "/fairness/audit",
+            json={
+                "groups": [
+                    {"group_name": "a", "true_positives": 10},
+                    {"group_name": "b", "true_positives": 10},
+                ],
+            },
+        )
         assert resp.status_code == 400
         assert "Missing required field" in resp.json()["detail"]
 
@@ -142,9 +161,12 @@ class TestListBiasAudits:
         assert data["audits"] == []
 
     async def test_list_after_audit(self, client):
-        await client.post("/fairness/audit", json={
-            "groups": _unbiased_groups(),
-        })
+        await client.post(
+            "/fairness/audit",
+            json={
+                "groups": _unbiased_groups(),
+            },
+        )
         resp = await client.get("/fairness/audits")
         assert resp.status_code == 200
         data = resp.json()
@@ -171,9 +193,12 @@ class TestListBiasAudits:
 
 class TestGetBiasAudit:
     async def test_get_audit_by_id(self, client):
-        create_resp = await client.post("/fairness/audit", json={
-            "groups": _unbiased_groups(),
-        })
+        create_resp = await client.post(
+            "/fairness/audit",
+            json={
+                "groups": _unbiased_groups(),
+            },
+        )
         audit_id = create_resp.json()["audit_id"]
 
         resp = await client.get(f"/fairness/audits/{audit_id}")
@@ -186,15 +211,16 @@ class TestGetBiasAudit:
         assert "per_group_metrics" in data["details"]
 
     async def test_get_audit_not_found(self, client):
-        resp = await client.get(
-            "/fairness/audits/00000000-0000-0000-0000-000000000000"
-        )
+        resp = await client.get("/fairness/audits/00000000-0000-0000-0000-000000000000")
         assert resp.status_code == 404
 
     async def test_audit_details_contain_per_group_breakdowns(self, client):
-        create_resp = await client.post("/fairness/audit", json={
-            "groups": _unbiased_groups(),
-        })
+        create_resp = await client.post(
+            "/fairness/audit",
+            json={
+                "groups": _unbiased_groups(),
+            },
+        )
         audit_id = create_resp.json()["audit_id"]
 
         resp = await client.get(f"/fairness/audits/{audit_id}")
@@ -223,9 +249,12 @@ class TestFairnessStatus:
         assert data["total_audits"] == 0
 
     async def test_status_pass_after_compliant_audit(self, client):
-        await client.post("/fairness/audit", json={
-            "groups": _unbiased_groups(),
-        })
+        await client.post(
+            "/fairness/audit",
+            json={
+                "groups": _unbiased_groups(),
+            },
+        )
         resp = await client.get("/fairness/status")
         data = resp.json()
         assert data["status"] == "pass"
@@ -233,34 +262,46 @@ class TestFairnessStatus:
         assert data["fairness_score"] >= 0.7
 
     async def test_status_fail_after_non_compliant_audit(self, client):
-        await client.post("/fairness/audit", json={
-            "groups": _biased_groups(),
-            "demographic_parity_threshold": 0.01,
-            "equalized_odds_threshold": 0.01,
-        })
+        await client.post(
+            "/fairness/audit",
+            json={
+                "groups": _biased_groups(),
+                "demographic_parity_threshold": 0.01,
+                "equalized_odds_threshold": 0.01,
+            },
+        )
         resp = await client.get("/fairness/status")
         data = resp.json()
         assert data["status"] == "fail"
         assert data["compliant"] is False
 
     async def test_status_reflects_latest_audit(self, client):
-        await client.post("/fairness/audit", json={
-            "groups": _biased_groups(),
-            "demographic_parity_threshold": 0.01,
-            "equalized_odds_threshold": 0.01,
-        })
-        await client.post("/fairness/audit", json={
-            "groups": _unbiased_groups(),
-        })
+        await client.post(
+            "/fairness/audit",
+            json={
+                "groups": _biased_groups(),
+                "demographic_parity_threshold": 0.01,
+                "equalized_odds_threshold": 0.01,
+            },
+        )
+        await client.post(
+            "/fairness/audit",
+            json={
+                "groups": _unbiased_groups(),
+            },
+        )
         resp = await client.get("/fairness/status")
         data = resp.json()
         assert data["status"] == "pass"
         assert data["total_audits"] >= 2
 
     async def test_status_includes_summary_fields(self, client):
-        await client.post("/fairness/audit", json={
-            "groups": _unbiased_groups(),
-        })
+        await client.post(
+            "/fairness/audit",
+            json={
+                "groups": _unbiased_groups(),
+            },
+        )
         resp = await client.get("/fairness/status")
         data = resp.json()
         assert "fairness_score" in data
@@ -284,9 +325,12 @@ class TestAutoAuditConfig:
         assert "auto_audit_interval" in data
 
     async def test_set_config(self, client):
-        resp = await client.post("/fairness/config", json={
-            "auto_audit_interval": 10,
-        })
+        resp = await client.post(
+            "/fairness/config",
+            json={
+                "auto_audit_interval": 10,
+            },
+        )
         assert resp.status_code == 200
         data = resp.json()
         assert data["auto_audit_interval"] == 10
@@ -320,9 +364,7 @@ class TestAutoAuditTrigger:
         audits = resp.json()["audits"]
         found_auto = False
         for audit in audits:
-            detail_resp = await client.get(
-                f"/fairness/audits/{audit['audit_id']}"
-            )
+            detail_resp = await client.get(f"/fairness/audits/{audit['audit_id']}")
             details = detail_resp.json().get("details", {})
             meta = details.get("metadata", {})
             if meta.get("trigger") == "auto":
@@ -363,17 +405,23 @@ class TestAutoAuditTrigger:
 
 class TestFairnessChainIntegrity:
     async def test_chain_valid_after_manual_audit(self, client):
-        await client.post("/fairness/audit", json={
-            "groups": _unbiased_groups(),
-        })
+        await client.post(
+            "/fairness/audit",
+            json={
+                "groups": _unbiased_groups(),
+            },
+        )
         resp = await client.get("/chain/integrity")
         assert resp.json()["valid"] is True
 
     async def test_chain_valid_after_biased_audit_with_alerts(self, client):
-        await client.post("/fairness/audit", json={
-            "groups": _biased_groups(),
-            "demographic_parity_threshold": 0.01,
-            "equalized_odds_threshold": 0.01,
-        })
+        await client.post(
+            "/fairness/audit",
+            json={
+                "groups": _biased_groups(),
+                "demographic_parity_threshold": 0.01,
+                "equalized_odds_threshold": 0.01,
+            },
+        )
         resp = await client.get("/chain/integrity")
         assert resp.json()["valid"] is True

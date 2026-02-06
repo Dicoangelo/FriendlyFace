@@ -114,11 +114,7 @@ class ComplianceReporter:
             ),
             "explanation_coverage": explanation_stats,
             "bundle_integrity": bundle_stats,
-            "status": (
-                "pass"
-                if (explanation_pct >= 70.0 and bundle_pct >= 70.0)
-                else "fail"
-            ),
+            "status": ("pass" if (explanation_pct >= 70.0 and bundle_pct >= 70.0) else "fail"),
         }
 
         report_id = str(uuid4())

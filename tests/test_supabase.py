@@ -163,9 +163,7 @@ class TestEventStorage:
             "sequence_number": 3,
         }
 
-        tbl = mock_client._tables.setdefault(
-            "forensic_events", _make_mock_table()
-        )
+        tbl = mock_client._tables.setdefault("forensic_events", _make_mock_table())
         select_chain = tbl.select.return_value
         select_chain.eq.return_value = select_chain
         select_chain.execute = AsyncMock(return_value=MockResponse(data=[row]))
@@ -198,9 +196,7 @@ class TestEventStorage:
             "sequence_number": 5,
         }
 
-        tbl = mock_client._tables.setdefault(
-            "forensic_events", _make_mock_table()
-        )
+        tbl = mock_client._tables.setdefault("forensic_events", _make_mock_table())
         select_chain = tbl.select.return_value
         select_chain.order.return_value = select_chain
         select_chain.limit.return_value = select_chain
@@ -231,9 +227,7 @@ class TestEventStorage:
                 }
             )
 
-        tbl = mock_client._tables.setdefault(
-            "forensic_events", _make_mock_table()
-        )
+        tbl = mock_client._tables.setdefault("forensic_events", _make_mock_table())
         select_chain = tbl.select.return_value
         select_chain.order.return_value = select_chain
         select_chain.execute = AsyncMock(return_value=MockResponse(data=rows))
@@ -243,25 +237,17 @@ class TestEventStorage:
         assert [e.sequence_number for e in events] == [0, 1, 2]
 
     async def test_get_event_count(self, db, mock_client):
-        tbl = mock_client._tables.setdefault(
-            "forensic_events", _make_mock_table()
-        )
+        tbl = mock_client._tables.setdefault("forensic_events", _make_mock_table())
         select_chain = tbl.select.return_value
-        select_chain.execute = AsyncMock(
-            return_value=MockResponse(data=[], count=42)
-        )
+        select_chain.execute = AsyncMock(return_value=MockResponse(data=[], count=42))
 
         count = await db.get_event_count()
         assert count == 42
 
     async def test_get_event_count_none_returns_zero(self, db, mock_client):
-        tbl = mock_client._tables.setdefault(
-            "forensic_events", _make_mock_table()
-        )
+        tbl = mock_client._tables.setdefault("forensic_events", _make_mock_table())
         select_chain = tbl.select.return_value
-        select_chain.execute = AsyncMock(
-            return_value=MockResponse(data=[], count=None)
-        )
+        select_chain.execute = AsyncMock(return_value=MockResponse(data=[], count=None))
 
         count = await db.get_event_count()
         assert count == 0
@@ -312,9 +298,7 @@ class TestProvenanceStorage:
             "node_hash": node.node_hash,
         }
 
-        tbl = mock_client._tables.setdefault(
-            "provenance_nodes", _make_mock_table()
-        )
+        tbl = mock_client._tables.setdefault("provenance_nodes", _make_mock_table())
         select_chain = tbl.select.return_value
         select_chain.eq.return_value = select_chain
         select_chain.execute = AsyncMock(return_value=MockResponse(data=[row]))
@@ -347,9 +331,7 @@ class TestProvenanceStorage:
             "node_hash": node.node_hash,
         }
 
-        tbl = mock_client._tables.setdefault(
-            "provenance_nodes", _make_mock_table()
-        )
+        tbl = mock_client._tables.setdefault("provenance_nodes", _make_mock_table())
         select_chain = tbl.select.return_value
         select_chain.eq.return_value = select_chain
         select_chain.execute = AsyncMock(return_value=MockResponse(data=[row]))
@@ -404,9 +386,7 @@ class TestBundleStorage:
             "bundle_hash": bundle.bundle_hash,
         }
 
-        tbl = mock_client._tables.setdefault(
-            "forensic_bundles", _make_mock_table()
-        )
+        tbl = mock_client._tables.setdefault("forensic_bundles", _make_mock_table())
         select_chain = tbl.select.return_value
         select_chain.eq.return_value = select_chain
         select_chain.execute = AsyncMock(return_value=MockResponse(data=[row]))

@@ -58,9 +58,7 @@ class ShapExplanation:
             "inference_event_id": str(self.inference_event_id),
             "predicted_label": self.predicted_label,
             "original_confidence": self.original_confidence,
-            "shap_values_hash": sha256_hex(
-                self.shap_values.tobytes().hex()
-            ),
+            "shap_values_hash": sha256_hex(self.shap_values.tobytes().hex()),
             "feature_importance_ranking": self.feature_importance_ranking,
             "base_value": self.base_value,
             "num_samples": self.num_samples,
@@ -131,9 +129,7 @@ def _kernel_shap(
         x_without[~mask] = instance[~mask]
 
         # Predict
-        preds = predict_fn(
-            np.vstack([x_with[np.newaxis], x_without[np.newaxis]])
-        )
+        preds = predict_fn(np.vstack([x_with[np.newaxis], x_without[np.newaxis]]))
         delta = preds[0] - preds[1]
 
         # Assign equal credit to coalition members
@@ -224,9 +220,7 @@ def generate_shap_explanation(
     )
 
     # Feature importance ranking: sorted by descending |SHAP value|
-    feature_importance_ranking = list(
-        np.argsort(-np.abs(shap_values))
-    )
+    feature_importance_ranking = list(np.argsort(-np.abs(shap_values)))
 
     # Create the explanation object
     explanation = ShapExplanation(
@@ -258,9 +252,7 @@ def generate_shap_explanation(
             "top_features": [
                 {
                     "feature_index": int(feature_importance_ranking[i]),
-                    "shap_value": float(
-                        shap_values[feature_importance_ranking[i]]
-                    ),
+                    "shap_value": float(shap_values[feature_importance_ranking[i]]),
                 }
                 for i in range(top_k)
             ],

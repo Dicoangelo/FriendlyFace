@@ -18,7 +18,9 @@ from PIL import Image
 from friendlyface.recognition.pca import IMAGE_SIZE
 
 
-def _create_test_dataset(tmp_path: Path, n_images: int = 12, n_classes: int = 3) -> tuple[Path, list[int]]:
+def _create_test_dataset(
+    tmp_path: Path, n_images: int = 12, n_classes: int = 3
+) -> tuple[Path, list[int]]:
     """Create a synthetic image dataset directory and return (dir_path, labels)."""
     rng = np.random.default_rng(42)
     dataset_dir = tmp_path / "dataset"
@@ -55,12 +57,15 @@ class TestTrainEndpoint:
         dataset_dir, labels = _create_test_dataset(tmp_path)
         output_dir = tmp_path / "models"
 
-        resp = await client.post("/recognition/train", json={
-            "dataset_path": str(dataset_dir),
-            "output_dir": str(output_dir),
-            "n_components": 5,
-            "labels": labels,
-        })
+        resp = await client.post(
+            "/recognition/train",
+            json={
+                "dataset_path": str(dataset_dir),
+                "output_dir": str(output_dir),
+                "n_components": 5,
+                "labels": labels,
+            },
+        )
         assert resp.status_code == 201
         data = resp.json()
 
@@ -82,12 +87,15 @@ class TestTrainEndpoint:
         dataset_dir, labels = _create_test_dataset(tmp_path)
         output_dir = tmp_path / "models"
 
-        await client.post("/recognition/train", json={
-            "dataset_path": str(dataset_dir),
-            "output_dir": str(output_dir),
-            "n_components": 5,
-            "labels": labels,
-        })
+        await client.post(
+            "/recognition/train",
+            json={
+                "dataset_path": str(dataset_dir),
+                "output_dir": str(output_dir),
+                "n_components": 5,
+                "labels": labels,
+            },
+        )
 
         assert (output_dir / "pca.pkl").exists()
         assert (output_dir / "svm.pkl").exists()
@@ -97,12 +105,15 @@ class TestTrainEndpoint:
         dataset_dir, labels = _create_test_dataset(tmp_path)
         output_dir = tmp_path / "models"
 
-        resp = await client.post("/recognition/train", json={
-            "dataset_path": str(dataset_dir),
-            "output_dir": str(output_dir),
-            "n_components": 5,
-            "labels": labels,
-        })
+        resp = await client.post(
+            "/recognition/train",
+            json={
+                "dataset_path": str(dataset_dir),
+                "output_dir": str(output_dir),
+                "n_components": 5,
+                "labels": labels,
+            },
+        )
         data = resp.json()
 
         # Verify PCA event exists
@@ -124,12 +135,15 @@ class TestTrainEndpoint:
         dataset_dir, labels = _create_test_dataset(tmp_path)
         output_dir = tmp_path / "models"
 
-        resp = await client.post("/recognition/train", json={
-            "dataset_path": str(dataset_dir),
-            "output_dir": str(output_dir),
-            "n_components": 5,
-            "labels": labels,
-        })
+        resp = await client.post(
+            "/recognition/train",
+            json={
+                "dataset_path": str(dataset_dir),
+                "output_dir": str(output_dir),
+                "n_components": 5,
+                "labels": labels,
+            },
+        )
         data = resp.json()
 
         # SVM provenance chain should include PCA parent
@@ -142,20 +156,26 @@ class TestTrainEndpoint:
 
     async def test_train_invalid_dataset_path(self, client, tmp_path):
         """Returns 400 for nonexistent dataset directory."""
-        resp = await client.post("/recognition/train", json={
-            "dataset_path": str(tmp_path / "nonexistent"),
-            "output_dir": str(tmp_path / "models"),
-            "labels": [0, 1, 2],
-        })
+        resp = await client.post(
+            "/recognition/train",
+            json={
+                "dataset_path": str(tmp_path / "nonexistent"),
+                "output_dir": str(tmp_path / "models"),
+                "labels": [0, 1, 2],
+            },
+        )
         assert resp.status_code == 400
 
     async def test_train_missing_labels(self, client, tmp_path):
         """Returns 400 when labels are not provided."""
         dataset_dir, _ = _create_test_dataset(tmp_path)
-        resp = await client.post("/recognition/train", json={
-            "dataset_path": str(dataset_dir),
-            "output_dir": str(tmp_path / "models"),
-        })
+        resp = await client.post(
+            "/recognition/train",
+            json={
+                "dataset_path": str(dataset_dir),
+                "output_dir": str(tmp_path / "models"),
+            },
+        )
         assert resp.status_code == 400
 
     async def test_train_custom_hyperparameters(self, client, tmp_path):
@@ -163,15 +183,18 @@ class TestTrainEndpoint:
         dataset_dir, labels = _create_test_dataset(tmp_path)
         output_dir = tmp_path / "models"
 
-        resp = await client.post("/recognition/train", json={
-            "dataset_path": str(dataset_dir),
-            "output_dir": str(output_dir),
-            "n_components": 3,
-            "C": 10.0,
-            "kernel": "rbf",
-            "cv_folds": 3,
-            "labels": labels,
-        })
+        resp = await client.post(
+            "/recognition/train",
+            json={
+                "dataset_path": str(dataset_dir),
+                "output_dir": str(output_dir),
+                "n_components": 3,
+                "C": 10.0,
+                "kernel": "rbf",
+                "cv_folds": 3,
+                "labels": labels,
+            },
+        )
         assert resp.status_code == 201
         data = resp.json()
         assert data["n_components"] == 3
@@ -208,12 +231,15 @@ class TestPredictEndpoint:
         output_dir = tmp_path / "models"
 
         # Train first
-        train_resp = await client.post("/recognition/train", json={
-            "dataset_path": str(dataset_dir),
-            "output_dir": str(output_dir),
-            "n_components": 5,
-            "labels": labels,
-        })
+        train_resp = await client.post(
+            "/recognition/train",
+            json={
+                "dataset_path": str(dataset_dir),
+                "output_dir": str(output_dir),
+                "n_components": 5,
+                "labels": labels,
+            },
+        )
         assert train_resp.status_code == 201
 
         # Predict
@@ -236,12 +262,15 @@ class TestPredictEndpoint:
         dataset_dir, labels = _create_test_dataset(tmp_path)
         output_dir = tmp_path / "models"
 
-        await client.post("/recognition/train", json={
-            "dataset_path": str(dataset_dir),
-            "output_dir": str(output_dir),
-            "n_components": 5,
-            "labels": labels,
-        })
+        await client.post(
+            "/recognition/train",
+            json={
+                "dataset_path": str(dataset_dir),
+                "output_dir": str(output_dir),
+                "n_components": 5,
+                "labels": labels,
+            },
+        )
 
         image_bytes = _make_test_image()
         resp = await client.post(
@@ -261,12 +290,15 @@ class TestPredictEndpoint:
         dataset_dir, labels = _create_test_dataset(tmp_path)
         output_dir = tmp_path / "models"
 
-        await client.post("/recognition/train", json={
-            "dataset_path": str(dataset_dir),
-            "output_dir": str(output_dir),
-            "n_components": 5,
-            "labels": labels,
-        })
+        await client.post(
+            "/recognition/train",
+            json={
+                "dataset_path": str(dataset_dir),
+                "output_dir": str(output_dir),
+                "n_components": 5,
+                "labels": labels,
+            },
+        )
 
         resp = await client.post(
             "/recognition/predict",
@@ -279,12 +311,15 @@ class TestPredictEndpoint:
         dataset_dir, labels = _create_test_dataset(tmp_path)
         output_dir = tmp_path / "models"
 
-        await client.post("/recognition/train", json={
-            "dataset_path": str(dataset_dir),
-            "output_dir": str(output_dir),
-            "n_components": 5,
-            "labels": labels,
-        })
+        await client.post(
+            "/recognition/train",
+            json={
+                "dataset_path": str(dataset_dir),
+                "output_dir": str(output_dir),
+                "n_components": 5,
+                "labels": labels,
+            },
+        )
 
         image_bytes = _make_test_image()
         resp = await client.post(
@@ -320,12 +355,15 @@ class TestListModelsEndpoint:
         dataset_dir, labels = _create_test_dataset(tmp_path)
         output_dir = tmp_path / "models"
 
-        train_resp = await client.post("/recognition/train", json={
-            "dataset_path": str(dataset_dir),
-            "output_dir": str(output_dir),
-            "n_components": 5,
-            "labels": labels,
-        })
+        train_resp = await client.post(
+            "/recognition/train",
+            json={
+                "dataset_path": str(dataset_dir),
+                "output_dir": str(output_dir),
+                "n_components": 5,
+                "labels": labels,
+            },
+        )
         model_id = train_resp.json()["model_id"]
 
         resp = await client.get("/recognition/models")
@@ -351,12 +389,15 @@ class TestListModelsEndpoint:
         # Train twice with different output dirs
         for i in range(2):
             output_dir = tmp_path / f"models_{i}"
-            await client.post("/recognition/train", json={
-                "dataset_path": str(dataset_dir),
-                "output_dir": str(output_dir),
-                "n_components": 5,
-                "labels": labels,
-            })
+            await client.post(
+                "/recognition/train",
+                json={
+                    "dataset_path": str(dataset_dir),
+                    "output_dir": str(output_dir),
+                    "n_components": 5,
+                    "labels": labels,
+                },
+            )
 
         resp = await client.get("/recognition/models")
         assert resp.status_code == 200
@@ -386,12 +427,15 @@ class TestGetModelEndpoint:
         dataset_dir, labels = _create_test_dataset(tmp_path)
         output_dir = tmp_path / "models"
 
-        train_resp = await client.post("/recognition/train", json={
-            "dataset_path": str(dataset_dir),
-            "output_dir": str(output_dir),
-            "n_components": 5,
-            "labels": labels,
-        })
+        train_resp = await client.post(
+            "/recognition/train",
+            json={
+                "dataset_path": str(dataset_dir),
+                "output_dir": str(output_dir),
+                "n_components": 5,
+                "labels": labels,
+            },
+        )
         model_id = train_resp.json()["model_id"]
 
         resp = await client.get(f"/recognition/models/{model_id}")
@@ -411,12 +455,15 @@ class TestGetModelEndpoint:
         dataset_dir, labels = _create_test_dataset(tmp_path)
         output_dir = tmp_path / "models"
 
-        train_resp = await client.post("/recognition/train", json={
-            "dataset_path": str(dataset_dir),
-            "output_dir": str(output_dir),
-            "n_components": 5,
-            "labels": labels,
-        })
+        train_resp = await client.post(
+            "/recognition/train",
+            json={
+                "dataset_path": str(dataset_dir),
+                "output_dir": str(output_dir),
+                "n_components": 5,
+                "labels": labels,
+            },
+        )
         model_id = train_resp.json()["model_id"]
 
         resp = await client.get(f"/recognition/models/{model_id}")
@@ -442,12 +489,15 @@ class TestGetModelEndpoint:
         dataset_dir, labels = _create_test_dataset(tmp_path)
         output_dir = tmp_path / "models"
 
-        train_resp = await client.post("/recognition/train", json={
-            "dataset_path": str(dataset_dir),
-            "output_dir": str(output_dir),
-            "n_components": 5,
-            "labels": labels,
-        })
+        train_resp = await client.post(
+            "/recognition/train",
+            json={
+                "dataset_path": str(dataset_dir),
+                "output_dir": str(output_dir),
+                "n_components": 5,
+                "labels": labels,
+            },
+        )
         data = train_resp.json()
         model_id = data["model_id"]
 

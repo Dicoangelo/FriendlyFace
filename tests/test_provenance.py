@@ -58,9 +58,7 @@ class TestProvenanceDAG:
     def test_verify_chain(self):
         dag = ProvenanceDAG()
         d = dag.add_node("dataset", "d1")
-        m = dag.add_node(
-            "model", "m1", parents=[d.id], relations=[ProvenanceRelation.DERIVED_FROM]
-        )
+        m = dag.add_node("model", "m1", parents=[d.id], relations=[ProvenanceRelation.DERIVED_FROM])
         assert dag.verify_chain(m.id)
 
     def test_tamper_detection(self):
@@ -73,12 +71,8 @@ class TestProvenanceDAG:
     def test_get_children(self):
         dag = ProvenanceDAG()
         root = dag.add_node("dataset", "d1")
-        dag.add_node(
-            "model", "m1", parents=[root.id], relations=[ProvenanceRelation.DERIVED_FROM]
-        )
-        dag.add_node(
-            "model", "m2", parents=[root.id], relations=[ProvenanceRelation.DERIVED_FROM]
-        )
+        dag.add_node("model", "m1", parents=[root.id], relations=[ProvenanceRelation.DERIVED_FROM])
+        dag.add_node("model", "m2", parents=[root.id], relations=[ProvenanceRelation.DERIVED_FROM])
         children = dag.get_children(root.id)
         assert len(children) == 2
 

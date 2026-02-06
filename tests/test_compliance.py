@@ -50,9 +50,7 @@ async def client(tmp_path):
     await _db.connect()
     await _service.initialize()
 
-    _service.merkle = __import__(
-        "friendlyface.core.merkle", fromlist=["MerkleTree"]
-    ).MerkleTree()
+    _service.merkle = __import__("friendlyface.core.merkle", fromlist=["MerkleTree"]).MerkleTree()
     _service._event_index = {}
     _service.provenance = __import__(
         "friendlyface.core.provenance", fromlist=["ProvenanceDAG"]
@@ -339,9 +337,7 @@ class TestComplianceForensicLogging:
         report = await reporter.generate_report()
 
         events = await service.get_all_events()
-        compliance_events = [
-            e for e in events if e.event_type == EventType.COMPLIANCE_REPORT
-        ]
+        compliance_events = [e for e in events if e.event_type == EventType.COMPLIANCE_REPORT]
         assert len(compliance_events) == 1
         assert compliance_events[0].payload["report_id"] == report["report_id"]
         assert compliance_events[0].payload["compliant"] == report["compliant"]
@@ -358,18 +354,14 @@ class TestComplianceForensicLogging:
         await reporter.generate_report()
 
         events = await service.get_all_events()
-        compliance_events = [
-            e for e in events if e.event_type == EventType.COMPLIANCE_REPORT
-        ]
+        compliance_events = [e for e in events if e.event_type == EventType.COMPLIANCE_REPORT]
         assert len(compliance_events) == 2
 
     async def test_forensic_event_contains_metrics(self, reporter):
         """The forensic event payload must include the metrics."""
         await reporter.generate_report()
         events = await reporter.forensic_service.get_all_events()
-        compliance_events = [
-            e for e in events if e.event_type == EventType.COMPLIANCE_REPORT
-        ]
+        compliance_events = [e for e in events if e.event_type == EventType.COMPLIANCE_REPORT]
         payload = compliance_events[0].payload
         assert "metrics" in payload
         assert "consent_coverage_pct" in payload["metrics"]

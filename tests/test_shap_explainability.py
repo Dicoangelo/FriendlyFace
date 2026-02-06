@@ -70,9 +70,7 @@ class TestKernelShap:
     def test_base_value_is_mean_prediction(self):
         instance = _make_feature_vector()
         background = _make_background()
-        _, base_value = _kernel_shap(
-            _mock_predict_fn, instance, background, num_samples=50
-        )
+        _, base_value = _kernel_shap(_mock_predict_fn, instance, background, num_samples=50)
         expected_base = float(np.mean(_mock_predict_fn(background)))
         assert abs(base_value - expected_base) < 1e-10
 
@@ -80,12 +78,18 @@ class TestKernelShap:
         instance = _make_feature_vector()
         background = _make_background()
         sv1, bv1 = _kernel_shap(
-            _mock_predict_fn, instance, background,
-            num_samples=50, random_state=42,
+            _mock_predict_fn,
+            instance,
+            background,
+            num_samples=50,
+            random_state=42,
         )
         sv2, bv2 = _kernel_shap(
-            _mock_predict_fn, instance, background,
-            num_samples=50, random_state=42,
+            _mock_predict_fn,
+            instance,
+            background,
+            num_samples=50,
+            random_state=42,
         )
         np.testing.assert_array_equal(sv1, sv2)
         assert bv1 == bv2
@@ -94,12 +98,18 @@ class TestKernelShap:
         instance = _make_feature_vector()
         background = _make_background()
         sv1, _ = _kernel_shap(
-            _mock_predict_fn, instance, background,
-            num_samples=50, random_state=1,
+            _mock_predict_fn,
+            instance,
+            background,
+            num_samples=50,
+            random_state=1,
         )
         sv2, _ = _kernel_shap(
-            _mock_predict_fn, instance, background,
-            num_samples=50, random_state=99,
+            _mock_predict_fn,
+            instance,
+            background,
+            num_samples=50,
+            random_state=99,
         )
         assert not np.array_equal(sv1, sv2)
 

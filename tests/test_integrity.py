@@ -34,9 +34,7 @@ class TestHashChainIntegrity:
 
         # Chain links should be intact
         for i in range(1, len(events)):
-            assert events[i].previous_hash == events[i - 1].event_hash, (
-                f"Chain broken at event {i}"
-            )
+            assert events[i].previous_hash == events[i - 1].event_hash, f"Chain broken at event {i}"
 
     def test_tamper_any_field_detected(self):
         """Modify any single field in the chain → verification fails."""

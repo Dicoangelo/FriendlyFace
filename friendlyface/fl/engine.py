@@ -50,10 +50,7 @@ def _fedavg(
     n_layers = len(client_weights[0])
     aggregated: list[np.ndarray] = []
     for layer_idx in range(n_layers):
-        weighted_sum = sum(
-            w[layer_idx] * (n / total)
-            for w, n in zip(client_weights, client_sizes)
-        )
+        weighted_sum = sum(w[layer_idx] * (n / total) for w, n in zip(client_weights, client_sizes))
         aggregated.append(weighted_sum)
     return aggregated
 
@@ -249,8 +246,7 @@ def run_fl_simulation(
                 "global_model_hash": model_hash,
                 "aggregation_strategy": "FedAvg",
                 "client_contributions": [
-                    {"client_id": u.client_id, "n_samples": u.n_samples}
-                    for u in client_updates
+                    {"client_id": u.client_id, "n_samples": u.n_samples} for u in client_updates
                 ],
             },
             parents=parent_ids,

@@ -109,9 +109,7 @@ def detect_poisoning(
         raise ValueError("No client updates to analyze")
 
     # Compute L2 norms of weight deltas
-    norms = [
-        _compute_update_norm(cw, global_weights) for cw in client_weights
-    ]
+    norms = [_compute_update_norm(cw, global_weights) for cw in client_weights]
 
     median_norm = float(np.median(norms))
     effective_threshold = median_norm * threshold_multiplier

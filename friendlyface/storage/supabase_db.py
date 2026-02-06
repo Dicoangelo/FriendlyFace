@@ -70,10 +70,7 @@ class SupabaseDatabase:
 
     async def get_event(self, event_id: UUID) -> ForensicEvent | None:
         response = await (
-            self.client.table("forensic_events")
-            .select("*")
-            .eq("id", str(event_id))
-            .execute()
+            self.client.table("forensic_events").select("*").eq("id", str(event_id)).execute()
         )
         if not response.data:
             return None
@@ -101,11 +98,7 @@ class SupabaseDatabase:
         return [self._row_to_event(r) for r in response.data]
 
     async def get_event_count(self) -> int:
-        response = await (
-            self.client.table("forensic_events")
-            .select("id", count="exact")
-            .execute()
-        )
+        response = await self.client.table("forensic_events").select("id", count="exact").execute()
         return response.count if response.count is not None else 0
 
     def _row_to_event(self, row: dict) -> ForensicEvent:
@@ -145,10 +138,7 @@ class SupabaseDatabase:
 
     async def get_provenance_node(self, node_id: UUID) -> ProvenanceNode | None:
         response = await (
-            self.client.table("provenance_nodes")
-            .select("*")
-            .eq("id", str(node_id))
-            .execute()
+            self.client.table("provenance_nodes").select("*").eq("id", str(node_id)).execute()
         )
         if not response.data:
             return None
@@ -188,12 +178,8 @@ class SupabaseDatabase:
                     "status": bundle.status.value,
                     "event_ids": json.dumps([str(e) for e in bundle.event_ids]),
                     "merkle_root": bundle.merkle_root,
-                    "merkle_proofs": json.dumps(
-                        [p.model_dump() for p in bundle.merkle_proofs]
-                    ),
-                    "provenance_chain": json.dumps(
-                        [str(p) for p in bundle.provenance_chain]
-                    ),
+                    "merkle_proofs": json.dumps([p.model_dump() for p in bundle.merkle_proofs]),
+                    "provenance_chain": json.dumps([str(p) for p in bundle.provenance_chain]),
                     "bias_audit": bundle.bias_audit.model_dump_json()
                     if bundle.bias_audit
                     else None,
@@ -203,9 +189,7 @@ class SupabaseDatabase:
                     "fl_artifacts": json.dumps(bundle.fl_artifacts)
                     if bundle.fl_artifacts
                     else None,
-                    "bias_report": json.dumps(bundle.bias_report)
-                    if bundle.bias_report
-                    else None,
+                    "bias_report": json.dumps(bundle.bias_report) if bundle.bias_report else None,
                     "explanation_artifacts": json.dumps(bundle.explanation_artifacts)
                     if bundle.explanation_artifacts
                     else None,
@@ -219,18 +203,13 @@ class SupabaseDatabase:
 
     async def get_bundle(self, bundle_id: UUID) -> ForensicBundle | None:
         response = await (
-            self.client.table("forensic_bundles")
-            .select("*")
-            .eq("id", str(bundle_id))
-            .execute()
+            self.client.table("forensic_bundles").select("*").eq("id", str(bundle_id)).execute()
         )
         if not response.data:
             return None
         return self._row_to_bundle(response.data[0])
 
-    async def update_bundle_status(
-        self, bundle_id: UUID, status: BundleStatus
-    ) -> None:
+    async def update_bundle_status(self, bundle_id: UUID, status: BundleStatus) -> None:
         await (
             self.client.table("forensic_bundles")
             .update({"status": status.value})

@@ -25,11 +25,14 @@ class TestFLStartEndpoint:
 
         app_module._fl_simulations.clear()
 
-        resp = await client.post("/fl/start", json={
-            "n_clients": 3,
-            "n_rounds": 2,
-            "seed": 42,
-        })
+        resp = await client.post(
+            "/fl/start",
+            json={
+                "n_clients": 3,
+                "n_rounds": 2,
+                "seed": 42,
+            },
+        )
         assert resp.status_code == 201
 
     @pytest.mark.asyncio
@@ -38,10 +41,13 @@ class TestFLStartEndpoint:
 
         app_module._fl_simulations.clear()
 
-        resp = await client.post("/fl/start", json={
-            "n_clients": 3,
-            "n_rounds": 2,
-        })
+        resp = await client.post(
+            "/fl/start",
+            json={
+                "n_clients": 3,
+                "n_rounds": 2,
+            },
+        )
         data = resp.json()
         assert "simulation_id" in data
         assert isinstance(data["simulation_id"], str)
@@ -53,10 +59,13 @@ class TestFLStartEndpoint:
 
         app_module._fl_simulations.clear()
 
-        resp = await client.post("/fl/start", json={
-            "n_clients": 7,
-            "n_rounds": 4,
-        })
+        resp = await client.post(
+            "/fl/start",
+            json={
+                "n_clients": 7,
+                "n_rounds": 4,
+            },
+        )
         data = resp.json()
         assert data["n_clients"] == 7
         assert data["n_rounds"] == 4
@@ -68,12 +77,15 @@ class TestFLStartEndpoint:
 
         app_module._fl_simulations.clear()
 
-        resp = await client.post("/fl/start", json={
-            "n_clients": 3,
-            "n_rounds": 1,
-            "enable_poisoning_detection": True,
-            "poisoning_threshold": 3.0,
-        })
+        resp = await client.post(
+            "/fl/start",
+            json={
+                "n_clients": 3,
+                "n_rounds": 1,
+                "enable_poisoning_detection": True,
+                "poisoning_threshold": 3.0,
+            },
+        )
         data = resp.json()
         assert data["rounds"][0]["poisoning"]["n_flagged"] >= 0
 
@@ -83,11 +95,14 @@ class TestFLStartEndpoint:
 
         app_module._fl_simulations.clear()
 
-        resp = await client.post("/fl/start", json={
-            "n_clients": 2,
-            "n_rounds": 1,
-            "enable_poisoning_detection": False,
-        })
+        resp = await client.post(
+            "/fl/start",
+            json={
+                "n_clients": 2,
+                "n_rounds": 1,
+                "enable_poisoning_detection": False,
+            },
+        )
         data = resp.json()
         # No poisoning key in round summary when disabled
         assert "poisoning" not in data["rounds"][0]
@@ -98,10 +113,13 @@ class TestFLStartEndpoint:
 
         app_module._fl_simulations.clear()
 
-        resp = await client.post("/fl/start", json={
-            "n_clients": 2,
-            "n_rounds": 2,
-        })
+        resp = await client.post(
+            "/fl/start",
+            json={
+                "n_clients": 2,
+                "n_rounds": 2,
+            },
+        )
         data = resp.json()
         for rnd in data["rounds"]:
             assert "event_id" in rnd
@@ -113,10 +131,13 @@ class TestFLStartEndpoint:
 
         app_module._fl_simulations.clear()
 
-        resp = await client.post("/fl/start", json={
-            "n_clients": 3,
-            "n_rounds": 2,
-        })
+        resp = await client.post(
+            "/fl/start",
+            json={
+                "n_clients": 3,
+                "n_rounds": 2,
+            },
+        )
         data = resp.json()
         assert "final_model_hash" in data
         assert isinstance(data["final_model_hash"], str)
@@ -142,10 +163,13 @@ class TestFLStartEndpoint:
 
         app_module._fl_simulations.clear()
 
-        resp = await client.post("/fl/simulate", json={
-            "n_clients": 2,
-            "n_rounds": 1,
-        })
+        resp = await client.post(
+            "/fl/simulate",
+            json={
+                "n_clients": 2,
+                "n_rounds": 1,
+            },
+        )
         assert resp.status_code == 201
         assert "simulation_id" in resp.json()
 
@@ -175,10 +199,13 @@ class TestFLStatusEndpoint:
         app_module._fl_simulations.clear()
 
         # Start a simulation
-        resp = await client.post("/fl/start", json={
-            "n_clients": 3,
-            "n_rounds": 2,
-        })
+        resp = await client.post(
+            "/fl/start",
+            json={
+                "n_clients": 3,
+                "n_rounds": 2,
+            },
+        )
         sim_id = resp.json()["simulation_id"]
 
         resp = await client.get("/fl/status")
@@ -231,10 +258,13 @@ class TestFLRoundsListEndpoint:
 
         app_module._fl_simulations.clear()
 
-        resp = await client.post("/fl/start", json={
-            "n_clients": 3,
-            "n_rounds": 3,
-        })
+        resp = await client.post(
+            "/fl/start",
+            json={
+                "n_clients": 3,
+                "n_rounds": 3,
+            },
+        )
         sim_id = resp.json()["simulation_id"]
 
         resp = await client.get("/fl/rounds")
@@ -267,11 +297,14 @@ class TestFLRoundsListEndpoint:
 
         app_module._fl_simulations.clear()
 
-        resp = await client.post("/fl/start", json={
-            "n_clients": 3,
-            "n_rounds": 1,
-            "enable_poisoning_detection": True,
-        })
+        resp = await client.post(
+            "/fl/start",
+            json={
+                "n_clients": 3,
+                "n_rounds": 1,
+                "enable_poisoning_detection": True,
+            },
+        )
 
         resp = await client.get("/fl/rounds")
         data = resp.json()
@@ -287,11 +320,14 @@ class TestFLRoundsListEndpoint:
 
         app_module._fl_simulations.clear()
 
-        await client.post("/fl/start", json={
-            "n_clients": 2,
-            "n_rounds": 1,
-            "enable_poisoning_detection": False,
-        })
+        await client.post(
+            "/fl/start",
+            json={
+                "n_clients": 2,
+                "n_rounds": 1,
+                "enable_poisoning_detection": False,
+            },
+        )
 
         resp = await client.get("/fl/rounds")
         data = resp.json()
@@ -310,10 +346,13 @@ class TestFLRoundDetailsEndpoint:
 
         app_module._fl_simulations.clear()
 
-        resp = await client.post("/fl/start", json={
-            "n_clients": 3,
-            "n_rounds": 2,
-        })
+        resp = await client.post(
+            "/fl/start",
+            json={
+                "n_clients": 3,
+                "n_rounds": 2,
+            },
+        )
         sim_id = resp.json()["simulation_id"]
 
         resp = await client.get(f"/fl/rounds/{sim_id}/1")
@@ -329,10 +368,13 @@ class TestFLRoundDetailsEndpoint:
 
         app_module._fl_simulations.clear()
 
-        resp = await client.post("/fl/start", json={
-            "n_clients": 4,
-            "n_rounds": 1,
-        })
+        resp = await client.post(
+            "/fl/start",
+            json={
+                "n_clients": 4,
+                "n_rounds": 1,
+            },
+        )
         sim_id = resp.json()["simulation_id"]
 
         resp = await client.get(f"/fl/rounds/{sim_id}/1")
@@ -351,10 +393,13 @@ class TestFLRoundDetailsEndpoint:
 
         app_module._fl_simulations.clear()
 
-        resp = await client.post("/fl/start", json={
-            "n_clients": 2,
-            "n_rounds": 1,
-        })
+        resp = await client.post(
+            "/fl/start",
+            json={
+                "n_clients": 2,
+                "n_rounds": 1,
+            },
+        )
         sim_id = resp.json()["simulation_id"]
 
         resp = await client.get(f"/fl/rounds/{sim_id}/1")
@@ -368,11 +413,14 @@ class TestFLRoundDetailsEndpoint:
 
         app_module._fl_simulations.clear()
 
-        resp = await client.post("/fl/start", json={
-            "n_clients": 3,
-            "n_rounds": 1,
-            "enable_poisoning_detection": True,
-        })
+        resp = await client.post(
+            "/fl/start",
+            json={
+                "n_clients": 3,
+                "n_rounds": 1,
+                "enable_poisoning_detection": True,
+            },
+        )
         sim_id = resp.json()["simulation_id"]
 
         resp = await client.get(f"/fl/rounds/{sim_id}/1")
@@ -391,11 +439,14 @@ class TestFLRoundDetailsEndpoint:
 
         app_module._fl_simulations.clear()
 
-        resp = await client.post("/fl/start", json={
-            "n_clients": 2,
-            "n_rounds": 1,
-            "enable_poisoning_detection": False,
-        })
+        resp = await client.post(
+            "/fl/start",
+            json={
+                "n_clients": 2,
+                "n_rounds": 1,
+                "enable_poisoning_detection": False,
+            },
+        )
         sim_id = resp.json()["simulation_id"]
 
         resp = await client.get(f"/fl/rounds/{sim_id}/1")
@@ -413,10 +464,13 @@ class TestFLRoundDetailsEndpoint:
 
         app_module._fl_simulations.clear()
 
-        resp = await client.post("/fl/start", json={
-            "n_clients": 2,
-            "n_rounds": 1,
-        })
+        resp = await client.post(
+            "/fl/start",
+            json={
+                "n_clients": 2,
+                "n_rounds": 1,
+            },
+        )
         sim_id = resp.json()["simulation_id"]
 
         resp = await client.get(f"/fl/rounds/{sim_id}/99")
@@ -428,10 +482,13 @@ class TestFLRoundDetailsEndpoint:
 
         app_module._fl_simulations.clear()
 
-        resp = await client.post("/fl/start", json={
-            "n_clients": 3,
-            "n_rounds": 2,
-        })
+        resp = await client.post(
+            "/fl/start",
+            json={
+                "n_clients": 3,
+                "n_rounds": 2,
+            },
+        )
         sim_id = resp.json()["simulation_id"]
 
         resp = await client.get(f"/fl/rounds/{sim_id}/1")
@@ -455,12 +512,15 @@ class TestFLLifecycle:
         app_module._fl_simulations.clear()
 
         # 1. Start FL simulation
-        resp = await client.post("/fl/start", json={
-            "n_clients": 3,
-            "n_rounds": 3,
-            "enable_poisoning_detection": True,
-            "seed": 42,
-        })
+        resp = await client.post(
+            "/fl/start",
+            json={
+                "n_clients": 3,
+                "n_rounds": 3,
+                "enable_poisoning_detection": True,
+                "seed": 42,
+            },
+        )
         assert resp.status_code == 201
         start_data = resp.json()
         sim_id = start_data["simulation_id"]
@@ -514,10 +574,13 @@ class TestFLLifecycle:
         app_module._fl_simulations.clear()
 
         # Start simulation
-        resp = await client.post("/fl/start", json={
-            "n_clients": 2,
-            "n_rounds": 2,
-        })
+        resp = await client.post(
+            "/fl/start",
+            json={
+                "n_clients": 2,
+                "n_rounds": 2,
+            },
+        )
         assert resp.status_code == 201
         start_data = resp.json()
 

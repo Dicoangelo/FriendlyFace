@@ -357,9 +357,7 @@ class TestFLEngineIntegration:
     def test_poisoning_result_present_when_enabled(self):
         from friendlyface.fl.engine import run_fl_simulation
 
-        result = run_fl_simulation(
-            n_clients=3, n_rounds=2, enable_poisoning_detection=True
-        )
+        result = run_fl_simulation(n_clients=3, n_rounds=2, enable_poisoning_detection=True)
         for rr in result.rounds:
             assert rr.poisoning_result is not None
             assert isinstance(rr.poisoning_result, PoisoningDetectionResult)
@@ -367,9 +365,7 @@ class TestFLEngineIntegration:
     def test_engine_poisoning_result_fields(self):
         from friendlyface.fl.engine import run_fl_simulation
 
-        result = run_fl_simulation(
-            n_clients=3, n_rounds=1, enable_poisoning_detection=True
-        )
+        result = run_fl_simulation(n_clients=3, n_rounds=1, enable_poisoning_detection=True)
         pr = result.rounds[0].poisoning_result
         assert pr.n_clients == 3
         assert pr.round_number == 1
@@ -379,9 +375,7 @@ class TestFLEngineIntegration:
     def test_engine_poisoning_links_to_round_provenance(self):
         from friendlyface.fl.engine import run_fl_simulation
 
-        result = run_fl_simulation(
-            n_clients=3, n_rounds=1, enable_poisoning_detection=True
-        )
+        result = run_fl_simulation(n_clients=3, n_rounds=1, enable_poisoning_detection=True)
         rr = result.rounds[0]
         pr = rr.poisoning_result
         assert rr.provenance_node.id in pr.provenance_node.parents
@@ -390,9 +384,7 @@ class TestFLEngineIntegration:
         """Normal simulation with small perturbations shouldn't flag anyone."""
         from friendlyface.fl.engine import run_fl_simulation
 
-        result = run_fl_simulation(
-            n_clients=5, n_rounds=3, enable_poisoning_detection=True
-        )
+        result = run_fl_simulation(n_clients=5, n_rounds=3, enable_poisoning_detection=True)
         for rr in result.rounds:
             assert not rr.poisoning_result.has_poisoning
 
@@ -400,9 +392,7 @@ class TestFLEngineIntegration:
         """Event hash chain should remain consistent with poisoning enabled."""
         from friendlyface.fl.engine import run_fl_simulation
 
-        result = run_fl_simulation(
-            n_clients=3, n_rounds=2, enable_poisoning_detection=True
-        )
+        result = run_fl_simulation(n_clients=3, n_rounds=2, enable_poisoning_detection=True)
         # Round events still form a chain (though alert events may be interspersed)
         r1 = result.rounds[0]
         r2 = result.rounds[1]
@@ -426,12 +416,15 @@ class TestFLSecurityAPI:
 
         app_module._fl_simulations.clear()
 
-        resp = await client.post("/fl/simulate", json={
-            "n_clients": 3,
-            "n_rounds": 2,
-            "enable_poisoning_detection": True,
-            "seed": 42,
-        })
+        resp = await client.post(
+            "/fl/simulate",
+            json={
+                "n_clients": 3,
+                "n_rounds": 2,
+                "enable_poisoning_detection": True,
+                "seed": 42,
+            },
+        )
         assert resp.status_code == 201
         data = resp.json()
         assert "simulation_id" in data
@@ -449,11 +442,14 @@ class TestFLSecurityAPI:
         app_module._fl_simulations.clear()
 
         # Run a simulation first
-        resp = await client.post("/fl/simulate", json={
-            "n_clients": 3,
-            "n_rounds": 1,
-            "enable_poisoning_detection": True,
-        })
+        resp = await client.post(
+            "/fl/simulate",
+            json={
+                "n_clients": 3,
+                "n_rounds": 1,
+                "enable_poisoning_detection": True,
+            },
+        )
         sim_id = resp.json()["simulation_id"]
 
         # Query security for round 1
@@ -479,11 +475,14 @@ class TestFLSecurityAPI:
 
         app_module._fl_simulations.clear()
 
-        resp = await client.post("/fl/simulate", json={
-            "n_clients": 2,
-            "n_rounds": 1,
-            "enable_poisoning_detection": True,
-        })
+        resp = await client.post(
+            "/fl/simulate",
+            json={
+                "n_clients": 2,
+                "n_rounds": 1,
+                "enable_poisoning_detection": True,
+            },
+        )
         sim_id = resp.json()["simulation_id"]
 
         resp = await client.get(f"/fl/rounds/{sim_id}/99/security")
@@ -495,11 +494,14 @@ class TestFLSecurityAPI:
 
         app_module._fl_simulations.clear()
 
-        resp = await client.post("/fl/simulate", json={
-            "n_clients": 2,
-            "n_rounds": 1,
-            "enable_poisoning_detection": False,
-        })
+        resp = await client.post(
+            "/fl/simulate",
+            json={
+                "n_clients": 2,
+                "n_rounds": 1,
+                "enable_poisoning_detection": False,
+            },
+        )
         sim_id = resp.json()["simulation_id"]
 
         resp = await client.get(f"/fl/rounds/{sim_id}/1/security")

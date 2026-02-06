@@ -54,10 +54,7 @@ class _MockLimeExplanation:
         self.top_labels = [label]
         # Build mock local explanation with descending weights
         self.local_exp = {
-            label: [
-                (i, float(n_segments - i) / n_segments)
-                for i in range(n_segments)
-            ]
+            label: [(i, float(n_segments - i) / n_segments) for i in range(n_segments)]
         }
         self.intercept = {label: 0.35}
 
@@ -109,12 +106,15 @@ class TestSegmentation:
         assert len(unique_ids) >= 1
 
     def test_superpixel_bbox(self):
-        segments = np.array([
-            [0, 0, 1, 1],
-            [0, 0, 1, 1],
-            [2, 2, 3, 3],
-            [2, 2, 3, 3],
-        ], dtype=np.int32)
+        segments = np.array(
+            [
+                [0, 0, 1, 1],
+                [0, 0, 1, 1],
+                [2, 2, 3, 3],
+                [2, 2, 3, 3],
+            ],
+            dtype=np.int32,
+        )
         bbox = _get_superpixel_bbox(segments, 0)
         assert bbox == (0, 0, 1, 1)
 
@@ -212,9 +212,7 @@ class TestGenerateLimeExplanation:
         segments = _segment_image(image_array, num_superpixels)
         mock_lime_exp = _MockLimeExplanation(segments, label=1)
 
-        with patch(
-            "lime.lime_image.LimeImageExplainer"
-        ) as MockExplainerClass:
+        with patch("lime.lime_image.LimeImageExplainer") as MockExplainerClass:
             mock_explainer = MagicMock()
             MockExplainerClass.return_value = mock_explainer
             mock_explainer.explain_instance.return_value = mock_lime_exp

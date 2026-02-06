@@ -15,9 +15,7 @@ async def auth_client(tmp_path):
     await _db.connect()
     await _service.initialize()
 
-    _service.merkle = __import__(
-        "friendlyface.core.merkle", fromlist=["MerkleTree"]
-    ).MerkleTree()
+    _service.merkle = __import__("friendlyface.core.merkle", fromlist=["MerkleTree"]).MerkleTree()
     _service._event_index = {}
     _service.provenance = __import__(
         "friendlyface.core.provenance", fromlist=["ProvenanceDAG"]
