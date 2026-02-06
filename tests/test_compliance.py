@@ -4,7 +4,6 @@ from __future__ import annotations
 
 import json
 
-import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
@@ -88,7 +87,6 @@ async def _seed_consent_data(db, service, n_subjects=10, n_active=8):
 
 async def _seed_bias_audits(db, n_total=5, n_compliant=4):
     """Insert bias audit records directly."""
-    from datetime import datetime, timezone
 
     for i in range(n_total):
         audit = BiasAuditRecord(
@@ -367,7 +365,7 @@ class TestComplianceForensicLogging:
 
     async def test_forensic_event_contains_metrics(self, reporter):
         """The forensic event payload must include the metrics."""
-        report = await reporter.generate_report()
+        await reporter.generate_report()
         events = await reporter.forensic_service.get_all_events()
         compliance_events = [
             e for e in events if e.event_type == EventType.COMPLIANCE_REPORT

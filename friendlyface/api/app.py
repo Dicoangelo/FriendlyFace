@@ -32,9 +32,10 @@ from contextlib import asynccontextmanager
 from typing import Any
 from uuid import UUID
 
-from fastapi import FastAPI, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, HTTPException, UploadFile
 from pydantic import BaseModel, Field
 
+from friendlyface.auth import require_api_key
 from friendlyface.core.models import (
     BiasAuditRecord,
     EventType,
@@ -113,6 +114,7 @@ app = FastAPI(
     ),
     version="0.1.0",
     lifespan=lifespan,
+    dependencies=[Depends(require_api_key)],
 )
 
 

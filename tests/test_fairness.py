@@ -8,7 +8,6 @@ import pytest_asyncio
 from friendlyface.core.models import BiasAuditRecord, EventType
 from friendlyface.core.service import ForensicService
 from friendlyface.fairness.auditor import (
-    BiasAlert,
     BiasAuditor,
     FairnessThresholds,
     GroupMetrics,

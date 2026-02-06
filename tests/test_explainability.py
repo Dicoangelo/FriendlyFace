@@ -11,7 +11,6 @@ from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 import numpy as np
-import pytest
 from PIL import Image
 
 from friendlyface.core.models import EventType, ProvenanceRelation
