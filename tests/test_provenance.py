@@ -73,10 +73,10 @@ class TestProvenanceDAG:
     def test_get_children(self):
         dag = ProvenanceDAG()
         root = dag.add_node("dataset", "d1")
-        c1 = dag.add_node(
+        dag.add_node(
             "model", "m1", parents=[root.id], relations=[ProvenanceRelation.DERIVED_FROM]
         )
-        c2 = dag.add_node(
+        dag.add_node(
             "model", "m2", parents=[root.id], relations=[ProvenanceRelation.DERIVED_FROM]
         )
         children = dag.get_children(root.id)

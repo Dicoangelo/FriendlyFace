@@ -51,7 +51,11 @@ class EventType(str, Enum):
     EXPLANATION_GENERATED = "explanation_generated"
     BIAS_AUDIT = "bias_audit"
     CONSENT_RECORDED = "consent_recorded"
+    CONSENT_UPDATE = "consent_update"
     BUNDLE_CREATED = "bundle_created"
+    FL_ROUND = "fl_round"
+    SECURITY_ALERT = "security_alert"
+    COMPLIANCE_REPORT = "compliance_report"
 
 
 class ProvenanceRelation(str, Enum):
@@ -214,6 +218,12 @@ class ForensicBundle(BaseModel):
     # Bias audit summary
     bias_audit: BiasAuditRecord | None = None
 
+    # Full-layer artifact fields (US-009)
+    recognition_artifacts: dict[str, Any] | None = Field(default=None)
+    fl_artifacts: dict[str, Any] | None = Field(default=None)
+    bias_report: dict[str, Any] | None = Field(default=None)
+    explanation_artifacts: dict[str, Any] | None = Field(default=None)
+
     # ZK proof stub (BioZero pattern, arXiv:2409.17509)
     zk_proof_placeholder: str | None = Field(
         default=None, description="Reserved for zero-knowledge proof integration"
@@ -227,13 +237,17 @@ class ForensicBundle(BaseModel):
     bundle_hash: str = Field(default="")
 
     def compute_hash(self) -> str:
-        hashable = {
+        hashable: dict[str, Any] = {
             "id": str(self.id),
             "created_at": self.created_at.isoformat(),
             "event_ids": [str(e) for e in self.event_ids],
             "merkle_root": self.merkle_root,
             "provenance_chain": [str(p) for p in self.provenance_chain],
             "bias_audit": self.bias_audit.model_dump() if self.bias_audit else None,
+            "recognition_artifacts": self.recognition_artifacts,
+            "fl_artifacts": self.fl_artifacts,
+            "bias_report": self.bias_report,
+            "explanation_artifacts": self.explanation_artifacts,
         }
         return sha256_hex(canonical_json(hashable))
 

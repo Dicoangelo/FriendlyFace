@@ -11,6 +11,12 @@ dependencies = [
     "uvicorn[standard]>=0.32.0",
     "pydantic>=2.10.0",
     "aiosqlite>=0.20.0",
+    "scikit-learn>=1.4.0",
+    "numpy>=1.26.0",
+    "Pillow>=10.0.0",
+    "python-multipart>=0.0.9",
+    "lime>=0.2.0",
+    "supabase>=2.0.0",
 ]
 
 [project.optional-dependencies]

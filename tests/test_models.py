@@ -6,7 +6,6 @@ from friendlyface.core.models import (
     ForensicBundle,
     ForensicEvent,
     ProvenanceNode,
-    ProvenanceRelation,
     canonical_json,
     sha256_hex,
 )

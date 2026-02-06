@@ -3,13 +3,11 @@
 import pytest
 
 from friendlyface.core.models import (
-    BiasAuditRecord,
     BundleStatus,
     EventType,
     ForensicBundle,
     ForensicEvent,
     ProvenanceNode,
-    ProvenanceRelation,
 )
 from friendlyface.storage.database import Database
 

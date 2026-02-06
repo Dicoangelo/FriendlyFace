@@ -6,8 +6,6 @@ Verification requirements from the plan:
 3. Merkle proof verification for all events
 """
 
-import pytest
-
 from friendlyface.core.merkle import MerkleTree
 from friendlyface.core.models import EventType, ForensicEvent
 
