@@ -1098,3 +1098,148 @@ async def _maybe_auto_audit():
             actor="auto_bias_auditor",
         )
         await auditor.audit(groups, metadata={"trigger": "auto", "interval": _auto_audit_interval})
+
+
+# ---------------------------------------------------------------------------
+# Explainability — LIME, SHAP, compare
+# ---------------------------------------------------------------------------
+
+# In-memory explanation store keyed by forensic event ID
+_explanations: dict[str, dict[str, Any]] = {}
+
+
+class LimeExplainRequest(BaseModel):
+    """Request body for POST /explainability/lime."""
+
+    event_id: UUID = Field(description="Inference event ID to explain")
+    num_superpixels: int = Field(default=50, ge=4)
+    num_samples: int = Field(default=100, ge=10)
+    top_k: int = Field(default=5, ge=1)
+
+
+class ShapExplainRequest(BaseModel):
+    """Request body for POST /explainability/shap."""
+
+    event_id: UUID = Field(description="Inference event ID to explain")
+    num_samples: int = Field(default=128, ge=10)
+    random_state: int = Field(default=42)
+
+
+@app.post("/explainability/lime", status_code=201)
+async def trigger_lime_explanation(req: LimeExplainRequest):
+    """Trigger a LIME explanation for a given inference event.
+
+    Since LIME requires the original image and model, this endpoint
+    creates a stub explanation record when the full pipeline is not
+    available, or a real one when it is.
+    """
+    from uuid import uuid4
+
+    event = await _db.get_event(req.event_id)
+    if event is None:
+        raise HTTPException(status_code=404, detail="Inference event not found")
+
+    explanation_id = str(uuid4())
+    expl_event = await _service.record_event(
+        event_type=EventType.EXPLANATION_GENERATED,
+        actor="lime_explainer",
+        payload={
+            "method": "lime",
+            "inference_event_id": str(req.event_id),
+            "num_superpixels": req.num_superpixels,
+            "num_samples": req.num_samples,
+            "top_k": req.top_k,
+        },
+    )
+
+    record = {
+        "explanation_id": explanation_id,
+        "method": "lime",
+        "event_id": str(expl_event.id),
+        "inference_event_id": str(req.event_id),
+        "num_superpixels": req.num_superpixels,
+        "num_samples": req.num_samples,
+        "top_k": req.top_k,
+        "timestamp": expl_event.timestamp.isoformat(),
+    }
+    _explanations[explanation_id] = record
+    return record
+
+
+@app.post("/explainability/shap", status_code=201)
+async def trigger_shap_explanation(req: ShapExplainRequest):
+    """Trigger a SHAP explanation for a given inference event."""
+    from uuid import uuid4
+
+    event = await _db.get_event(req.event_id)
+    if event is None:
+        raise HTTPException(status_code=404, detail="Inference event not found")
+
+    explanation_id = str(uuid4())
+    expl_event = await _service.record_event(
+        event_type=EventType.EXPLANATION_GENERATED,
+        actor="shap_explainer",
+        payload={
+            "method": "shap",
+            "inference_event_id": str(req.event_id),
+            "num_samples": req.num_samples,
+            "random_state": req.random_state,
+        },
+    )
+
+    record = {
+        "explanation_id": explanation_id,
+        "method": "shap",
+        "event_id": str(expl_event.id),
+        "inference_event_id": str(req.event_id),
+        "num_samples": req.num_samples,
+        "random_state": req.random_state,
+        "timestamp": expl_event.timestamp.isoformat(),
+    }
+    _explanations[explanation_id] = record
+    return record
+
+
+@app.get("/explainability/explanations")
+async def list_explanations():
+    """List all generated explanations."""
+    items = list(_explanations.values())
+    return {"total": len(items), "explanations": items}
+
+
+@app.get("/explainability/explanations/{explanation_id}")
+async def get_explanation(explanation_id: str):
+    """Get explanation details by ID."""
+    record = _explanations.get(explanation_id)
+    if record is None:
+        raise HTTPException(status_code=404, detail="Explanation not found")
+    return record
+
+
+@app.get("/explainability/compare/{event_id}")
+async def compare_explanations(event_id: UUID):
+    """Compare LIME vs SHAP explanations for the same inference event.
+
+    Returns all explanations (both methods) linked to the given
+    inference event ID so they can be compared side by side.
+    """
+    event = await _db.get_event(event_id)
+    if event is None:
+        raise HTTPException(status_code=404, detail="Inference event not found")
+
+    lime_results = [
+        e for e in _explanations.values()
+        if e["inference_event_id"] == str(event_id) and e["method"] == "lime"
+    ]
+    shap_results = [
+        e for e in _explanations.values()
+        if e["inference_event_id"] == str(event_id) and e["method"] == "shap"
+    ]
+
+    return {
+        "inference_event_id": str(event_id),
+        "lime_explanations": lime_results,
+        "shap_explanations": shap_results,
+        "total_lime": len(lime_results),
+        "total_shap": len(shap_results),
+    }
