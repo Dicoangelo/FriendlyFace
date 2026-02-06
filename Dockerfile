@@ -18,16 +18,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /build
 
-# Copy build metadata for layer caching
-COPY pyproject.toml README.md ./
-
-# Install production deps into a virtual-env we can copy later
+# Install production deps into a virtual-env
 RUN python -m venv /opt/venv
 ENV PATH="/opt/venv/bin:$PATH"
+
+# Install deps from a requirements step first for layer caching
+COPY pyproject.toml README.md ./
+COPY friendlyface/__init__.py ./friendlyface/__init__.py
 RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir .
 
-# Copy source code and re-install (editable not needed in container)
+# Copy full source and reinstall to pick up all modules
 COPY friendlyface/ ./friendlyface/
 COPY migrations/ ./migrations/
 RUN pip install --no-cache-dir .
