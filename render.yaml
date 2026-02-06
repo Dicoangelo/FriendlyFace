@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: friendlyface-api
+    runtime: docker
+    plan: free
+    dockerfilePath: ./Dockerfile
+    envVars:
+      - key: FF_STORAGE
+        value: sqlite
+      - key: FF_HOST
+        value: 0.0.0.0
+      - key: FF_PORT
+        value: 8000
+      - key: FF_API_KEYS
+        sync: false
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_KEY
+        sync: false
+    healthCheckPath: /health
