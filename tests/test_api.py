@@ -1,7 +1,5 @@
 """Integration tests for the FastAPI endpoints."""
 
-import pytest
-
 
 class TestHealth:
     async def test_health_endpoint(self, client):
