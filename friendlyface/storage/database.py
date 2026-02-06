@@ -24,7 +24,9 @@ from friendlyface.core.models import (
     ProvenanceRelation,
 )
 
-DEFAULT_DB_PATH = Path("friendlyface.db")
+import os
+
+DEFAULT_DB_PATH = Path(os.environ.get("FF_DB_PATH", "friendlyface.db"))
 
 SCHEMA_SQL = """
 CREATE TABLE IF NOT EXISTS forensic_events (
