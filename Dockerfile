@@ -18,8 +18,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 WORKDIR /build
 
-# Copy only pyproject.toml first for layer caching
-COPY pyproject.toml ./
+# Copy build metadata for layer caching
+COPY pyproject.toml README.md ./
 
 # Install production deps into a virtual-env we can copy later
 RUN python -m venv /opt/venv
