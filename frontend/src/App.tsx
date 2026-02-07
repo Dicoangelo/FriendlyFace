@@ -89,9 +89,9 @@ export default function App() {
             {sidebarOpen && (
               <div className="flex items-center gap-2">
                 <img
-                  src="https://www.gravatar.com/avatar/868b54ba79b7e4eb97bc0f8bac8ed47f?s=200&d=identicon"
+                  src="/logo.png"
                   alt="FriendlyFace"
-                  className="w-7 h-7 rounded-lg"
+                  className="w-7 h-7"
                 />
                 <span className="text-lg font-bold tracking-tight gradient-text">FriendlyFace</span>
               </div>
