@@ -17,12 +17,17 @@ Endpoints:
   GET    /recognition/models        — List available trained models
   GET    /recognition/models/{id}   — Get model details with provenance chain
   POST   /recognize                 — (Legacy) Upload image for face recognition
+  POST   /recognition/voice/enroll  — Enroll a voice for a subject
+  POST   /recognition/voice/verify  — Verify a voice against enrolled subjects
+  POST   /recognition/multimodal    — Multi-modal fusion (face + voice)
   POST   /fl/start                  — Start FL simulation with configurable parameters
+  POST   /fl/dp-start               — Start DP-FL simulation with differential privacy
   POST   /fl/simulate               — (Legacy) Alias for /fl/start
   GET    /fl/rounds                 — List completed FL rounds with summary
   GET    /fl/rounds/{sim_id}/{n}    — Get round details with client contributions and security
   GET    /fl/rounds/{sim_id}/{n}/security — Get poisoning detection results for a round
   GET    /fl/status                 — Current FL training status
+  POST   /explainability/sdd        — Generate SDD saliency explanation
   GET    /health                    — Health check
 """
 
@@ -534,6 +539,154 @@ async def list_models():
 
 
 # ---------------------------------------------------------------------------
+# Voice biometrics — enrollment and verification
+# ---------------------------------------------------------------------------
+
+# In-memory voice recognizer with enrolled subjects
+_voice_recognizer: Any = None
+
+
+def _get_voice_recognizer():
+    """Lazy-initialize the voice recognizer."""
+    global _voice_recognizer
+    if _voice_recognizer is None:
+        from friendlyface.recognition.voice import run_voice_inference
+
+        _voice_recognizer = {"embeddings": {}, "run_inference": run_voice_inference}
+    return _voice_recognizer
+
+
+class VoiceEnrollRequest(BaseModel):
+    subject_id: str = Field(description="Subject identifier to enroll")
+
+
+class VoiceVerifyRequest(BaseModel):
+    top_k: int = Field(default=3, ge=1)
+
+
+class MultiModalRequest(BaseModel):
+    face_label: str = Field(default="", description="Face match label")
+    face_confidence: float = Field(default=0.0, ge=0, le=1)
+    voice_confidence: float = Field(default=0.0, ge=0, le=1)
+    face_weight: float = Field(default=0.6, gt=0, lt=1)
+    voice_weight: float = Field(default=0.4, gt=0, lt=1)
+
+
+@app.post("/recognition/voice/enroll", status_code=201)
+async def enroll_voice(audio: UploadFile, subject_id: str = "unknown"):
+    """Enroll a voice for a subject from uploaded PCM audio."""
+    from friendlyface.recognition.voice import extract_voice_embedding
+
+    audio_bytes = await audio.read()
+    if not audio_bytes:
+        raise HTTPException(status_code=400, detail="Empty audio upload")
+
+    try:
+        embedding = extract_voice_embedding(audio_bytes)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    vr = _get_voice_recognizer()
+    vr["embeddings"][subject_id] = embedding.embedding
+
+    # Record enrollment event
+    event = await _service.record_event(
+        event_type=EventType.TRAINING_COMPLETE,
+        actor="voice_enroll",
+        payload={
+            "action": "voice_enrollment",
+            "subject_id": subject_id,
+            "artifact_hash": embedding.artifact_hash,
+            "embedding_dim": embedding.embedding.shape[0],
+            "duration_seconds": embedding.duration_seconds,
+        },
+    )
+
+    return {
+        "subject_id": subject_id,
+        "event_id": str(event.id),
+        "artifact_hash": embedding.artifact_hash,
+        "embedding_dim": embedding.embedding.shape[0],
+        "duration_seconds": embedding.duration_seconds,
+        "total_enrolled": len(vr["embeddings"]),
+    }
+
+
+@app.post("/recognition/voice/verify", status_code=200)
+async def verify_voice(audio: UploadFile, top_k: int = 3):
+    """Verify a voice against enrolled subjects."""
+    from friendlyface.recognition.voice import run_voice_inference
+
+    audio_bytes = await audio.read()
+    if not audio_bytes:
+        raise HTTPException(status_code=400, detail="Empty audio upload")
+
+    vr = _get_voice_recognizer()
+    if not vr["embeddings"]:
+        raise HTTPException(status_code=400, detail="No voices enrolled yet")
+
+    try:
+        result = run_voice_inference(audio_bytes, vr["embeddings"], top_k=top_k)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    # Record verification event
+    event = await _service.record_event(
+        event_type=result.forensic_event.event_type,
+        actor=result.forensic_event.actor,
+        payload=result.forensic_event.payload,
+    )
+
+    return {
+        "event_id": str(event.id),
+        "input_hash": result.input_hash,
+        "matches": [{"label": m.label, "confidence": m.confidence} for m in result.matches],
+    }
+
+
+@app.post("/recognition/multimodal", status_code=200)
+async def multimodal_fusion(req: MultiModalRequest):
+    """Fuse face and voice recognition scores into a unified decision."""
+    from friendlyface.recognition.fusion import fuse_scores
+
+    face_matches = [{"label": req.face_label, "confidence": req.face_confidence}]
+    voice_matches = [{"label": req.face_label, "confidence": req.voice_confidence}]
+
+    try:
+        result = fuse_scores(
+            face_matches,
+            voice_matches,
+            face_weight=req.face_weight,
+            voice_weight=req.voice_weight,
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+
+    # Record fusion event
+    event = await _service.record_event(
+        event_type=result.forensic_event.event_type,
+        actor=result.forensic_event.actor,
+        payload=result.forensic_event.payload,
+    )
+
+    return {
+        "event_id": str(event.id),
+        "fused_matches": [
+            {
+                "label": m.label,
+                "fused_confidence": m.fused_confidence,
+                "face_confidence": m.face_confidence,
+                "voice_confidence": m.voice_confidence,
+            }
+            for m in result.fused_matches
+        ],
+        "fusion_method": result.fusion_method,
+        "face_weight": result.face_weight,
+        "voice_weight": result.voice_weight,
+    }
+
+
+# ---------------------------------------------------------------------------
 # Federated Learning — simulation results and security
 # ---------------------------------------------------------------------------
 
@@ -619,6 +772,101 @@ async def start_fl(req: FLSimulateRequest):
 async def simulate_fl(req: FLSimulateRequest):
     """Legacy alias for POST /fl/start."""
     return await _run_fl_simulation(req)
+
+
+# ---------------------------------------------------------------------------
+# Federated Learning — DP-FedAvg
+# ---------------------------------------------------------------------------
+
+
+class DPFLSimulateRequest(BaseModel):
+    n_clients: int = Field(default=5, ge=1)
+    n_rounds: int = Field(default=3, ge=1)
+    epsilon: float = Field(default=1.0, gt=0)
+    delta: float = Field(default=1e-5, gt=0, lt=1)
+    max_grad_norm: float = Field(default=1.0, gt=0)
+    seed: int = Field(default=42)
+
+
+@app.post("/fl/dp-start", status_code=201)
+async def start_dp_fl(req: DPFLSimulateRequest):
+    """Start a differentially-private federated learning simulation."""
+    from uuid import uuid4
+
+    import numpy as np
+
+    from friendlyface.fl.dp import DPConfig, dp_fedavg_round
+
+    dp_config = DPConfig(
+        epsilon=req.epsilon,
+        delta=req.delta,
+        max_grad_norm=req.max_grad_norm,
+    )
+
+    rng = np.random.default_rng(req.seed)
+    weight_shapes = [(64, 32), (32,)]
+    global_weights = [rng.standard_normal(shape) for shape in weight_shapes]
+    client_ids = [f"client_{i}" for i in range(req.n_clients)]
+
+    sim_id = str(uuid4())
+    rounds_summary = []
+    cumulative_epsilon = 0.0
+    current_hash = "GENESIS"
+    current_seq = 0
+
+    for round_num in range(1, req.n_rounds + 1):
+        # Simulate local training
+        client_updates = [
+            [w + rng.normal(0, 0.01, size=w.shape) for w in global_weights]
+            for _ in range(req.n_clients)
+        ]
+
+        result = dp_fedavg_round(
+            client_updates=client_updates,
+            global_weights=global_weights,
+            dp_config=dp_config,
+            round_number=round_num,
+            client_ids=client_ids,
+            cumulative_epsilon=cumulative_epsilon,
+            seed=req.seed + round_num,
+            previous_hash=current_hash,
+            sequence_number=current_seq,
+        )
+
+        global_weights = result.global_weights
+        cumulative_epsilon = result.privacy_spent
+        current_hash = result.event.event_hash
+        current_seq += 1
+
+        # Record in forensic chain
+        recorded = await _service.record_event(
+            event_type=result.event.event_type,
+            actor=result.event.actor,
+            payload=result.event.payload,
+        )
+
+        rounds_summary.append({
+            "round": round_num,
+            "global_model_hash": result.global_model_hash,
+            "noise_scale": result.noise_scale,
+            "n_clipped": len(result.clipped_clients),
+            "clipped_clients": result.clipped_clients,
+            "privacy_spent": result.privacy_spent,
+            "event_id": str(recorded.id),
+        })
+
+    return {
+        "simulation_id": sim_id,
+        "n_rounds": req.n_rounds,
+        "n_clients": req.n_clients,
+        "dp_config": {
+            "epsilon": req.epsilon,
+            "delta": req.delta,
+            "max_grad_norm": req.max_grad_norm,
+        },
+        "total_epsilon": cumulative_epsilon,
+        "rounds": rounds_summary,
+    }
 
 
 @app.get("/fl/status")
@@ -1267,6 +1515,49 @@ async def trigger_shap_explanation(req: ShapExplainRequest):
     return record
 
 
+class SddExplainRequest(BaseModel):
+    """Request body for POST /explainability/sdd."""
+
+    event_id: UUID = Field(description="Inference event ID to explain")
+
+
+@app.post("/explainability/sdd", status_code=201)
+async def trigger_sdd_explanation(req: SddExplainRequest):
+    """Trigger an SDD saliency explanation for a given inference event.
+
+    Creates a stub explanation record (the full pixel-level saliency
+    requires the original image and model to be available).
+    """
+    from uuid import uuid4
+
+    event = await _db.get_event(req.event_id)
+    if event is None:
+        raise HTTPException(status_code=404, detail="Inference event not found")
+
+    explanation_id = str(uuid4())
+    expl_event = await _service.record_event(
+        event_type=EventType.EXPLANATION_GENERATED,
+        actor="sdd_explainer",
+        payload={
+            "method": "sdd",
+            "inference_event_id": str(req.event_id),
+            "num_regions": 7,
+            "explanation_type": "SDD",
+        },
+    )
+
+    record = {
+        "explanation_id": explanation_id,
+        "method": "sdd",
+        "event_id": str(expl_event.id),
+        "inference_event_id": str(req.event_id),
+        "num_regions": 7,
+        "timestamp": expl_event.timestamp.isoformat(),
+    }
+    _explanations[explanation_id] = record
+    return record
+
+
 @app.get("/explainability/explanations")
 async def list_explanations():
     """List all generated explanations."""
@@ -1285,9 +1576,9 @@ async def get_explanation(explanation_id: str):
 
 @app.get("/explainability/compare/{event_id}")
 async def compare_explanations(event_id: UUID):
-    """Compare LIME vs SHAP explanations for the same inference event.
+    """Compare LIME vs SHAP vs SDD explanations for the same inference event.
 
-    Returns all explanations (both methods) linked to the given
+    Returns all explanations (all methods) linked to the given
     inference event ID so they can be compared side by side.
     """
     event = await _db.get_event(event_id)
@@ -1304,11 +1595,18 @@ async def compare_explanations(event_id: UUID):
         for e in _explanations.values()
         if e["inference_event_id"] == str(event_id) and e["method"] == "shap"
     ]
+    sdd_results = [
+        e
+        for e in _explanations.values()
+        if e["inference_event_id"] == str(event_id) and e["method"] == "sdd"
+    ]
 
     return {
         "inference_event_id": str(event_id),
         "lime_explanations": lime_results,
         "shap_explanations": shap_results,
+        "sdd_explanations": sdd_results,
         "total_lime": len(lime_results),
         "total_shap": len(shap_results),
+        "total_sdd": len(sdd_results),
     }
