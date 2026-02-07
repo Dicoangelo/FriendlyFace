@@ -161,7 +161,7 @@ class TestListExplanations:
         assert resp.status_code == 200
         data = resp.json()
         assert "total" in data
-        assert "explanations" in data
+        assert "items" in data
 
     async def test_list_after_creating(self, client, inference_event_id):
         await client.post(
@@ -175,7 +175,7 @@ class TestListExplanations:
         resp = await client.get("/explainability/explanations")
         data = resp.json()
         assert data["total"] >= 2
-        methods = {e["method"] for e in data["explanations"]}
+        methods = {e["method"] for e in data["items"]}
         assert "lime" in methods
         assert "shap" in methods
 

@@ -65,7 +65,7 @@ from starlette.responses import StreamingResponse
 from friendlyface.api.sse import EventBroadcaster
 from friendlyface.auth import require_api_key
 from friendlyface.config import settings
-from friendlyface.exceptions import FriendlyFaceError, NotFoundError
+from friendlyface.exceptions import FriendlyFaceError
 from friendlyface.logging_config import log_startup_info, setup_logging
 from friendlyface.core.models import (
     BiasAuditRecord,
@@ -818,7 +818,9 @@ class TrainRequest(BaseModel):
     )
 
 
-@app.post("/recognition/train", status_code=201, tags=["Recognition"], summary="Train PCA+SVM model")
+@app.post(
+    "/recognition/train", status_code=201, tags=["Recognition"], summary="Train PCA+SVM model"
+)
 @limiter.limit("5/minute")
 async def train_model(request: Request, req: TrainRequest):
     """Train PCA+SVM pipeline on a dataset directory and register the model."""
@@ -1001,13 +1003,21 @@ async def _do_predict(image: UploadFile, top_k: int = 5) -> dict[str, Any]:
     }
 
 
-@app.post("/recognition/predict", status_code=200, tags=["Recognition"], summary="Predict face identity")
+@app.post(
+    "/recognition/predict", status_code=200, tags=["Recognition"], summary="Predict face identity"
+)
 async def predict(image: UploadFile, top_k: int = 5):
     """Upload a face image and get prediction matches with forensic event logging."""
     return await _do_predict(image, top_k)
 
 
-@app.post("/recognize", status_code=200, tags=["Recognition"], summary="(Legacy) Predict face identity", deprecated=True)
+@app.post(
+    "/recognize",
+    status_code=200,
+    tags=["Recognition"],
+    summary="(Legacy) Predict face identity",
+    deprecated=True,
+)
 async def recognize(image: UploadFile, top_k: int = 5):
     """Legacy endpoint — use POST /recognition/predict instead."""
     return await _do_predict(image, top_k)
@@ -1055,7 +1065,9 @@ class MultiModalRequest(BaseModel):
     voice_weight: float = Field(default=0.4, gt=0, lt=1)
 
 
-@app.post("/recognition/voice/enroll", status_code=201, tags=["Voice"], summary="Enroll voice biometric")
+@app.post(
+    "/recognition/voice/enroll", status_code=201, tags=["Voice"], summary="Enroll voice biometric"
+)
 async def enroll_voice(audio: UploadFile, subject_id: str = "unknown"):
     """Enroll a voice for a subject from uploaded PCM audio."""
     from friendlyface.recognition.voice import extract_voice_embedding
@@ -1095,7 +1107,9 @@ async def enroll_voice(audio: UploadFile, subject_id: str = "unknown"):
     }
 
 
-@app.post("/recognition/voice/verify", status_code=200, tags=["Voice"], summary="Verify voice identity")
+@app.post(
+    "/recognition/voice/verify", status_code=200, tags=["Voice"], summary="Verify voice identity"
+)
 async def verify_voice(audio: UploadFile, top_k: int = 3):
     """Verify a voice against enrolled subjects."""
     from friendlyface.recognition.voice import run_voice_inference
@@ -1127,7 +1141,12 @@ async def verify_voice(audio: UploadFile, top_k: int = 3):
     }
 
 
-@app.post("/recognition/multimodal", status_code=200, tags=["Voice"], summary="Multi-modal face+voice fusion")
+@app.post(
+    "/recognition/multimodal",
+    status_code=200,
+    tags=["Voice"],
+    summary="Multi-modal face+voice fusion",
+)
 async def multimodal_fusion(req: MultiModalRequest):
     """Fuse face and voice recognition scores into a unified decision."""
     from friendlyface.recognition.fusion import fuse_scores
@@ -1251,7 +1270,13 @@ async def start_fl(req: FLSimulateRequest):
     return await _run_fl_simulation(req)
 
 
-@app.post("/fl/simulate", status_code=201, tags=["FL"], summary="(Legacy) Start FL simulation", deprecated=True)
+@app.post(
+    "/fl/simulate",
+    status_code=201,
+    tags=["FL"],
+    summary="(Legacy) Start FL simulation",
+    deprecated=True,
+)
 async def simulate_fl(req: FLSimulateRequest):
     """Legacy alias for POST /fl/start."""
     return await _run_fl_simulation(req)
@@ -1454,7 +1479,9 @@ async def get_fl_round_details(simulation_id: str, round_number: int):
     }
 
 
-@app.get("/fl/rounds/{simulation_id}/{round_number}/security", tags=["FL"], summary="FL round security")
+@app.get(
+    "/fl/rounds/{simulation_id}/{round_number}/security", tags=["FL"], summary="FL round security"
+)
 async def get_fl_round_security(simulation_id: str, round_number: int):
     """Get poisoning detection results for a specific FL round."""
     sim = _fl_simulations.get(simulation_id)
@@ -1547,7 +1574,12 @@ async def get_compliance_report():
     return _latest_compliance_report
 
 
-@app.post("/governance/compliance/generate", status_code=201, tags=["Governance"], summary="Generate compliance report")
+@app.post(
+    "/governance/compliance/generate",
+    status_code=201,
+    tags=["Governance"],
+    summary="Generate compliance report",
+)
 async def generate_compliance_report():
     """Generate a new compliance report and cache it."""
     global _latest_compliance_report
@@ -1682,7 +1714,9 @@ async def get_consent_history(subject_id: str, purpose: str | None = None):
     return {"subject_id": subject_id, "total": len(records), "records": records}
 
 
-@app.post("/consent/check", status_code=200, tags=["Consent"], summary="Check consent before inference")
+@app.post(
+    "/consent/check", status_code=200, tags=["Consent"], summary="Check consent before inference"
+)
 async def check_consent(req: ConsentCheckRequest):
     """Verify consent before inference. Returns allow/deny decision."""
     mgr = _get_consent_manager()
@@ -1961,7 +1995,9 @@ class ShapExplainRequest(BaseModel):
     random_state: int = Field(default=42)
 
 
-@app.post("/explainability/lime", status_code=201, tags=["Explainability"], summary="LIME explanation")
+@app.post(
+    "/explainability/lime", status_code=201, tags=["Explainability"], summary="LIME explanation"
+)
 async def trigger_lime_explanation(req: LimeExplainRequest):
     """Trigger a LIME explanation for a given inference event.
 
@@ -2002,7 +2038,9 @@ async def trigger_lime_explanation(req: LimeExplainRequest):
     return record
 
 
-@app.post("/explainability/shap", status_code=201, tags=["Explainability"], summary="SHAP explanation")
+@app.post(
+    "/explainability/shap", status_code=201, tags=["Explainability"], summary="SHAP explanation"
+)
 async def trigger_shap_explanation(req: ShapExplainRequest):
     """Trigger a SHAP explanation for a given inference event."""
     from uuid import uuid4
@@ -2042,7 +2080,12 @@ class SddExplainRequest(BaseModel):
     event_id: UUID = Field(description="Inference event ID to explain")
 
 
-@app.post("/explainability/sdd", status_code=201, tags=["Explainability"], summary="SDD saliency explanation")
+@app.post(
+    "/explainability/sdd",
+    status_code=201,
+    tags=["Explainability"],
+    summary="SDD saliency explanation",
+)
 async def trigger_sdd_explanation(req: SddExplainRequest):
     """Trigger an SDD saliency explanation for a given inference event.
 
@@ -2079,7 +2122,9 @@ async def trigger_sdd_explanation(req: SddExplainRequest):
     return record
 
 
-@app.get("/explainability/explanations", tags=["Explainability"], summary="List explanations (paginated)")
+@app.get(
+    "/explainability/explanations", tags=["Explainability"], summary="List explanations (paginated)"
+)
 async def list_explanations(
     limit: int = Query(default=50, ge=1, le=500, description="Max items to return"),
     offset: int = Query(default=0, ge=0, description="Number of items to skip"),
@@ -2091,7 +2136,11 @@ async def list_explanations(
     return {"items": page, "total": total, "limit": limit, "offset": offset}
 
 
-@app.get("/explainability/explanations/{explanation_id}", tags=["Explainability"], summary="Get explanation by ID")
+@app.get(
+    "/explainability/explanations/{explanation_id}",
+    tags=["Explainability"],
+    summary="Get explanation by ID",
+)
 async def get_explanation(explanation_id: str):
     """Get explanation details by ID."""
     record = _explanations.get(explanation_id)
@@ -2100,7 +2149,9 @@ async def get_explanation(explanation_id: str):
     return record
 
 
-@app.get("/explainability/compare/{event_id}", tags=["Explainability"], summary="Compare explanations")
+@app.get(
+    "/explainability/compare/{event_id}", tags=["Explainability"], summary="Compare explanations"
+)
 async def compare_explanations(event_id: UUID):
     """Compare LIME vs SHAP vs SDD explanations for the same inference event.
 

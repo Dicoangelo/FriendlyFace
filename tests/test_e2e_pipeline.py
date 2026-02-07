@@ -26,7 +26,7 @@ from httpx import ASGITransport, AsyncClient
 from PIL import Image
 
 from friendlyface.api import app as app_module
-from friendlyface.api.app import _db, _service, app
+from friendlyface.api.app import _db, _service, app, limiter
 from friendlyface.recognition.pca import IMAGE_SIZE
 
 
@@ -86,6 +86,9 @@ async def client(tmp_path):
     app_module._fl_simulations.clear()
     app_module._auto_audit_interval = 50
     app_module._recognition_event_count = 0
+
+    # Disable rate limiter for tests
+    limiter.enabled = False
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
@@ -275,7 +278,7 @@ class TestE2EPipeline:
         assert expl_list_resp.status_code == 200
         expl_list = expl_list_resp.json()
         assert expl_list["total"] >= 2
-        methods = {e["method"] for e in expl_list["explanations"]}
+        methods = {e["method"] for e in expl_list["items"]}
         assert "lime" in methods
         assert "shap" in methods
 
@@ -509,7 +512,7 @@ class TestE2EPipeline:
         # Verify sequential ordering
         all_events_resp = await client.get("/events")
         assert all_events_resp.status_code == 200
-        all_events = all_events_resp.json()
+        all_events = all_events_resp.json()["items"]
 
         # Events should have incrementing sequence numbers
         for i in range(len(all_events)):
@@ -545,7 +548,7 @@ class TestE2EPipeline:
         )
 
         events_resp = await client.get("/events")
-        events = events_resp.json()
+        events = events_resp.json()["items"]
         consent_events = [e for e in events if e["event_type"] == "consent_update"]
         assert len(consent_events) == 2
 

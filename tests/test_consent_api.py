@@ -555,7 +555,7 @@ class TestConsentLifecycle:
         )
 
         resp = await client.get("/events")
-        events = resp.json()
+        events = resp.json()["items"]
         consent_events = [e for e in events if e["event_type"] == "consent_update"]
         assert len(consent_events) == 2
 

@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
-from friendlyface.api.app import _db, _service, app
+from friendlyface.api.app import _db, _service, app, limiter
 
 
 @pytest_asyncio.fixture
@@ -20,6 +20,9 @@ async def auth_client(tmp_path):
     _service.provenance = __import__(
         "friendlyface.core.provenance", fromlist=["ProvenanceDAG"]
     ).ProvenanceDAG()
+
+    # Disable rate limiter for tests
+    limiter.enabled = False
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:

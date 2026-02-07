@@ -158,7 +158,7 @@ class TestListBiasAudits:
         assert resp.status_code == 200
         data = resp.json()
         assert data["total"] == 0
-        assert data["audits"] == []
+        assert data["items"] == []
 
     async def test_list_after_audit(self, client):
         await client.post(
@@ -171,7 +171,7 @@ class TestListBiasAudits:
         assert resp.status_code == 200
         data = resp.json()
         assert data["total"] >= 1
-        audit = data["audits"][0]
+        audit = data["items"][0]
         assert "audit_id" in audit
         assert "demographic_parity_gap" in audit
         assert "equalized_odds_gap" in audit
@@ -361,7 +361,7 @@ class TestAutoAuditTrigger:
         new_count = resp.json()["total"]
         assert new_count > initial_count
 
-        audits = resp.json()["audits"]
+        audits = resp.json()["items"]
         found_auto = False
         for audit in audits:
             detail_resp = await client.get(f"/fairness/audits/{audit['audit_id']}")
