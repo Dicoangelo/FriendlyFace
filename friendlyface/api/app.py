@@ -36,6 +36,8 @@ Endpoints:
   POST   /zk/prove                  — Generate a Schnorr ZK proof for a bundle
   POST   /zk/verify                 — Verify a Schnorr ZK proof
   GET    /zk/proofs/{bundle_id}     — Get stored proof for a bundle
+  GET    /bundles/{id}/export       — Export bundle as JSON-LD document
+  POST   /bundles/import            — Import and verify a JSON-LD bundle
   GET    /health                    — Health check
   GET    /dashboard                 — Comprehensive forensic health dashboard
 """
@@ -145,6 +147,10 @@ class VerifyVCRequest(BaseModel):
 # ---------------------------------------------------------------------------
 # ZK proof request models (US-032)
 # ---------------------------------------------------------------------------
+
+
+class ImportBundleRequest(BaseModel):
+    document: dict[str, Any] = Field(description="JSON-LD bundle document to import")
 
 
 class ZKProveRequest(BaseModel):
@@ -393,6 +399,181 @@ async def get_merkle_proof(event_id: UUID):
     if proof is None:
         raise HTTPException(status_code=404, detail="Event not found in Merkle tree")
     return proof.model_dump(mode="json")
+
+
+# ---------------------------------------------------------------------------
+# Bundle export/import — portable JSON-LD (US-035)
+# ---------------------------------------------------------------------------
+
+
+@app.post("/bundles/import", status_code=201)
+async def import_bundle(req: ImportBundleRequest):
+    """Import a JSON-LD bundle document with integrity verification."""
+    from datetime import datetime
+
+    from friendlyface.core.models import EventType as _ET
+    from friendlyface.core.models import ForensicBundle as _FB
+    from friendlyface.core.models import MerkleProof as _MP
+
+    doc = req.document
+
+    verification: dict[str, bool] = {
+        "hash_valid": False,
+        "merkle_valid": True,
+        "zk_valid": True,
+        "did_valid": True,
+        "chain_valid": True,
+    }
+
+    # 1. Recompute bundle hash to check integrity
+    original_hash = doc.get("bundle_hash", "")
+    temp_bundle = _FB(
+        id=UUID(doc["id"]),
+        created_at=datetime.fromisoformat(doc["created_at"]),
+        status=doc.get("status", "pending"),
+        event_ids=[UUID(e["id"]) for e in doc.get("events", [])],
+        merkle_root=doc.get("merkle_root", ""),
+        merkle_proofs=[_MP(**mp) for mp in doc.get("merkle_proofs", [])],
+        provenance_chain=[UUID(n["id"]) for n in doc.get("provenance_chain", [])],
+        bias_audit=doc.get("bias_audit"),
+        recognition_artifacts=doc.get("recognition_artifacts"),
+        fl_artifacts=doc.get("fl_artifacts"),
+        bias_report=doc.get("bias_report"),
+        explanation_artifacts=doc.get("explanation_artifacts"),
+    )
+    verification["hash_valid"] = temp_bundle.compute_hash() == original_hash
+
+    # 2. Merkle proof verification
+    for mp_data in doc.get("merkle_proofs", []):
+        proof_obj = _MP(**mp_data)
+        if not proof_obj.verify():
+            verification["merkle_valid"] = False
+            break
+
+    # 3. ZK proof verification
+    zk_proof = doc.get("zk_proof")
+    if zk_proof is not None:
+        zk_verifier = ZKBundleVerifier()
+        verification["zk_valid"] = zk_verifier.verify_bundle(json.dumps(zk_proof))
+
+    # 4. DID credential verification
+    did_credential = doc.get("did_credential")
+    if did_credential is not None:
+        vc_result = VerifiableCredential.verify(
+            did_credential, _service._platform_did.export_public()
+        )
+        verification["did_valid"] = vc_result["valid"]
+
+    # 5. Chain validity — events form a valid hash chain
+    events_data = doc.get("events", [])
+    for i, ev in enumerate(events_data):
+        if i == 0:
+            continue
+        prev_ev = events_data[i - 1]
+        if ev.get("previous_hash") != prev_ev.get("event_hash"):
+            verification["chain_valid"] = False
+            break
+
+    # Reject if hash is invalid (critical failure)
+    if not verification["hash_valid"]:
+        raise HTTPException(
+            status_code=422,
+            detail={
+                "imported": False,
+                "bundle_id": None,
+                "verification": verification,
+            },
+        )
+
+    # --- Re-create events and bundle ---
+    new_event_ids: list[UUID] = []
+    for ev in events_data:
+        new_event = await _service.record_event(
+            event_type=_ET(ev["event_type"]),
+            actor=ev.get("actor", "import"),
+            payload=ev.get("payload", {}),
+        )
+        new_event_ids.append(new_event.id)
+
+    new_bundle = await _service.create_bundle(
+        event_ids=new_event_ids,
+        bias_audit=None,
+        recognition_artifacts=doc.get("recognition_artifacts"),
+        fl_artifacts=doc.get("fl_artifacts"),
+        bias_report=doc.get("bias_report"),
+        explanation_artifacts=doc.get("explanation_artifacts"),
+    )
+
+    return {
+        "imported": True,
+        "bundle_id": str(new_bundle.id),
+        "verification": verification,
+    }
+
+
+@app.get("/bundles/{bundle_id}/export")
+async def export_bundle(bundle_id: UUID):
+    """Export a forensic bundle as a self-contained JSON-LD document."""
+    bundle = await _service.get_bundle(bundle_id)
+    if bundle is None:
+        raise HTTPException(status_code=404, detail="Bundle not found")
+
+    # Gather full event data
+    events = []
+    for eid in bundle.event_ids:
+        event = await _service.get_event(eid)
+        if event is not None:
+            events.append(event.model_dump(mode="json"))
+
+    # Merkle proofs
+    merkle_proofs = [p.model_dump(mode="json") for p in bundle.merkle_proofs]
+
+    # Provenance chain
+    provenance_chain = []
+    for nid in bundle.provenance_chain:
+        chain = _service.get_provenance_chain(nid)
+        if chain:
+            for node in chain:
+                provenance_chain.append(node.model_dump(mode="json"))
+
+    # Parse ZK proof
+    zk_proof = None
+    if bundle.zk_proof_placeholder:
+        try:
+            zk_proof = json.loads(bundle.zk_proof_placeholder)
+        except (json.JSONDecodeError, TypeError):
+            zk_proof = None
+
+    # Parse DID credential
+    did_credential = None
+    if bundle.did_credential_placeholder:
+        try:
+            did_credential = json.loads(bundle.did_credential_placeholder)
+        except (json.JSONDecodeError, TypeError):
+            did_credential = None
+
+    return {
+        "@context": [
+            "https://www.w3.org/2018/credentials/v1",
+            "https://friendlyface.dev/forensic/v1",
+        ],
+        "@type": "ForensicBundle",
+        "id": str(bundle.id),
+        "created_at": bundle.created_at.isoformat(),
+        "status": bundle.status.value if hasattr(bundle.status, "value") else str(bundle.status),
+        "bundle_hash": bundle.bundle_hash,
+        "merkle_root": bundle.merkle_root,
+        "events": events,
+        "merkle_proofs": merkle_proofs,
+        "provenance_chain": provenance_chain,
+        "bias_audit": bundle.bias_audit.model_dump(mode="json") if bundle.bias_audit else None,
+        "recognition_artifacts": bundle.recognition_artifacts,
+        "fl_artifacts": bundle.fl_artifacts,
+        "bias_report": bundle.bias_report,
+        "explanation_artifacts": bundle.explanation_artifacts,
+        "zk_proof": zk_proof,
+        "did_credential": did_credential,
+    }
 
 
 # ---------------------------------------------------------------------------
