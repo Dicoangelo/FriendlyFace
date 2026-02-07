@@ -184,6 +184,17 @@ class Database:
         rows = await cursor.fetchall()
         return [self._row_to_event(r) for r in rows]
 
+    async def get_events_paginated(
+        self, limit: int = 50, offset: int = 0
+    ) -> list[ForensicEvent]:
+        """Return a page of events ordered by sequence number."""
+        cursor = await self.db.execute(
+            "SELECT * FROM forensic_events ORDER BY sequence_number ASC LIMIT ? OFFSET ?",
+            (limit, offset),
+        )
+        rows = await cursor.fetchall()
+        return [self._row_to_event(r) for r in rows]
+
     async def get_events_by_ids(self, event_ids: list[UUID]) -> list[ForensicEvent]:
         """Batch-fetch events by a list of IDs (avoids N+1 queries)."""
         if not event_ids:
@@ -401,6 +412,22 @@ class Database:
         cursor = await self.db.execute("SELECT * FROM bias_audits ORDER BY timestamp ASC")
         rows = await cursor.fetchall()
         return [self._row_to_bias_audit(r) for r in rows]
+
+    async def get_bias_audits_paginated(
+        self, limit: int = 50, offset: int = 0
+    ) -> list[BiasAuditRecord]:
+        """Return a page of bias audits ordered by timestamp."""
+        cursor = await self.db.execute(
+            "SELECT * FROM bias_audits ORDER BY timestamp ASC LIMIT ? OFFSET ?",
+            (limit, offset),
+        )
+        rows = await cursor.fetchall()
+        return [self._row_to_bias_audit(r) for r in rows]
+
+    async def get_bias_audit_count(self) -> int:
+        cursor = await self.db.execute("SELECT COUNT(*) FROM bias_audits")
+        row = await cursor.fetchone()
+        return row[0] if row else 0
 
     def _row_to_bias_audit(self, row: aiosqlite.Row) -> BiasAuditRecord:
         return BiasAuditRecord(
