@@ -18,6 +18,7 @@ dependencies = [
     "lime>=0.2.0",
     "supabase>=2.0.0",
     "pynacl>=1.5.0",
+    "python-json-logger>=3.0.0",
 ]
 
 [project.optional-dependencies]
