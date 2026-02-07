@@ -1,0 +1,8 @@
+.beads/
+.coverage
+.pytest_cache/
+.venv/
+__pycache__/
+*.pyc
+*.db
+frontend/node_modules/

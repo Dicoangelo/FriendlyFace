@@ -33,7 +33,7 @@ export default function BiasAudits() {
 
   useEffect(() => {
     fetch("/api/v1/fairness/status").then((r) => r.json()).then(setFairness);
-    fetch("/api/v1/fairness/audits").then((r) => r.json()).then((d) => setAudits(d.audits || []));
+    fetch("/api/v1/fairness/audits").then((r) => r.json()).then((d) => setAudits(d.items || []));
     fetch("/api/v1/fairness/config").then((r) => r.json()).then(setConfig);
   }, []);
 

@@ -36,6 +36,9 @@ dev = [
     "bandit>=1.8.0",
 ]
 
+[project.scripts]
+app = "friendlyface.api.app:app"
+
 [build-system]
 requires = ["hatchling"]
 build-backend = "hatchling.build"

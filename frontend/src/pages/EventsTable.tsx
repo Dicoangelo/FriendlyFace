@@ -19,7 +19,7 @@ export default function EventsTable() {
     fetch("/api/v1/events")
       .then((r) => r.json())
       .then((data) => {
-        setEvents(data);
+        setEvents(data.items || data);
         setLoading(false);
       })
       .catch(() => setLoading(false));
