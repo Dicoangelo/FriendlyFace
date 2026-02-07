@@ -29,6 +29,13 @@ Endpoints:
   GET    /fl/status                 — Current FL training status
   POST   /explainability/sdd        — Generate SDD saliency explanation
   GET    /events/stream             — SSE stream of forensic events (real-time)
+  POST   /did/create                — Create a new Ed25519 DID:key
+  GET    /did/{did_id}/resolve      — Resolve a DID to its DID Document
+  POST   /vc/issue                  — Issue a Verifiable Credential
+  POST   /vc/verify                 — Verify a Verifiable Credential
+  POST   /zk/prove                  — Generate a Schnorr ZK proof for a bundle
+  POST   /zk/verify                 — Verify a Schnorr ZK proof
+  GET    /zk/proofs/{bundle_id}     — Get stored proof for a bundle
   GET    /health                    — Health check
   GET    /dashboard                 — Comprehensive forensic health dashboard
 """
@@ -57,6 +64,9 @@ from friendlyface.core.models import (
     ProvenanceRelation,
 )
 from friendlyface.core.service import ForensicService
+from friendlyface.crypto.did import Ed25519DIDKey
+from friendlyface.crypto.schnorr import ZKBundleProver, ZKBundleVerifier
+from friendlyface.crypto.vc import VerifiableCredential
 from friendlyface.storage.database import Database
 
 logger = logging.getLogger("friendlyface")
@@ -107,6 +117,49 @@ class AddProvenanceRequest(BaseModel):
     parents: list[UUID] = Field(default_factory=list)
     relations: list[ProvenanceRelation] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
+
+
+# ---------------------------------------------------------------------------
+# DID/VC request models (US-031)
+# ---------------------------------------------------------------------------
+
+
+class CreateDIDRequest(BaseModel):
+    seed: str | None = Field(
+        default=None, description="Optional hex-encoded 32-byte seed for deterministic key"
+    )
+
+
+class IssueVCRequest(BaseModel):
+    issuer_did_id: str = Field(description="DID of the issuer (from /did/create)")
+    subject_did: str = Field(default="", description="DID of the credential subject")
+    claims: dict[str, Any] = Field(description="Claims to include in the credential")
+    credential_type: str = Field(default="ForensicCredential")
+
+
+class VerifyVCRequest(BaseModel):
+    credential: dict[str, Any] = Field(description="The credential to verify")
+    issuer_public_key_hex: str = Field(description="Hex-encoded Ed25519 public key of the issuer")
+
+
+# ---------------------------------------------------------------------------
+# ZK proof request models (US-032)
+# ---------------------------------------------------------------------------
+
+
+class ZKProveRequest(BaseModel):
+    bundle_id: str = Field(description="ID of the bundle to prove")
+
+
+class ZKVerifyRequest(BaseModel):
+    proof: str = Field(description="JSON string of the Schnorr proof to verify")
+
+
+# ---------------------------------------------------------------------------
+# In-memory DID key store
+# ---------------------------------------------------------------------------
+
+_did_keys: dict[str, dict] = {}
 
 
 # ---------------------------------------------------------------------------
@@ -236,9 +289,9 @@ async def dashboard():
             "count": chain_integrity["count"],
         },
         "crypto_status": {
-            "did_enabled": False,
+            "did_enabled": True,
             "zk_scheme": "schnorr-sha256",
-            "total_dids": 0,
+            "total_dids": len(_did_keys),
             "total_vcs": 0,
         },
     }
@@ -1716,3 +1769,140 @@ async def compare_explanations(event_id: UUID):
         "total_shap": len(shap_results),
         "total_sdd": len(sdd_results),
     }
+
+
+# ---------------------------------------------------------------------------
+# DID/VC — Decentralized Identifiers & Verifiable Credentials (US-031)
+# ---------------------------------------------------------------------------
+
+
+@app.post("/did/create", status_code=201)
+async def create_did(req: CreateDIDRequest):
+    """Create a new Ed25519 DID:key identity."""
+    from datetime import datetime, timezone
+
+    if req.seed is not None:
+        did_key = Ed25519DIDKey.from_seed(bytes.fromhex(req.seed))
+    else:
+        did_key = Ed25519DIDKey()
+
+    did = did_key.did
+    public_key_hex = did_key.export_public().hex()
+    created_at = datetime.now(timezone.utc).isoformat()
+
+    _did_keys[did] = {
+        "did_key": did_key,
+        "did": did,
+        "public_key_hex": public_key_hex,
+        "created_at": created_at,
+    }
+
+    return {
+        "did": did,
+        "public_key_hex": public_key_hex,
+        "created_at": created_at,
+    }
+
+
+@app.get("/did/{did_id:path}/resolve")
+async def resolve_did(did_id: str):
+    """Resolve a DID to its DID Document."""
+    entry = _did_keys.get(did_id)
+    if entry is None:
+        raise HTTPException(status_code=404, detail="DID not found")
+    return entry["did_key"].resolve()
+
+
+@app.post("/vc/issue", status_code=201)
+async def issue_vc(req: IssueVCRequest):
+    """Issue a Verifiable Credential signed by the specified DID."""
+    entry = _did_keys.get(req.issuer_did_id)
+    if entry is None:
+        raise HTTPException(status_code=404, detail="Issuer DID not found")
+
+    vc = VerifiableCredential(issuer=entry["did_key"])
+    credential = vc.issue(
+        claims=req.claims,
+        credential_type=req.credential_type,
+        subject_did=req.subject_did,
+    )
+    return credential
+
+
+@app.post("/vc/verify")
+async def verify_vc(req: VerifyVCRequest):
+    """Verify a Verifiable Credential's proof."""
+    result = VerifiableCredential.verify(
+        credential=req.credential,
+        issuer_public_key=bytes.fromhex(req.issuer_public_key_hex),
+    )
+    return result
+
+
+# ---------------------------------------------------------------------------
+# ZK Proofs — Schnorr non-interactive zero-knowledge proofs (US-032)
+# ---------------------------------------------------------------------------
+
+
+@app.post("/zk/prove", status_code=201)
+async def zk_prove(req: ZKProveRequest):
+    """Generate a Schnorr ZK proof for a forensic bundle."""
+    bundle = await _service.get_bundle(UUID(req.bundle_id))
+    if bundle is None:
+        raise HTTPException(status_code=404, detail="Bundle not found")
+
+    if not bundle.bundle_hash:
+        raise HTTPException(status_code=400, detail="Bundle has no hash")
+
+    prover = ZKBundleProver()
+    proof_str = prover.prove_bundle(str(bundle.id), bundle.bundle_hash)
+
+    # Store proof on the bundle in the database
+    await _db.db.execute(
+        "UPDATE forensic_bundles SET zk_proof_placeholder = ? WHERE id = ?",
+        (proof_str, str(bundle.id)),
+    )
+    await _db.db.commit()
+
+    proof_data = json.loads(proof_str)
+    return {
+        "proof": proof_data,
+        "bundle_id": str(bundle.id),
+        "bundle_hash": bundle.bundle_hash,
+    }
+
+
+@app.post("/zk/verify")
+async def zk_verify(req: ZKVerifyRequest):
+    """Verify a Schnorr ZK proof."""
+    verifier = ZKBundleVerifier()
+    valid = verifier.verify_bundle(req.proof)
+
+    # Parse the proof to extract scheme
+    try:
+        proof_data = json.loads(req.proof)
+        scheme = proof_data.get("scheme", "unknown")
+    except (json.JSONDecodeError, TypeError):
+        scheme = "unknown"
+
+    return {"valid": valid, "scheme": scheme}
+
+
+@app.get("/zk/proofs/{bundle_id}")
+async def get_zk_proof(bundle_id: UUID):
+    """Get the stored ZK proof for a bundle."""
+    bundle = await _service.get_bundle(bundle_id)
+    if bundle is None:
+        raise HTTPException(status_code=404, detail="Bundle not found")
+
+    proof_raw = bundle.zk_proof_placeholder
+    if proof_raw is None:
+        return {"bundle_id": str(bundle_id), "proof": None}
+
+    # Try to parse as JSON for a cleaner response
+    try:
+        proof_data = json.loads(proof_raw)
+    except (json.JSONDecodeError, TypeError):
+        proof_data = proof_raw
+
+    return {"bundle_id": str(bundle_id), "proof": proof_data}

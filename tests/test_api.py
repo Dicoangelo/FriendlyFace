@@ -424,7 +424,7 @@ class TestDashboard:
         }
         assert expected_keys.issubset(set(data.keys()))
         # Verify crypto_status sub-keys
-        assert data["crypto_status"]["did_enabled"] is False
+        assert data["crypto_status"]["did_enabled"] is True
         assert data["crypto_status"]["zk_scheme"] == "schnorr-sha256"
         assert data["crypto_status"]["total_dids"] == 0
         assert data["crypto_status"]["total_vcs"] == 0
@@ -613,3 +613,126 @@ class TestSSE:
         queue = broadcaster.subscribe()
         broadcaster.unsubscribe(queue)
         broadcaster.unsubscribe(queue)  # should not raise
+
+
+class TestDID:
+    async def test_create_did(self, client):
+        resp = await client.post("/did/create", json={})
+        assert resp.status_code == 201
+        data = resp.json()
+        assert "did" in data
+        assert data["did"].startswith("did:key:z")
+        assert "public_key_hex" in data
+
+    async def test_create_did_with_seed(self, client):
+        resp = await client.post("/did/create", json={"seed": "01" * 32})
+        assert resp.status_code == 201
+        # Same seed = same DID
+        resp2 = await client.post("/did/create", json={"seed": "01" * 32})
+        assert resp.json()["did"] == resp2.json()["did"]
+
+    async def test_resolve_did(self, client):
+        resp = await client.post("/did/create", json={})
+        did = resp.json()["did"]
+        resp2 = await client.get(f"/did/{did}/resolve")
+        assert resp2.status_code == 200
+        doc = resp2.json()
+        assert doc["id"] == did
+        assert "verificationMethod" in doc
+
+    async def test_resolve_not_found(self, client):
+        resp = await client.get("/did/did:key:zNonExistent/resolve")
+        assert resp.status_code == 404
+
+
+class TestVC:
+    async def test_issue_and_verify(self, client):
+        # Create issuer DID
+        resp = await client.post("/did/create", json={})
+        did_data = resp.json()
+        # Issue VC
+        resp = await client.post(
+            "/vc/issue",
+            json={
+                "issuer_did_id": did_data["did"],
+                "claims": {"action": "test"},
+                "credential_type": "ForensicCredential",
+            },
+        )
+        assert resp.status_code == 201
+        cred = resp.json()
+        assert cred["proof"]["type"] == "Ed25519Signature2020"
+        # Verify VC
+        resp = await client.post(
+            "/vc/verify",
+            json={
+                "credential": cred,
+                "issuer_public_key_hex": did_data["public_key_hex"],
+            },
+        )
+        assert resp.status_code == 200
+        assert resp.json()["valid"] is True
+
+    async def test_issue_unknown_issuer(self, client):
+        resp = await client.post(
+            "/vc/issue",
+            json={
+                "issuer_did_id": "did:key:zUnknown",
+                "claims": {"test": True},
+            },
+        )
+        assert resp.status_code == 404
+
+
+class TestZKProof:
+    async def test_prove_and_verify(self, client):
+        # Create a bundle first
+        ev = await client.post(
+            "/events",
+            json={"event_type": "inference_result", "actor": "test", "payload": {}},
+        )
+        eid = ev.json()["id"]
+        bundle_resp = await client.post("/bundles", json={"event_ids": [eid]})
+        bundle_id = bundle_resp.json()["id"]
+        # Generate proof
+        resp = await client.post("/zk/prove", json={"bundle_id": bundle_id})
+        assert resp.status_code == 201
+        proof_data = resp.json()
+        assert "proof" in proof_data
+        assert proof_data["proof"]["scheme"] == "schnorr-sha256"
+        # Verify proof
+        import json as _json
+
+        resp2 = await client.post("/zk/verify", json={"proof": _json.dumps(proof_data["proof"])})
+        assert resp2.status_code == 200
+        assert resp2.json()["valid"] is True
+
+    async def test_prove_not_found(self, client):
+        resp = await client.post(
+            "/zk/prove",
+            json={"bundle_id": "00000000-0000-0000-0000-000000000000"},
+        )
+        assert resp.status_code == 404
+
+    async def test_get_stored_proof(self, client):
+        # Create bundle + prove
+        ev = await client.post(
+            "/events",
+            json={"event_type": "inference_result", "actor": "test", "payload": {}},
+        )
+        bundle_resp = await client.post("/bundles", json={"event_ids": [ev.json()["id"]]})
+        bundle_id = bundle_resp.json()["id"]
+        await client.post("/zk/prove", json={"bundle_id": bundle_id})
+        # Get stored proof
+        resp = await client.get(f"/zk/proofs/{bundle_id}")
+        assert resp.status_code == 200
+
+    async def test_verify_invalid_proof(self, client):
+        resp = await client.post(
+            "/zk/verify",
+            json={
+                "proof": '{"scheme":"schnorr-sha256","commitment":"00","challenge":"00","response":"00","public_point":"00"}'
+            },
+        )
+        assert resp.status_code == 200
+        assert resp.json()["valid"] is False

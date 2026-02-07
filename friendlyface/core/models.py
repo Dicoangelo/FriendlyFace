@@ -17,7 +17,7 @@ from enum import Enum
 from typing import Any
 from uuid import UUID, uuid4
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 def _utcnow() -> datetime:
@@ -203,6 +203,8 @@ class ForensicBundle(BaseModel):
     event chain, Merkle proof, provenance path, bias audit, and integrity hash.
     """
 
+    model_config = ConfigDict(populate_by_name=True)
+
     id: UUID = Field(default_factory=_new_id)
     created_at: datetime = Field(default_factory=_utcnow)
     status: BundleStatus = Field(default=BundleStatus.PENDING)
@@ -224,13 +226,17 @@ class ForensicBundle(BaseModel):
     bias_report: dict[str, Any] | None = Field(default=None)
     explanation_artifacts: dict[str, Any] | None = Field(default=None)
 
-    # ZK proof stub (BioZero pattern, arXiv:2409.17509)
+    # ZK proof (BioZero pattern, arXiv:2409.17509) — Schnorr non-interactive via Fiat-Shamir
     zk_proof_placeholder: str | None = Field(
-        default=None, description="Reserved for zero-knowledge proof integration"
+        default=None,
+        alias="zk_proof",
+        description="Schnorr ZK proof over bundle hash",
     )
-    # DID/VC stub (TBFL pattern, arXiv:2602.02629)
+    # DID/VC (TBFL pattern, arXiv:2602.02629) — Ed25519 Verifiable Credential
     did_credential_placeholder: str | None = Field(
-        default=None, description="Reserved for DID/Verifiable Credential integration"
+        default=None,
+        alias="did_credential",
+        description="DID-signed Verifiable Credential for this bundle",
     )
 
     # Integrity

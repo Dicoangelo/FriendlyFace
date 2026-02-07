@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import json
+import os
 from typing import Any
 from uuid import UUID
 
@@ -16,7 +18,23 @@ from friendlyface.core.models import (
     ProvenanceRelation,
 )
 from friendlyface.core.provenance import ProvenanceDAG
+from friendlyface.crypto.did import Ed25519DIDKey
+from friendlyface.crypto.schnorr import ZKBundleProver, ZKBundleVerifier
+from friendlyface.crypto.vc import VerifiableCredential
 from friendlyface.storage.database import Database
+
+
+def _load_platform_did() -> Ed25519DIDKey:
+    """Load or generate the platform DID key.
+
+    If FF_DID_SEED is set (32-byte hex string = 64 hex chars), use it
+    for deterministic key derivation. Otherwise generate a random key.
+    """
+    seed_hex = os.environ.get("FF_DID_SEED")
+    if seed_hex:
+        seed_bytes = bytes.fromhex(seed_hex)
+        return Ed25519DIDKey.from_seed(seed_bytes)
+    return Ed25519DIDKey()
 
 
 class ForensicService:
@@ -27,6 +45,7 @@ class ForensicService:
         self.merkle = MerkleTree()
         self.provenance = ProvenanceDAG()
         self._event_index: dict[UUID, int] = {}  # event_id -> leaf_index
+        self._platform_did: Ed25519DIDKey = _load_platform_did()
 
     async def initialize(self) -> None:
         """Rebuild in-memory state from persisted events."""
@@ -165,6 +184,25 @@ class ForensicService:
             bias_report=bias_report,
             explanation_artifacts=explanation_artifacts,
         ).seal()
+
+        # --- US-030: ZK proof + DID credential ---
+        # Generate Schnorr ZK proof over the sealed bundle hash
+        zk_prover = ZKBundleProver()
+        proof_str = zk_prover.prove_bundle(str(bundle.id), bundle.bundle_hash)
+        bundle.zk_proof_placeholder = proof_str
+
+        # Issue a ForensicCredential VC signed by the platform DID key
+        vc_issuer = VerifiableCredential(self._platform_did)
+        credential = vc_issuer.issue(
+            claims={
+                "bundle_id": str(bundle.id),
+                "bundle_hash": bundle.bundle_hash,
+                "status": bundle.status.value,
+            },
+            credential_type="ForensicCredential",
+            subject_did=self._platform_did.did,
+        )
+        bundle.did_credential_placeholder = json.dumps(credential)
 
         await self.db.insert_bundle(bundle)
         if bias_audit:
@@ -316,12 +354,45 @@ class ForensicService:
         results["layer_artifacts"] = layer_results
         layers_valid = all(lr["valid"] for lr in layer_results.values()) if layer_results else True
 
-        # 5. Overall
+        # 5. ZK proof verification (US-030)
+        zk_proof_val = bundle.zk_proof_placeholder
+        if zk_proof_val is None or (
+            isinstance(zk_proof_val, str) and zk_proof_val.startswith("zk_stub::")
+        ):
+            # Legacy or missing — pass through as valid for backward compat
+            results["zk_valid"] = True
+        else:
+            zk_verifier = ZKBundleVerifier()
+            results["zk_valid"] = zk_verifier.verify_bundle(zk_proof_val)
+
+        # 6. DID credential verification (US-030)
+        did_cred_val = bundle.did_credential_placeholder
+        if did_cred_val is None or (
+            isinstance(did_cred_val, str) and did_cred_val.startswith("stub::")
+        ):
+            # Legacy or missing — pass through as valid for backward compat
+            results["did_valid"] = True
+            results["credential_issuer"] = None
+        else:
+            try:
+                credential = json.loads(did_cred_val)
+                vc_result = VerifiableCredential.verify(
+                    credential, self._platform_did.export_public()
+                )
+                results["did_valid"] = vc_result["valid"]
+                results["credential_issuer"] = credential.get("issuer")
+            except (json.JSONDecodeError, TypeError, KeyError):
+                results["did_valid"] = False
+                results["credential_issuer"] = None
+
+        # 7. Overall
         results["valid"] = (
             results["bundle_hash_valid"]
             and results["merkle_proofs_valid"]
             and results["provenance_valid"]
             and layers_valid
+            and results["zk_valid"]
+            and results["did_valid"]
         )
 
         # Update status
