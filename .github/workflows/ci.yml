@@ -33,6 +33,35 @@ jobs:
       - name: Format check
         run: ruff format --check friendlyface/ tests/
 
+  security:
+    name: security scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: Install bandit
+        run: pip install "bandit>=1.8.0"
+
+      - name: Run bandit security scan
+        run: bandit -r friendlyface/ -ll -f json -o bandit-report.json || true
+
+      - name: Check bandit results
+        run: bandit -r friendlyface/ -ll
+
+      - name: Upload security report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: bandit-report
+          path: bandit-report.json
+
   test:
     name: test (py${{ matrix.python-version }})
     runs-on: ubuntu-latest
@@ -56,7 +85,7 @@ jobs:
         run: pip install -e ".[dev]"
 
       - name: Run tests with coverage
-        run: pytest --tb=short -q --junitxml=junit.xml
+        run: pytest --tb=short -q --junitxml=junit.xml --cov=friendlyface --cov-report=xml:coverage.xml --cov-report=term-missing --cov-fail-under=80
 
       - name: Upload test results
         if: always()
@@ -64,6 +93,13 @@ jobs:
         with:
           name: test-results-py${{ matrix.python-version }}
           path: junit.xml
+
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-py${{ matrix.python-version }}
+          path: coverage.xml
 
   frontend:
     name: frontend

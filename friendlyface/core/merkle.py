@@ -9,6 +9,8 @@ This matches the immutable nature of forensic event chains.
 
 from __future__ import annotations
 
+from uuid import uuid4
+
 from friendlyface.core.models import MerkleNode, MerkleProof, sha256_hex
 
 
@@ -18,6 +20,39 @@ class MerkleTree:
     def __init__(self) -> None:
         self._leaves: list[str] = []
         self._nodes: dict[str, MerkleNode] = {}
+
+    # --- Checkpoint persistence ---
+
+    def to_checkpoint(self, event_index: dict | None = None) -> dict:
+        """Serialize tree state for persistence."""
+        return {
+            "id": str(uuid4()),
+            "leaf_count": len(self._leaves),
+            "root_hash": self.root or "",
+            "leaves": list(self._leaves),
+            "event_index": {str(k): v for k, v in (event_index or {}).items()},
+        }
+
+    @classmethod
+    def from_checkpoint(cls, data: dict) -> tuple["MerkleTree", dict]:
+        """Restore tree from a checkpoint.
+
+        Returns (tree, event_index) tuple.
+        """
+        tree = cls()
+        for leaf_hash in data.get("leaves", []):
+            tree._leaves.append(leaf_hash)
+            node = MerkleNode(hash=leaf_hash, level=0, index=len(tree._leaves) - 1)
+            tree._nodes[leaf_hash] = node
+
+        # Restore event_index
+        from uuid import UUID
+
+        event_index = {}
+        for k, v in data.get("event_index", {}).items():
+            event_index[UUID(k)] = v
+
+        return tree, event_index
 
     @property
     def leaf_count(self) -> int:

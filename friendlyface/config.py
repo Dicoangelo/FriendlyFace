@@ -75,6 +75,12 @@ class Settings(BaseSettings):
     backup_interval_minutes: int = Field(
         default=60, ge=1, description="Auto-backup interval in minutes"
     )
+    backup_retention_count: int = Field(
+        default=10, ge=1, description="Maximum number of backups to keep"
+    )
+    backup_retention_days: int | None = Field(
+        default=None, ge=1, description="Delete backups older than N days (None = no age limit)"
+    )
 
     # Supabase
     supabase_url: str | None = Field(default=None, description="Supabase project URL")
