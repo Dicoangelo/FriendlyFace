@@ -96,7 +96,7 @@ def _create_database():
 
 class RecordEventRequest(BaseModel):
     event_type: EventType
-    actor: str
+    actor: str = Field(min_length=1, max_length=512)
     payload: dict[str, Any] = Field(default_factory=dict)
 
 
@@ -115,8 +115,8 @@ class CreateBundleRequest(BaseModel):
 
 
 class AddProvenanceRequest(BaseModel):
-    entity_type: str
-    entity_id: str
+    entity_type: str = Field(min_length=1, max_length=256)
+    entity_id: str = Field(min_length=1, max_length=256)
     parents: list[UUID] = Field(default_factory=list)
     relations: list[ProvenanceRelation] = Field(default_factory=list)
     metadata: dict[str, Any] = Field(default_factory=dict)
@@ -129,20 +129,28 @@ class AddProvenanceRequest(BaseModel):
 
 class CreateDIDRequest(BaseModel):
     seed: str | None = Field(
-        default=None, description="Optional hex-encoded 32-byte seed for deterministic key"
+        default=None,
+        max_length=256,
+        description="Optional hex-encoded 32-byte seed for deterministic key",
     )
 
 
 class IssueVCRequest(BaseModel):
-    issuer_did_id: str = Field(description="DID of the issuer (from /did/create)")
-    subject_did: str = Field(default="", description="DID of the credential subject")
+    issuer_did_id: str = Field(
+        min_length=1, max_length=256, description="DID of the issuer (from /did/create)"
+    )
+    subject_did: str = Field(
+        default="", max_length=256, description="DID of the credential subject"
+    )
     claims: dict[str, Any] = Field(description="Claims to include in the credential")
-    credential_type: str = Field(default="ForensicCredential")
+    credential_type: str = Field(default="ForensicCredential", max_length=256)
 
 
 class VerifyVCRequest(BaseModel):
     credential: dict[str, Any] = Field(description="The credential to verify")
-    issuer_public_key_hex: str = Field(description="Hex-encoded Ed25519 public key of the issuer")
+    issuer_public_key_hex: str = Field(
+        min_length=1, max_length=256, description="Hex-encoded Ed25519 public key of the issuer"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -155,11 +163,13 @@ class ImportBundleRequest(BaseModel):
 
 
 class ZKProveRequest(BaseModel):
-    bundle_id: str = Field(description="ID of the bundle to prove")
+    bundle_id: str = Field(min_length=1, max_length=256, description="ID of the bundle to prove")
 
 
 class ZKVerifyRequest(BaseModel):
-    proof: str = Field(description="JSON string of the Schnorr proof to verify")
+    proof: str = Field(
+        min_length=1, max_length=65536, description="JSON string of the Schnorr proof to verify"
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -213,6 +223,19 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+# ---------------------------------------------------------------------------
+# Security headers middleware
+# ---------------------------------------------------------------------------
+@app.middleware("http")
+async def security_headers_middleware(request: Request, call_next) -> Response:
+    response: Response = await call_next(request)
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    return response
 
 
 # ---------------------------------------------------------------------------
@@ -528,12 +551,9 @@ async def export_bundle(bundle_id: UUID):
     if bundle is None:
         raise HTTPException(status_code=404, detail="Bundle not found")
 
-    # Gather full event data
-    events = []
-    for eid in bundle.event_ids:
-        event = await _service.get_event(eid)
-        if event is not None:
-            events.append(event.model_dump(mode="json"))
+    # Gather full event data (batch query instead of N+1)
+    batch_events = await _service.db.get_events_by_ids(bundle.event_ids)
+    events = [e.model_dump(mode="json") for e in batch_events]
 
     # Merkle proofs
     merkle_proofs = [p.model_dump(mode="json") for p in bundle.merkle_proofs]
@@ -674,11 +694,17 @@ _model_registry: dict[str, dict[str, Any]] = {}
 
 
 class TrainRequest(BaseModel):
-    dataset_path: str = Field(description="Path to directory of aligned 112x112 grayscale images")
-    output_dir: str = Field(description="Directory to write trained model files")
+    dataset_path: str = Field(
+        min_length=1,
+        max_length=4096,
+        description="Path to directory of aligned 112x112 grayscale images",
+    )
+    output_dir: str = Field(
+        min_length=1, max_length=4096, description="Directory to write trained model files"
+    )
     n_components: int = Field(default=128, description="PCA components to retain")
     C: float = Field(default=1.0, description="SVM regularization parameter")
-    kernel: str = Field(default="linear", description="SVM kernel type")
+    kernel: str = Field(default="linear", max_length=256, description="SVM kernel type")
     cv_folds: int = Field(default=5, description="Cross-validation folds")
     labels: list[int] | None = Field(
         default=None,
@@ -905,7 +931,9 @@ def _get_voice_recognizer():
 
 
 class VoiceEnrollRequest(BaseModel):
-    subject_id: str = Field(description="Subject identifier to enroll")
+    subject_id: str = Field(
+        min_length=1, max_length=256, description="Subject identifier to enroll"
+    )
 
 
 class VoiceVerifyRequest(BaseModel):
@@ -913,7 +941,7 @@ class VoiceVerifyRequest(BaseModel):
 
 
 class MultiModalRequest(BaseModel):
-    face_label: str = Field(default="", description="Face match label")
+    face_label: str = Field(default="", max_length=512, description="Face match label")
     face_confidence: float = Field(default=0.0, ge=0, le=1)
     voice_confidence: float = Field(default=0.0, ge=0, le=1)
     face_weight: float = Field(default=0.6, gt=0, lt=1)
@@ -1431,29 +1459,32 @@ async def generate_compliance_report():
 class ConsentGrantRequest(BaseModel):
     """Request body for POST /consent/grant."""
 
-    subject_id: str = Field(description="Subject identifier")
-    purpose: str = Field(description="Purpose of consent (e.g. recognition, training)")
+    subject_id: str = Field(min_length=1, max_length=256, description="Subject identifier")
+    purpose: str = Field(
+        min_length=1, max_length=512, description="Purpose of consent (e.g. recognition, training)"
+    )
     expiry: str | None = Field(
         default=None,
+        max_length=256,
         description="Optional ISO-8601 expiry datetime",
     )
-    actor: str = Field(default="api", description="Actor granting consent")
+    actor: str = Field(default="api", max_length=512, description="Actor granting consent")
 
 
 class ConsentRevokeRequest(BaseModel):
     """Request body for POST /consent/revoke."""
 
-    subject_id: str = Field(description="Subject identifier")
-    purpose: str = Field(description="Purpose of consent to revoke")
-    reason: str = Field(default="", description="Reason for revocation")
-    actor: str = Field(default="api", description="Actor revoking consent")
+    subject_id: str = Field(min_length=1, max_length=256, description="Subject identifier")
+    purpose: str = Field(min_length=1, max_length=512, description="Purpose of consent to revoke")
+    reason: str = Field(default="", max_length=4096, description="Reason for revocation")
+    actor: str = Field(default="api", max_length=512, description="Actor revoking consent")
 
 
 class ConsentCheckRequest(BaseModel):
     """Request body for POST /consent/check."""
 
-    subject_id: str = Field(description="Subject identifier")
-    purpose: str = Field(description="Purpose to verify consent for")
+    subject_id: str = Field(min_length=1, max_length=256, description="Subject identifier")
+    purpose: str = Field(min_length=1, max_length=512, description="Purpose to verify consent for")
 
 
 def _get_consent_manager():

@@ -11,13 +11,16 @@ FriendlyFace is a forensic-friendly AI facial recognition platform implementing 
 source .venv/bin/activate
 python3 -m friendlyface
 
-# Tests (560 passing, ~29s)
+# Tests (881+ passing, ~31s)
 pytest tests/ -v
 pytest tests/test_e2e_pipeline.py -v  # Full pipeline test
 
-# Lint
+# Lint + format
 ruff check friendlyface/ tests/
 ruff format --check friendlyface/ tests/
+
+# Frontend
+cd frontend && npm run build && npm run lint
 
 # Docker
 docker build -t friendlyface .
@@ -30,16 +33,19 @@ docker run -p 8000:8000 friendlyface
 
 ```
 friendlyface/
-├── api/app.py           # 46 FastAPI endpoints
+├── api/app.py           # 62 FastAPI endpoints + /api/v1/ versioned routes
+├── api/sse.py           # Server-Sent Events broadcaster
 ├── auth.py              # API key auth (X-API-Key header)
 ├── core/                # ForensicEvent, MerkleTree, ProvenanceNode, Bundle
-├── recognition/         # PCA + SVM (scikit-learn)
-├── fl/                  # FedAvg simulation + poisoning detection
-├── fairness/            # Demographic parity + equalized odds
-├── explainability/      # LIME (real lib) + KernelSHAP (custom)
+├── crypto/              # Ed25519 DID:key (PyNaCl), Schnorr ZK proofs, VCs
+├── recognition/         # PCA + SVM (scikit-learn) + voice biometrics (MFCC)
+├── fl/                  # FedAvg + DP-FedAvg + poisoning detection
+├── fairness/            # Demographic parity + equalized odds + auto-audit
+├── explainability/      # LIME (real lib) + KernelSHAP + SDD saliency
 ├── governance/          # Consent (append-only) + EU AI Act compliance
 ├── storage/             # SQLite (default) or Supabase (FF_STORAGE=supabase)
-└── stubs/               # DID + ZK placeholders (Phase 2)
+├── logging_config.py    # Structured JSON logging (FF_LOG_FORMAT=json)
+└── frontend/            # React 19 + Vite + TailwindCSS dashboard (9 pages)
 ```
 
 ## Key Patterns
@@ -47,8 +53,11 @@ friendlyface/
 - **Hash chaining:** Each `ForensicEvent.event_hash = SHA256(content + previous_hash)`
 - **Merkle tree:** Append-only, rebuilt from DB on startup via `ForensicService.initialize()`
 - **Provenance DAG:** Nodes link training → model → inference → explanation → bundle
-- **Storage switching:** `FF_STORAGE=sqlite|supabase` env var in `api/app.py:_create_database()`
+- **Storage switching:** `FF_STORAGE=sqlite|supabase` env var
 - **Auth bypass:** Empty `FF_API_KEYS` = dev mode (no auth)
+- **Crypto:** Ed25519 DID:key + Schnorr ZK proofs auto-generated on bundle creation
+- **SSE:** Real-time forensic event stream at `/events/stream`
+- **API versioning:** All routes available at `/api/v1/` prefix (backward compatible)
 - **Test fixtures:** `conftest.py` provides `db`, `service`, `client` fixtures with state reset
 
 ## Environment
@@ -58,26 +67,35 @@ friendlyface/
 | `FF_STORAGE` | `sqlite` | Backend selection |
 | `FF_DB_PATH` | `friendlyface.db` | SQLite path |
 | `FF_API_KEYS` | *(empty=dev)* | Comma-separated keys |
+| `FF_DID_SEED` | *(auto-gen)* | Deterministic DID key seed |
+| `FF_LOG_FORMAT` | `text` | `json` for structured logs |
+| `FF_LOG_LEVEL` | `INFO` | Log level |
+| `FF_SERVE_FRONTEND` | `true` | Serve built React frontend |
 | `SUPABASE_URL` | — | Supabase project URL |
 | `SUPABASE_KEY` | — | Supabase service role key |
 
 ## Test Structure
 
-25 test files, 560 tests. Key test files:
-- `test_e2e_pipeline.py` — Full forensic lifecycle (consent → train → recognize → explain → audit → bundle → verify)
-- `test_supabase.py` — Supabase adapter with mocked client
-- `test_auth.py` — API key auth enforcement
+40+ test files, 881+ tests. Key test files:
+- `test_e2e_pipeline.py` — Full forensic lifecycle
+- `test_ed25519_did.py` — Ed25519 DID:key with PyNaCl
+- `test_ed25519_vc.py` — Verifiable Credentials with Ed25519
+- `test_schnorr.py` — Schnorr ZK proofs + legacy compat
+- `test_bundle_crypto.py` — Bundle creation with crypto wiring
+- `test_bundle_export.py` — JSON-LD export/import round-trip
+- `test_api.py` — API integration tests (all endpoints)
+- `test_api_versioning.py` — /api/v1/ prefix tests
+- `test_logging.py` — Structured JSON logging tests
 
 ## Deployment
 
-- **Fly.io:** `fly.toml` (iad region, 256MB, SQLite on mounted volume)
 - **Railway:** `railway.toml` (Dockerfile builder, 120s healthcheck)
-- **Render:** `render.yaml` (free tier, Docker)
+- **Fly.io:** `fly.toml` (iad region, 256MB, SQLite on mounted volume)
 - **Docker:** Multi-stage build, non-root user (ffuser:1000)
 
 ## Dependencies
 
-Core: FastAPI, uvicorn, pydantic, aiosqlite, scikit-learn, numpy, Pillow, lime, supabase
+Core: FastAPI, uvicorn, pydantic, aiosqlite, scikit-learn, numpy, Pillow, lime, pynacl, supabase
 Dev: pytest, pytest-asyncio, httpx, ruff
 
 ## GitHub

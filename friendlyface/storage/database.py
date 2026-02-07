@@ -93,6 +93,27 @@ CREATE TABLE IF NOT EXISTS consent_records (
 
 CREATE INDEX IF NOT EXISTS idx_consent_subject_purpose
     ON consent_records (subject_id, purpose, timestamp);
+
+CREATE INDEX IF NOT EXISTS idx_events_event_type
+    ON forensic_events (event_type);
+
+CREATE INDEX IF NOT EXISTS idx_events_timestamp
+    ON forensic_events (timestamp);
+
+CREATE INDEX IF NOT EXISTS idx_events_sequence_number
+    ON forensic_events (sequence_number);
+
+CREATE INDEX IF NOT EXISTS idx_bundles_status
+    ON forensic_bundles (status);
+
+CREATE INDEX IF NOT EXISTS idx_bundles_created_at
+    ON forensic_bundles (created_at);
+
+CREATE INDEX IF NOT EXISTS idx_provenance_entity
+    ON provenance_nodes (entity_type, entity_id);
+
+CREATE INDEX IF NOT EXISTS idx_bias_audits_timestamp
+    ON bias_audits (timestamp);
 """
 
 
@@ -160,6 +181,19 @@ class Database:
 
     async def get_all_events(self) -> list[ForensicEvent]:
         cursor = await self.db.execute("SELECT * FROM forensic_events ORDER BY sequence_number ASC")
+        rows = await cursor.fetchall()
+        return [self._row_to_event(r) for r in rows]
+
+    async def get_events_by_ids(self, event_ids: list[UUID]) -> list[ForensicEvent]:
+        """Batch-fetch events by a list of IDs (avoids N+1 queries)."""
+        if not event_ids:
+            return []
+        placeholders = ",".join("?" for _ in event_ids)
+        cursor = await self.db.execute(
+            f"SELECT * FROM forensic_events WHERE id IN ({placeholders}) "  # noqa: S608
+            "ORDER BY sequence_number ASC",
+            [str(eid) for eid in event_ids],
+        )
         rows = await cursor.fetchall()
         return [self._row_to_event(r) for r in rows]
 
