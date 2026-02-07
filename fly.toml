@@ -1,39 +1,38 @@
-app = "friendlyface"
-primary_region = "iad"
+# fly.toml app configuration file generated for friendlyface on 2026-02-07T13:51:44-05:00
+#
+# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
+#
+
+app = 'friendlyface'
+primary_region = 'iad'
 
 [build]
 
 [env]
-  FF_STORAGE = "sqlite"
-  FF_HOST = "0.0.0.0"
-  FF_PORT = "8000"
+  FF_HOST = '0.0.0.0'
+  FF_PORT = '8000'
+  FF_STORAGE = 'sqlite'
 
-# Set secrets via: fly secrets set SUPABASE_URL=... SUPABASE_KEY=... FF_API_KEYS=...
+[[mounts]]
+  source = 'ff_data'
+  destination = '/app/data'
 
 [http_service]
   internal_port = 8000
   force_https = true
-  auto_stop_machines = "stop"
+  auto_stop_machines = 'stop'
   auto_start_machines = true
   min_machines_running = 1
 
-  [http_service.checks]
-    [http_service.checks.health]
-      interval = "15s"
-      timeout = "5s"
-      grace_period = "10s"
-      method = "GET"
-      path = "/health"
+  [[http_service.checks]]
+    interval = '15s'
+    timeout = '5s'
+    grace_period = '10s'
+    method = 'GET'
+    path = '/health'
 
 [[vm]]
-  memory = "256mb"
-  cpu_kind = "shared"
+  memory = '512mb'
+  cpu_kind = 'shared'
   cpus = 1
-
-[scaling]
-  min = 1
-  max = 3
-
-[mounts]
-  source = "ff_data"
-  destination = "/app/data"
+  memory_mb = 512
