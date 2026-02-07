@@ -3,7 +3,7 @@
 [![CI](https://github.com/Dicoangelo/FriendlyFace/actions/workflows/ci.yml/badge.svg)](https://github.com/Dicoangelo/FriendlyFace/actions/workflows/ci.yml)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-880%2B%20passing-brightgreen.svg)](#testing)
+[![Tests](https://img.shields.io/badge/tests-881%2B%20passing-brightgreen.svg)](#testing)
 
 **Forensic-Friendly AI Facial Recognition Platform** implementing Safiia Mohammed's ICDF2C 2024 forensic-friendly schema with 2025-2026 SOTA components.
 
@@ -74,7 +74,11 @@ The dashboard is served as static files from FastAPI — single deployment.
 
 ## API Reference
 
-**62+ endpoints** across 12 domains. All available at both `/` and `/api/v1/` prefix. All endpoints require API key auth (header `X-API-Key`) except `/health`.
+**62+ endpoints** across 12 domains. All available at both `/` and `/api/v1/` prefix. All endpoints require API key auth (header `X-API-Key`) except `/health` and `/metrics`.
+
+> **Pagination:** List endpoints (`/events`, `/fairness/audits`, `/explainability/explanations`) accept `limit` (default 50, max 500) and `offset` query params. Responses use `{items, total, limit, offset}` envelope.
+>
+> **Rate limiting:** Global default `100/min/IP`. Sensitive endpoints: `/recognition/train` 5/min, `/did/create` 10/min, `/zk/prove` 20/min. Returns `429` with `Retry-After` header. Disable with `FF_RATE_LIMIT=none`.
 
 ### Health
 
@@ -82,6 +86,7 @@ The dashboard is served as static files from FastAPI — single deployment.
 |--------|----------|-------------|
 | GET | `/health` | Health check (public) |
 | GET | `/api/version` | API version info |
+| GET | `/metrics` | Prometheus metrics (public) |
 
 ### Forensic Events
 
@@ -232,13 +237,17 @@ When `FF_API_KEYS` is unset, auth is disabled (dev mode).
 | `FF_SERVE_FRONTEND` | `true` | Serve React dashboard static files |
 | `FF_HOST` | `0.0.0.0` | Server bind host |
 | `FF_PORT` | `8000` | Server bind port |
+| `FF_RATE_LIMIT` | `100/minute` | Default rate limit (`none` to disable) |
+| `FF_CORS_ORIGINS` | `*` | Comma-separated CORS origins |
 | `SUPABASE_URL` | — | Supabase project URL |
 | `SUPABASE_KEY` | — | Supabase service role key |
+
+> All `FF_*` variables are validated at startup via Pydantic `BaseSettings` (`friendlyface/config.py`). Invalid values cause a fast failure with a clear error message.
 
 ## Testing
 
 ```bash
-# Full test suite (880+ tests)
+# Full test suite (881+ tests)
 pytest tests/ -v
 
 # Specific layer
@@ -319,11 +328,14 @@ friendlyface/
 ├── governance/
 │   ├── consent.py           # Consent management (append-only)
 │   └── compliance.py        # EU AI Act compliance reporting
+├── config.py                # Pydantic BaseSettings (all FF_* env vars)
+├── exceptions.py            # Custom exception hierarchy + error middleware
 ├── storage/
-│   ├── database.py          # SQLite async backend (indexed)
+│   ├── database.py          # SQLite async backend (indexed, paginated)
 │   └── supabase_db.py       # Supabase backend
 ├── logging_config.py        # Structured JSON logging
 └── frontend/                # React 19 + Vite + TailwindCSS dashboard
+    ├── src/components/       # ErrorBoundary, Toast, ConfirmDialog
     ├── src/pages/            # 9 dashboard pages
     └── dist/                 # Built static files (served by FastAPI)
 ```
