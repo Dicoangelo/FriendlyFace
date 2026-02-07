@@ -5,53 +5,53 @@
 @tailwind utilities;
 
 @layer base {
-  /* ── Light theme (default) — matches metaventionsai.com ── */
+  /* ── Light theme (default) ────────────────────────────── */
   :root {
-    --color-page: 245 247 250;       /* fog white #F5F7FA */
-    --color-surface: 230 237 245;    /* pearl mist #E6EDF5 */
-    --color-surface-light: 220 228 238;
-    --color-card: 255 255 255;       /* white */
-    --color-fg: 11 16 32;            /* midnight #0B1020 */
-    --color-fg-secondary: 55 65 90;
-    --color-fg-muted: 120 132 155;
-    --color-fg-faint: 185 195 210;
+    --color-page: 249 250 251;       /* gray-50 — clean, familiar */
+    --color-surface: 243 244 246;    /* gray-100 */
+    --color-surface-light: 229 231 235; /* gray-200 */
+    --color-card: 255 255 255;
+    --color-fg: 17 24 39;            /* gray-900 */
+    --color-fg-secondary: 75 85 99;  /* gray-600 */
+    --color-fg-muted: 107 114 128;   /* gray-500 */
+    --color-fg-faint: 156 163 175;   /* gray-400 */
     --color-sidebar: 255 255 255;
-    --color-border: 230 237 245;     /* pearl mist */
-    --glass-bg: rgba(255, 255, 255, 0.85);
-    --glass-border: rgba(11, 16, 32, 0.05);
-    --glass-hover-border: rgba(123, 44, 255, 0.18);
+    --color-border: 229 231 235;     /* gray-200 */
+    --glass-bg: rgba(255, 255, 255, 0.97);
+    --glass-border: rgba(0, 0, 0, 0.05);
+    --glass-hover-border: rgba(123, 44, 255, 0.15);
     --glass-hover-shadow: rgba(123, 44, 255, 0.06);
-    --glass-shadow: 0 4px 30px rgba(0, 0, 0, 0.03);
-    --code-bg: 241 245 249;
+    --glass-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
+    --code-bg: 243 244 246;
     --input-bg: 255 255 255;
-    --input-border: rgba(11, 16, 32, 0.08);
+    --input-border: rgba(0, 0, 0, 0.1);
     --input-focus-border: rgba(123, 44, 255, 0.4);
     --input-focus-ring: rgba(123, 44, 255, 0.1);
-    --terminal-bg: 11 16 32;
+    --terminal-bg: 17 24 39;
   }
 
   /* ── Dark theme ───────────────────────────────────────── */
   .dark {
-    --color-page: 11 16 32;          /* midnight */
-    --color-surface: 15 22 41;
-    --color-surface-light: 21 29 51;
-    --color-card: 15 22 41;
-    --color-fg: 230 237 245;
-    --color-fg-secondary: 179 186 197;
-    --color-fg-muted: 102 112 133;
-    --color-fg-faint: 51 65 85;
-    --color-sidebar: 5 7 13;         /* obsidian */
-    --color-border: 30 41 59;
-    --glass-bg: rgba(15, 22, 41, 0.7);
-    --glass-border: rgba(24, 230, 255, 0.08);
-    --glass-hover-border: rgba(24, 230, 255, 0.15);
-    --glass-hover-shadow: rgba(24, 230, 255, 0.05);
-    --glass-shadow: 0 4px 30px rgba(0, 0, 0, 0.2);
+    --color-page: 11 16 32;          /* midnight #0B1020 */
+    --color-surface: 17 24 44;
+    --color-surface-light: 24 32 56;
+    --color-card: 17 24 44;
+    --color-fg: 243 244 250;         /* near white */
+    --color-fg-secondary: 190 196 215;
+    --color-fg-muted: 120 130 155;
+    --color-fg-faint: 65 75 100;
+    --color-sidebar: 5 7 13;         /* obsidian #05070D */
+    --color-border: 35 45 70;
+    --glass-bg: rgba(11, 16, 32, 0.85);
+    --glass-border: rgba(255, 255, 255, 0.08);
+    --glass-hover-border: rgba(24, 230, 255, 0.2);
+    --glass-hover-shadow: rgba(24, 230, 255, 0.06);
+    --glass-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
     --code-bg: 5 7 13;
-    --input-bg: 15 22 41;
+    --input-bg: 17 24 44;
     --input-border: rgba(255, 255, 255, 0.1);
     --input-focus-border: rgba(24, 230, 255, 0.4);
-    --input-focus-ring: rgba(24, 230, 255, 0.2);
+    --input-focus-ring: rgba(24, 230, 255, 0.15);
     --terminal-bg: 5 7 13;
   }
 
