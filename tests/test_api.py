@@ -286,3 +286,121 @@ class TestProvenance:
         assert len(chain) == 3
         assert chain[0]["entity_type"] == "dataset"
         assert chain[2]["entity_type"] == "inference"
+
+
+class TestDPFL:
+    async def test_dp_fl_start(self, client):
+        resp = await client.post(
+            "/fl/dp-start",
+            json={"n_clients": 3, "n_rounds": 2, "epsilon": 1.0, "delta": 1e-5},
+        )
+        assert resp.status_code == 201
+        data = resp.json()
+        assert data["n_rounds"] == 2
+        assert data["n_clients"] == 3
+        assert data["total_epsilon"] > 0
+        assert len(data["rounds"]) == 2
+        assert data["dp_config"]["epsilon"] == 1.0
+
+    async def test_dp_fl_rounds_have_privacy_metadata(self, client):
+        resp = await client.post(
+            "/fl/dp-start",
+            json={"n_clients": 2, "n_rounds": 1, "epsilon": 0.5},
+        )
+        data = resp.json()
+        round_info = data["rounds"][0]
+        assert "noise_scale" in round_info
+        assert "privacy_spent" in round_info
+        assert round_info["privacy_spent"] == 0.5
+
+    async def test_dp_fl_clipping_tracked(self, client):
+        resp = await client.post(
+            "/fl/dp-start",
+            json={"n_clients": 2, "n_rounds": 1, "max_grad_norm": 1.0},
+        )
+        data = resp.json()
+        assert "clipped_clients" in data["rounds"][0]
+        assert "n_clipped" in data["rounds"][0]
+
+
+class TestSddExplainability:
+    async def test_sdd_explain_creates_record(self, client):
+        # First create an inference event
+        event_resp = await client.post(
+            "/events",
+            json={
+                "event_type": "inference_result",
+                "actor": "test",
+                "payload": {"test": True},
+            },
+        )
+        event_id = event_resp.json()["id"]
+
+        resp = await client.post(
+            "/explainability/sdd",
+            json={"event_id": event_id},
+        )
+        assert resp.status_code == 201
+        data = resp.json()
+        assert data["method"] == "sdd"
+        assert data["inference_event_id"] == event_id
+        assert data["num_regions"] == 7
+
+    async def test_sdd_in_compare_endpoint(self, client):
+        # Create inference event and SDD explanation
+        event_resp = await client.post(
+            "/events",
+            json={
+                "event_type": "inference_result",
+                "actor": "test",
+                "payload": {},
+            },
+        )
+        event_id = event_resp.json()["id"]
+
+        await client.post("/explainability/sdd", json={"event_id": event_id})
+
+        resp = await client.get(f"/explainability/compare/{event_id}")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "sdd_explanations" in data
+        assert data["total_sdd"] == 1
+
+    async def test_sdd_explain_missing_event(self, client):
+        resp = await client.post(
+            "/explainability/sdd",
+            json={"event_id": "00000000-0000-0000-0000-000000000000"},
+        )
+        assert resp.status_code == 404
+
+
+class TestMultiModalFusion:
+    async def test_fusion_endpoint(self, client):
+        resp = await client.post(
+            "/recognition/multimodal",
+            json={
+                "face_label": "alice",
+                "face_confidence": 0.9,
+                "voice_confidence": 0.8,
+                "face_weight": 0.6,
+                "voice_weight": 0.4,
+            },
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["fusion_method"] == "weighted_sum"
+        assert len(data["fused_matches"]) > 0
+        assert data["fused_matches"][0]["fused_confidence"] > 0
+
+    async def test_fusion_invalid_weights(self, client):
+        resp = await client.post(
+            "/recognition/multimodal",
+            json={
+                "face_label": "alice",
+                "face_confidence": 0.9,
+                "voice_confidence": 0.8,
+                "face_weight": 0.5,
+                "voice_weight": 0.3,
+            },
+        )
+        assert resp.status_code == 400
