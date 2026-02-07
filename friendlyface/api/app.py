@@ -28,11 +28,15 @@ Endpoints:
 
 from __future__ import annotations
 
+import logging
+import os
+import time
 from contextlib import asynccontextmanager
 from typing import Any
-from uuid import UUID
+from uuid import UUID, uuid4
 
-from fastapi import Depends, FastAPI, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, HTTPException, Request, Response, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 
 from friendlyface.auth import require_api_key
@@ -43,6 +47,10 @@ from friendlyface.core.models import (
 )
 from friendlyface.core.service import ForensicService
 from friendlyface.storage.database import Database
+
+logger = logging.getLogger("friendlyface")
+
+_STARTUP_TIME: float = 0.0
 
 
 def _create_database():
@@ -100,6 +108,8 @@ _service = ForensicService(_db)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    global _STARTUP_TIME
+    _STARTUP_TIME = time.monotonic()
     await _db.connect()
     await _service.initialize()
     yield
@@ -117,6 +127,40 @@ app = FastAPI(
     dependencies=[Depends(require_api_key)],
 )
 
+# ---------------------------------------------------------------------------
+# CORS middleware
+# ---------------------------------------------------------------------------
+_cors_origins = os.environ.get("FF_CORS_ORIGINS", "*").split(",")
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=_cors_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
+
+
+# ---------------------------------------------------------------------------
+# Request logging middleware
+# ---------------------------------------------------------------------------
+@app.middleware("http")
+async def request_logging_middleware(request: Request, call_next) -> Response:
+    request_id = str(uuid4())[:8]
+    start = time.monotonic()
+    response: Response = await call_next(request)
+    elapsed_ms = (time.monotonic() - start) * 1000
+    logger.info(
+        "%s %s %s %.1fms [%s]",
+        request.method,
+        request.url.path,
+        response.status_code,
+        elapsed_ms,
+        request_id,
+    )
+    response.headers["X-Request-ID"] = request_id
+    return response
+
 
 def get_service() -> ForensicService:
     return _service
@@ -130,11 +174,14 @@ def get_service() -> ForensicService:
 @app.get("/health")
 async def health():
     count = await _db.get_event_count()
+    uptime_s = time.monotonic() - _STARTUP_TIME if _STARTUP_TIME > 0 else 0
     return {
         "status": "ok",
         "version": "0.1.0",
+        "uptime_seconds": round(uptime_s, 1),
         "event_count": count,
         "merkle_root": _service.get_merkle_root(),
+        "storage_backend": os.environ.get("FF_STORAGE", "sqlite"),
     }
 
 
