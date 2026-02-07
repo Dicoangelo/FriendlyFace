@@ -73,7 +73,7 @@ from slowapi.util import get_remote_address  # noqa: E402
 from starlette.responses import StreamingResponse  # noqa: E402
 
 from friendlyface.api.sse import EventBroadcaster  # noqa: E402
-from friendlyface.auth import require_api_key  # noqa: E402
+from friendlyface.auth import require_api_key, require_role  # noqa: E402
 from friendlyface.config import settings  # noqa: E402
 from friendlyface.exceptions import FriendlyFaceError  # noqa: E402
 from friendlyface.logging_config import log_startup_info, setup_logging  # noqa: E402
@@ -256,6 +256,7 @@ _OPENAPI_TAGS = [
     {"name": "DID/VC", "description": "Decentralized Identifiers and Verifiable Credentials"},
     {"name": "ZK", "description": "Schnorr zero-knowledge proofs"},
     {"name": "Metrics", "description": "Prometheus metrics endpoint"},
+    {"name": "Admin", "description": "Backup, migrations, and administrative operations"},
 ]
 
 app = FastAPI(
@@ -1715,6 +1716,7 @@ async def get_compliance_report():
     status_code=201,
     tags=["Governance"],
     summary="Generate compliance report",
+    dependencies=[Depends(require_role("admin"))],
 )
 async def generate_compliance_report():
     """Generate a new compliance report and cache it."""
@@ -2511,13 +2513,24 @@ async def list_erasure_records(
 # ---------------------------------------------------------------------------
 
 
-@app.post("/admin/backup", status_code=201, tags=["Admin"], summary="Create backup")
+@app.post(
+    "/admin/backup",
+    status_code=201,
+    tags=["Admin"],
+    summary="Create backup",
+    dependencies=[Depends(require_role("admin"))],
+)
 async def create_backup(label: str | None = None):
-    """Create a database backup."""
+    """Create a database backup and enforce retention policy."""
     from friendlyface.ops.backup import BackupManager
 
     mgr = BackupManager(_db.db_path, settings.backup_dir)
-    return mgr.create_backup(label=label)
+    result = mgr.create_backup(label=label)
+    mgr.enforce_retention(
+        max_count=settings.backup_retention_count,
+        max_age_days=settings.backup_retention_days,
+    )
+    return result
 
 
 @app.get("/admin/backups", tags=["Admin"], summary="List backups")
@@ -2539,13 +2552,73 @@ async def verify_backup(filename: str):
     return mgr.verify_backup(filename)
 
 
-@app.post("/admin/backup/restore", tags=["Admin"], summary="Restore backup")
+@app.post(
+    "/admin/backup/restore",
+    tags=["Admin"],
+    summary="Restore backup",
+    dependencies=[Depends(require_role("admin"))],
+)
 async def restore_backup(filename: str):
     """Restore database from a backup. WARNING: replaces current data."""
     from friendlyface.ops.backup import BackupManager
 
     mgr = BackupManager(_db.db_path, settings.backup_dir)
     return mgr.restore_backup(filename)
+
+
+@app.post(
+    "/admin/backup/cleanup",
+    tags=["Admin"],
+    summary="Run backup cleanup",
+    dependencies=[Depends(require_role("admin"))],
+)
+async def cleanup_backups():
+    """Manually trigger backup retention policy enforcement."""
+    from friendlyface.ops.backup import BackupManager
+
+    mgr = BackupManager(_db.db_path, settings.backup_dir)
+    return mgr.enforce_retention(
+        max_count=settings.backup_retention_count,
+        max_age_days=settings.backup_retention_days,
+    )
+
+
+@app.get("/admin/backup/stats", tags=["Admin"], summary="Backup statistics")
+async def backup_stats():
+    """Return backup count, total size, oldest, and newest timestamps."""
+    from friendlyface.ops.backup import BackupManager
+
+    mgr = BackupManager(_db.db_path, settings.backup_dir)
+    return mgr.get_stats()
+
+
+# ---------------------------------------------------------------------------
+# Migrations — Admin migration management (US-079)
+# ---------------------------------------------------------------------------
+
+
+@app.get("/admin/migrations/status", tags=["Admin"], summary="Migration status")
+async def migration_status():
+    """Return applied and pending migrations."""
+    from friendlyface.storage.migrations import get_migration_status
+
+    return await get_migration_status(_db._db)
+
+
+@app.post(
+    "/admin/migrations/rollback",
+    tags=["Admin"],
+    summary="Rollback last migration",
+    dependencies=[Depends(require_role("admin"))],
+)
+async def rollback_migration(dry_run: bool = False):
+    """Roll back the last applied migration using its _down.sql file."""
+    from friendlyface.storage.migrations import rollback_last
+
+    result = await rollback_last(_db._db, dry_run=dry_run)
+    if result.get("error"):
+        raise HTTPException(status_code=400, detail=result["error"])
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -2702,6 +2775,12 @@ v1_router.add_api_route("/admin/backup", create_backup, methods=["POST"], status
 v1_router.add_api_route("/admin/backups", list_backups, methods=["GET"])
 v1_router.add_api_route("/admin/backup/verify", verify_backup, methods=["POST"])
 v1_router.add_api_route("/admin/backup/restore", restore_backup, methods=["POST"])
+v1_router.add_api_route("/admin/backup/cleanup", cleanup_backups, methods=["POST"])
+v1_router.add_api_route("/admin/backup/stats", backup_stats, methods=["GET"])
+
+# Admin — Migrations
+v1_router.add_api_route("/admin/migrations/status", migration_status, methods=["GET"])
+v1_router.add_api_route("/admin/migrations/rollback", rollback_migration, methods=["POST"])
 
 app.include_router(v1_router)
 

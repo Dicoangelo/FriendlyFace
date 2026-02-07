@@ -3,7 +3,7 @@
 [![CI](https://github.com/Dicoangelo/FriendlyFace/actions/workflows/ci.yml/badge.svg)](https://github.com/Dicoangelo/FriendlyFace/actions/workflows/ci.yml)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-881%2B%20passing-brightgreen.svg)](#testing)
+[![Tests](https://img.shields.io/badge/tests-1070%2B%20passing-brightgreen.svg)](#testing)
 
 **Forensic-Friendly AI Facial Recognition Platform** implementing Safiia Mohammed's ICDF2C 2024 forensic-friendly schema with 2025-2026 SOTA components.
 

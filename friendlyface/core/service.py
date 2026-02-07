@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import os
 from typing import Any
 from uuid import UUID
@@ -22,6 +23,8 @@ from friendlyface.crypto.did import Ed25519DIDKey
 from friendlyface.crypto.schnorr import ZKBundleProver, ZKBundleVerifier
 from friendlyface.crypto.vc import VerifiableCredential
 from friendlyface.storage.database import Database
+
+logger = logging.getLogger("friendlyface.service")
 
 
 def _load_platform_did() -> Ed25519DIDKey:
@@ -48,12 +51,40 @@ class ForensicService:
         self._platform_did: Ed25519DIDKey = _load_platform_did()
 
     async def initialize(self) -> None:
-        """Rebuild in-memory state from persisted events."""
-        events = await self.db.get_all_events()
-        for event in events:
-            leaf_idx = self.merkle.leaf_count
-            self.merkle.add_leaf(event.event_hash)
-            self._event_index[event.id] = leaf_idx
+        """Rebuild in-memory state from persisted events.
+
+        If a Merkle checkpoint exists, restore from it and only replay
+        events added after the checkpoint (incremental rebuild).
+        """
+        checkpoint = None
+        try:
+            checkpoint = await self.db.get_latest_merkle_checkpoint()
+        except Exception:
+            # Table may not exist yet (pre-migration)
+            pass
+
+        if checkpoint is not None:
+            self.merkle, self._event_index = MerkleTree.from_checkpoint(checkpoint)
+            # Only replay events after the checkpoint
+            events = await self.db.get_all_events()
+            replayed = 0
+            for event in events:
+                if event.id not in self._event_index:
+                    leaf_idx = self.merkle.leaf_count
+                    self.merkle.add_leaf(event.event_hash)
+                    self._event_index[event.id] = leaf_idx
+                    replayed += 1
+            logger.info(
+                "Restored from checkpoint (%d leaves), replayed %d events",
+                checkpoint["leaf_count"],
+                replayed,
+            )
+        else:
+            events = await self.db.get_all_events()
+            for event in events:
+                leaf_idx = self.merkle.leaf_count
+                self.merkle.add_leaf(event.event_hash)
+                self._event_index[event.id] = leaf_idx
 
     async def record_event(
         self,
@@ -80,7 +111,24 @@ class ForensicService:
         self.merkle.add_leaf(event.event_hash)
         self._event_index[event.id] = leaf_idx
 
+        # Auto-checkpoint
+        await self._maybe_checkpoint()
+
         return event
+
+    async def _maybe_checkpoint(self) -> None:
+        """Save a Merkle checkpoint if interval reached."""
+        from friendlyface.config import settings
+
+        interval = settings.merkle_checkpoint_interval
+        if self.merkle.leaf_count > 0 and self.merkle.leaf_count % interval == 0:
+            try:
+                cp = self.merkle.to_checkpoint(self._event_index)
+                await self.db.insert_merkle_checkpoint(cp)
+                logger.info("Merkle checkpoint saved at %d leaves", self.merkle.leaf_count)
+            except Exception:
+                # Checkpoint table may not exist (pre-migration) — skip silently
+                pass
 
     async def get_event(self, event_id: UUID) -> ForensicEvent | None:
         return await self.db.get_event(event_id)

@@ -34,6 +34,7 @@ async def client(tmp_path):
     # Swap the global DB for tests
     _db.db_path = tmp_path / "api_test.db"
     await _db.connect()
+    await _db.run_migrations()
     await _service.initialize()
 
     # Reset in-memory state
