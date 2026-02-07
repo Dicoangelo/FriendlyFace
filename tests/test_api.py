@@ -404,3 +404,212 @@ class TestMultiModalFusion:
             },
         )
         assert resp.status_code == 400
+
+
+class TestDashboard:
+    async def test_dashboard_structure(self, client):
+        resp = await client.get("/dashboard")
+        assert resp.status_code == 200
+        data = resp.json()
+        expected_keys = {
+            "uptime_seconds",
+            "storage_backend",
+            "total_events",
+            "total_bundles",
+            "total_provenance_nodes",
+            "events_by_type",
+            "recent_events",
+            "chain_integrity",
+            "crypto_status",
+        }
+        assert expected_keys.issubset(set(data.keys()))
+        # Verify crypto_status sub-keys
+        assert data["crypto_status"]["did_enabled"] is False
+        assert data["crypto_status"]["zk_scheme"] == "schnorr-sha256"
+        assert data["crypto_status"]["total_dids"] == 0
+        assert data["crypto_status"]["total_vcs"] == 0
+
+    async def test_dashboard_event_counts(self, client):
+        # Initially empty
+        resp = await client.get("/dashboard")
+        data = resp.json()
+        assert data["total_events"] == 0
+        assert data["total_bundles"] == 0
+        assert data["events_by_type"] == {}
+
+        # Invalidate cache so next call recomputes
+        from friendlyface.api.app import _dashboard_cache
+
+        _dashboard_cache["data"] = None
+
+        # Record some events
+        await client.post(
+            "/events",
+            json={"event_type": "training_start", "actor": "test"},
+        )
+        await client.post(
+            "/events",
+            json={"event_type": "training_start", "actor": "test"},
+        )
+        await client.post(
+            "/events",
+            json={"event_type": "inference_result", "actor": "test"},
+        )
+
+        _dashboard_cache["data"] = None
+
+        resp = await client.get("/dashboard")
+        data = resp.json()
+        assert data["total_events"] == 3
+        assert data["events_by_type"]["training_start"] == 2
+        assert data["events_by_type"]["inference_result"] == 1
+
+    async def test_dashboard_recent_events(self, client):
+        # Record events
+        for i in range(3):
+            await client.post(
+                "/events",
+                json={"event_type": "inference_request", "actor": f"agent_{i}"},
+            )
+
+        from friendlyface.api.app import _dashboard_cache
+
+        _dashboard_cache["data"] = None
+
+        resp = await client.get("/dashboard")
+        data = resp.json()
+        recent = data["recent_events"]
+        assert len(recent) == 3
+        # Most recent first (descending sequence_number)
+        assert recent[0]["actor"] == "agent_2"
+        assert recent[2]["actor"] == "agent_0"
+        # Each recent event has required keys
+        for event in recent:
+            assert "id" in event
+            assert "event_type" in event
+            assert "actor" in event
+            assert "timestamp" in event
+
+    async def test_dashboard_includes_uptime(self, client):
+        resp = await client.get("/dashboard")
+        data = resp.json()
+        assert "uptime_seconds" in data
+        assert isinstance(data["uptime_seconds"], (int, float))
+        assert data["uptime_seconds"] >= 0
+
+    async def test_dashboard_chain_integrity(self, client):
+        resp = await client.get("/dashboard")
+        data = resp.json()
+        assert "chain_integrity" in data
+        ci = data["chain_integrity"]
+        assert "valid" in ci
+        assert "count" in ci
+        assert ci["valid"] is True
+        assert ci["count"] == 0
+
+        from friendlyface.api.app import _dashboard_cache
+
+        _dashboard_cache["data"] = None
+
+        # Add some events and re-check
+        for _ in range(3):
+            await client.post(
+                "/events",
+                json={"event_type": "training_start", "actor": "test"},
+            )
+
+        _dashboard_cache["data"] = None
+
+        resp = await client.get("/dashboard")
+        data = resp.json()
+        ci = data["chain_integrity"]
+        assert ci["valid"] is True
+        assert ci["count"] == 3
+
+
+class TestSSE:
+    async def test_event_stream_returns_streaming_response(self):
+        """The /events/stream route returns a StreamingResponse with text/event-stream."""
+        from starlette.responses import StreamingResponse
+
+        from friendlyface.api.app import event_stream
+
+        response = await event_stream(event_type=None)
+        assert isinstance(response, StreamingResponse)
+        assert response.media_type == "text/event-stream"
+        assert response.headers.get("Cache-Control") == "no-cache"
+
+    async def test_event_stream_generator_yields_heartbeat(self):
+        """The SSE generator yields an initial heartbeat on connect."""
+        from friendlyface.api.app import event_stream
+
+        response = await event_stream(event_type=None)
+        gen = response.body_iterator
+        first_chunk = await gen.__anext__()
+        assert first_chunk == "event: heartbeat\ndata: {}\n\n"
+        # Clean up: close the generator so the subscriber is removed
+        await gen.aclose()
+
+    async def test_broadcaster_subscribe_broadcast_receive(self):
+        """subscribe() -> broadcast() -> queue.get() round-trip."""
+        from friendlyface.api.sse import EventBroadcaster
+
+        broadcaster = EventBroadcaster()
+        queue = broadcaster.subscribe()
+
+        event_data = {"event_type": "inference_result", "actor": "test"}
+        broadcaster.broadcast(event_data)
+
+        received = queue.get_nowait()
+        assert received == event_data
+
+    async def test_broadcaster_multiple_subscribers(self):
+        """All subscribers receive the same broadcast."""
+        from friendlyface.api.sse import EventBroadcaster
+
+        broadcaster = EventBroadcaster()
+        q1 = broadcaster.subscribe()
+        q2 = broadcaster.subscribe()
+
+        event_data = {"event_type": "training_start", "actor": "agent"}
+        broadcaster.broadcast(event_data)
+
+        assert q1.get_nowait() == event_data
+        assert q2.get_nowait() == event_data
+
+    async def test_broadcaster_unsubscribe_cleanup(self):
+        """After unsubscribe, the queue no longer receives broadcasts."""
+        from friendlyface.api.sse import EventBroadcaster
+
+        broadcaster = EventBroadcaster()
+        queue = broadcaster.subscribe()
+        broadcaster.unsubscribe(queue)
+
+        broadcaster.broadcast({"event_type": "test"})
+        assert queue.empty()
+
+    async def test_broadcaster_backpressure_drops(self):
+        """When a queue is full, broadcast silently drops the message."""
+        from friendlyface.api.sse import EventBroadcaster
+
+        broadcaster = EventBroadcaster(maxsize=2)
+        queue = broadcaster.subscribe()
+
+        # Fill the queue
+        broadcaster.broadcast({"n": 1})
+        broadcaster.broadcast({"n": 2})
+        # This should be silently dropped (queue full)
+        broadcaster.broadcast({"n": 3})
+
+        assert queue.qsize() == 2
+        assert queue.get_nowait() == {"n": 1}
+        assert queue.get_nowait() == {"n": 2}
+
+    async def test_broadcaster_unsubscribe_idempotent(self):
+        """Calling unsubscribe twice does not raise."""
+        from friendlyface.api.sse import EventBroadcaster
+
+        broadcaster = EventBroadcaster()
+        queue = broadcaster.subscribe()
+        broadcaster.unsubscribe(queue)
+        broadcaster.unsubscribe(queue)  # should not raise

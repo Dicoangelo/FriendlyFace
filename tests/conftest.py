@@ -5,7 +5,7 @@ from __future__ import annotations
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 
-from friendlyface.api.app import _db, _service, app
+from friendlyface.api.app import _dashboard_cache, _db, _service, app
 from friendlyface.core.service import ForensicService
 from friendlyface.storage.database import Database
 
@@ -41,6 +41,8 @@ async def client(tmp_path):
     _service.provenance = __import__(
         "friendlyface.core.provenance", fromlist=["ProvenanceDAG"]
     ).ProvenanceDAG()
+    _dashboard_cache["data"] = None
+    _dashboard_cache["timestamp"] = 0.0
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as ac:
