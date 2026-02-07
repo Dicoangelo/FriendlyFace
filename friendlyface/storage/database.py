@@ -238,7 +238,7 @@ class Database:
             return []
         placeholders = ",".join("?" for _ in event_ids)
         cursor = await self.db.execute(
-            f"SELECT * FROM forensic_events WHERE id IN ({placeholders}) "  # noqa: S608
+            f"SELECT * FROM forensic_events WHERE id IN ({placeholders}) "  # noqa: S608  # nosec B608
             "ORDER BY sequence_number ASC",
             [str(eid) for eid in event_ids],
         )
