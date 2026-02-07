@@ -5,28 +5,29 @@
 @tailwind utilities;
 
 @layer base {
-  /* ── Light theme (default) ────────────────────────────── */
+  /* ── Light theme (default) — matches metaventionsai.com ── */
   :root {
-    --color-page: 248 250 252;       /* slate-50 */
-    --color-surface: 241 245 249;    /* slate-100 */
-    --color-surface-light: 226 232 240; /* slate-200 */
+    --color-page: 245 247 250;       /* fog white #F5F7FA */
+    --color-surface: 230 237 245;    /* pearl mist #E6EDF5 */
+    --color-surface-light: 220 228 238;
     --color-card: 255 255 255;       /* white */
-    --color-fg: 15 23 42;            /* slate-900 */
-    --color-fg-secondary: 71 85 105; /* slate-500 */
-    --color-fg-muted: 148 163 184;   /* slate-400 */
-    --color-fg-faint: 203 213 225;   /* slate-300 */
+    --color-fg: 11 16 32;            /* midnight #0B1020 */
+    --color-fg-secondary: 55 65 90;
+    --color-fg-muted: 120 132 155;
+    --color-fg-faint: 185 195 210;
     --color-sidebar: 255 255 255;
-    --color-border: 226 232 240;     /* slate-200 */
+    --color-border: 230 237 245;     /* pearl mist */
     --glass-bg: rgba(255, 255, 255, 0.85);
-    --glass-border: rgba(0, 0, 0, 0.06);
-    --glass-hover-border: rgba(123, 44, 255, 0.15);
-    --glass-hover-shadow: rgba(123, 44, 255, 0.05);
+    --glass-border: rgba(11, 16, 32, 0.05);
+    --glass-hover-border: rgba(123, 44, 255, 0.18);
+    --glass-hover-shadow: rgba(123, 44, 255, 0.06);
+    --glass-shadow: 0 4px 30px rgba(0, 0, 0, 0.03);
     --code-bg: 241 245 249;
     --input-bg: 255 255 255;
-    --input-border: rgba(0, 0, 0, 0.1);
+    --input-border: rgba(11, 16, 32, 0.08);
     --input-focus-border: rgba(123, 44, 255, 0.4);
     --input-focus-ring: rgba(123, 44, 255, 0.1);
-    --terminal-bg: 15 23 42;        /* slate-900 */
+    --terminal-bg: 11 16 32;
   }
 
   /* ── Dark theme ───────────────────────────────────────── */
@@ -45,6 +46,7 @@
     --glass-border: rgba(24, 230, 255, 0.08);
     --glass-hover-border: rgba(24, 230, 255, 0.15);
     --glass-hover-shadow: rgba(24, 230, 255, 0.05);
+    --glass-shadow: 0 4px 30px rgba(0, 0, 0, 0.2);
     --code-bg: 5 7 13;
     --input-bg: 15 22 41;
     --input-border: rgba(255, 255, 255, 0.1);
@@ -72,15 +74,16 @@
   /* ── Glass card ─────────────────────────────────────── */
   .glass-card {
     background: var(--glass-bg);
-    backdrop-filter: blur(12px);
-    -webkit-backdrop-filter: blur(12px);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
     border: 1px solid var(--glass-border);
     border-radius: 0.75rem;
+    box-shadow: var(--glass-shadow);
     transition: border-color 0.2s ease, box-shadow 0.2s ease;
   }
   .glass-card:hover {
     border-color: var(--glass-hover-border);
-    box-shadow: 0 0 20px var(--glass-hover-shadow);
+    box-shadow: var(--glass-shadow), 0 0 20px var(--glass-hover-shadow);
   }
 
   /* ── Inputs ─────────────────────────────────────────── */
@@ -171,11 +174,77 @@
     color: rgb(var(--color-fg));
   }
 
+  /* ── Glass variants (from Metaventions landing) ───── */
+  .glass-slab-floating {
+    background: rgba(255, 255, 255, 0.9);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border: 1px solid rgba(255, 255, 255, 1);
+    box-shadow: 0 10px 40px rgba(0, 0, 0, 0.05);
+    border-radius: 0.75rem;
+    transition: background 0.5s ease, border 0.5s ease;
+  }
+  .dark .glass-slab-floating {
+    background: rgba(11, 16, 32, 0.9);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .glass-gold {
+    background: linear-gradient(135deg, rgba(215, 178, 109, 0.25), rgba(215, 178, 109, 0.08));
+    backdrop-filter: blur(45px) saturate(200%);
+    -webkit-backdrop-filter: blur(45px) saturate(200%);
+    border: 1px solid rgba(215, 178, 109, 0.5);
+    box-shadow: 0 0 100px rgba(215, 178, 109, 0.2), inset 0 0 40px rgba(255, 255, 255, 0.1);
+    border-radius: 0.75rem;
+  }
+  .dark .glass-gold {
+    background: linear-gradient(135deg, rgba(215, 178, 109, 0.15), rgba(215, 178, 109, 0.04));
+    border: 1px solid rgba(215, 178, 109, 0.4);
+    box-shadow: 0 0 120px rgba(215, 178, 109, 0.15);
+  }
+
+  /* ── Grid background texture ───────────────────────── */
+  .grid-bg {
+    background-image:
+      linear-gradient(rgba(11, 16, 32, 0.02) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(11, 16, 32, 0.02) 1px, transparent 1px);
+    background-size: 80px 80px;
+  }
+  .dark .grid-bg {
+    background-image:
+      linear-gradient(rgba(255, 255, 255, 0.02) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(255, 255, 255, 0.02) 1px, transparent 1px);
+  }
+
   /* ── Gradient text ──────────────────────────────────── */
   .gradient-text {
     background: linear-gradient(135deg, #FF3DF2, #7B2CFF, #18E6FF);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
+  }
+  .gradient-text-gold {
+    background: linear-gradient(to right, #D7B26D, #F9D976, #B38728);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .gradient-text-compute {
+    background: linear-gradient(to right, #00FFC6, #18E6FF, #5AA7FF);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+
+  /* ── Gradient border ───────────────────────────────── */
+  .border-sovereign {
+    border: 1px solid transparent;
+    background: linear-gradient(white, white) padding-box,
+                linear-gradient(to right, #FF3DF2, #7B2CFF, #18E6FF) border-box;
+    border-radius: 0.75rem;
+  }
+  .dark .border-sovereign {
+    background: linear-gradient(#05070D, #05070D) padding-box,
+                linear-gradient(to right, #FF3DF2, #7B2CFF, #18E6FF) border-box;
   }
 }
