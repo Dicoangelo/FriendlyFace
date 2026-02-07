@@ -47,3 +47,13 @@ class EventBroadcaster:
             except asyncio.QueueFull:
                 # Backpressure: drop the event for this slow subscriber
                 pass
+
+    def shutdown(self) -> None:
+        """Disconnect all subscribers by sending a sentinel and clearing the set."""
+        with self._lock:
+            for queue in self._subscribers:
+                try:
+                    queue.put_nowait({"_shutdown": True})
+                except asyncio.QueueFull:
+                    pass
+            self._subscribers.clear()

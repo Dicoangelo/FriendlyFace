@@ -9,6 +9,7 @@ import ZKProofs from "./pages/ZKProofs";
 import FLSimulations from "./pages/FLSimulations";
 import BiasAudits from "./pages/BiasAudits";
 import ConsentManagement from "./pages/ConsentManagement";
+import Explainability from "./pages/Explainability";
 
 const NAV_ITEMS = [
   { to: "/", label: "Dashboard", icon: "📊" },
@@ -19,6 +20,7 @@ const NAV_ITEMS = [
   { to: "/zk", label: "ZK Proofs", icon: "🛡️" },
   { to: "/fl", label: "FL Simulations", icon: "🤖" },
   { to: "/bias", label: "Bias Audits", icon: "⚖️" },
+  { to: "/explainability", label: "Explainability", icon: "🔍" },
   { to: "/consent", label: "Consent", icon: "✅" },
 ];
 
@@ -105,6 +107,7 @@ export default function App() {
               <Route path="/zk" element={<ZKProofs />} />
               <Route path="/fl" element={<FLSimulations />} />
               <Route path="/bias" element={<BiasAudits />} />
+              <Route path="/explainability" element={<Explainability />} />
               <Route path="/consent" element={<ConsentManagement />} />
               <Route path="/index.html" element={<Navigate to="/" replace />} />
               <Route path="*" element={<NotFound />} />

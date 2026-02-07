@@ -2,7 +2,16 @@
 # FriendlyFace — Multi-stage Docker build
 # ──────────────────────────────────────────────────────────────
 
-# ── Stage 1: Builder ──────────────────────────────────────────
+# ── Stage 1: Frontend build ─────────────────────────────────
+FROM node:20-slim AS frontend
+
+WORKDIR /frontend
+COPY frontend/package.json frontend/package-lock.json* ./
+RUN npm ci --ignore-scripts
+COPY frontend/ ./
+RUN npm run build
+
+# ── Stage 2: Python builder ─────────────────────────────────
 FROM python:3.11-slim AS builder
 
 # System deps required to compile scikit-learn, numpy, Pillow
@@ -33,7 +42,7 @@ COPY friendlyface/ ./friendlyface/
 COPY migrations/ ./migrations/
 RUN pip install --no-cache-dir .
 
-# ── Stage 2: Runtime ─────────────────────────────────────────
+# ── Stage 3: Runtime ─────────────────────────────────────────
 FROM python:3.11-slim AS runtime
 
 # Runtime libs only (no compilers)
@@ -57,6 +66,9 @@ ENV PATH="/opt/venv/bin:$PATH"
 WORKDIR /app
 COPY --from=builder /build/friendlyface ./friendlyface
 COPY --from=builder /build/migrations ./migrations
+
+# Copy built frontend assets
+COPY --from=frontend /frontend/dist ./frontend/dist
 
 # Create data directory for SQLite persistence
 RUN mkdir -p /app/data && chown -R ffuser:ffuser /app

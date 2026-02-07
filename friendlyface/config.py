@@ -21,6 +21,15 @@ class Settings(BaseSettings):
 
     # Auth
     api_keys: str = Field(default="", description="Comma-separated API keys (empty = dev mode)")
+    auth_provider: str = Field(
+        default="api_key", description="Auth provider: api_key, supabase, oidc"
+    )
+    supabase_jwt_secret: str | None = Field(default=None, description="Supabase JWT secret")
+    oidc_issuer: str | None = Field(default=None, description="OIDC issuer URL")
+    oidc_audience: str | None = Field(default=None, description="OIDC audience")
+    api_key_roles: str = Field(
+        default="", description='JSON map of api_key -> roles (e.g., \'{"key1": ["admin"]}\')'
+    )
 
     # Crypto
     did_seed: str | None = Field(
@@ -41,10 +50,30 @@ class Settings(BaseSettings):
     # CORS
     cors_origins: str = Field(default="*", description="Comma-separated CORS origins")
 
+    # Federated Learning
+    fl_mode: str = Field(
+        default="simulation",
+        description="FL operation mode: simulation or production",
+    )
+
     # Rate limiting
     rate_limit: str = Field(
         default="100/minute",
         description="Default rate limit (e.g., 100/minute). Set to 'none' to disable.",
+    )
+
+    # Migrations
+    migrations_enabled: bool = Field(default=False, description="Run SQL migrations on startup")
+
+    # Merkle
+    merkle_checkpoint_interval: int = Field(
+        default=100, ge=1, description="Save Merkle checkpoint every N events"
+    )
+
+    # Backup
+    backup_dir: str = Field(default="backups", description="Backup directory path")
+    backup_interval_minutes: int = Field(
+        default=60, ge=1, description="Auto-backup interval in minutes"
     )
 
     # Supabase
@@ -59,6 +88,15 @@ class Settings(BaseSettings):
         v = v.lower()
         if v not in ("sqlite", "supabase"):
             msg = f"FF_STORAGE must be 'sqlite' or 'supabase', got '{v}'"
+            raise ValueError(msg)
+        return v
+
+    @field_validator("fl_mode")
+    @classmethod
+    def validate_fl_mode(cls, v: str) -> str:
+        v = v.lower()
+        if v not in ("simulation", "production"):
+            msg = f"FF_FL_MODE must be 'simulation' or 'production', got '{v}'"
             raise ValueError(msg)
         return v
 
