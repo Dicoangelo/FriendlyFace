@@ -3,7 +3,7 @@
 [![CI](https://github.com/Dicoangelo/FriendlyFace/actions/workflows/ci.yml/badge.svg)](https://github.com/Dicoangelo/FriendlyFace/actions/workflows/ci.yml)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-560%20passing-brightgreen.svg)](#testing)
+[![Tests](https://img.shields.io/badge/tests-880%2B%20passing-brightgreen.svg)](#testing)
 
 **Forensic-Friendly AI Facial Recognition Platform** implementing Safiia Mohammed's ICDF2C 2024 forensic-friendly schema with 2025-2026 SOTA components.
 
@@ -19,19 +19,19 @@ Every recognition event is hash-chained, Merkle-verified, bias-audited, explaina
 |  Consent Engine  |  Compliance Reporter  |  EU AI Act Checks  |
 +---------------------------------------------------------------+
 |  LAYER 5: EXPLAINABILITY (XAI)                                |
-|  LIME Saliency   |  KernelSHAP Values   |  Compare Endpoint  |
+|  LIME Saliency   |  KernelSHAP Values   |  SDD Saliency Maps |
 +---------------------------------------------------------------+
 |  LAYER 4: FAIRNESS & BIAS AUDITOR                             |
 |  Demographic Parity  |  Equalized Odds  |  Auto-Audit Trigger |
 +---------------------------------------------------------------+
 |  LAYER 3: BLOCKCHAIN FORENSIC LAYER (Mohammed Schema)         |
-|  Hash-Chained Events  |  Merkle Tree  |  Provenance DAG      |
+|  Hash-Chained Events | Merkle Tree | Provenance DAG | ZK/DID |
 +---------------------------------------------------------------+
 |  LAYER 2: FEDERATED LEARNING ENGINE                           |
-|  FedAvg Simulation  |  Poisoning Detection  |  Round Logging  |
+|  FedAvg + DP-FedAvg | Poisoning Detection | Privacy Budgets  |
 +---------------------------------------------------------------+
 |  LAYER 1: RECOGNITION ENGINE                                  |
-|  PCA Feature Extraction  |  SVM Classifier  |  Inference API  |
+|  PCA + SVM  |  Voice Biometrics (MFCC)  |  Multi-Modal Fusion |
 +---------------------------------------------------------------+
 ```
 
@@ -51,17 +51,37 @@ python3 -m friendlyface  # Starts on http://localhost:3849
 
 # Run tests
 pytest tests/ -v
+
+# Build the dashboard
+cd frontend && npm install && npm run build
 ```
+
+## Dashboard
+
+FriendlyFace includes a React 19 + Vite + TailwindCSS dashboard with 9 pages:
+
+- **Dashboard** — Platform health overview with auto-refresh
+- **Event Stream** — Live SSE forensic event feed with type filtering
+- **Events Table** — Paginated event browser with detail expansion
+- **Bundles** — Bundle inspector with verify + JSON-LD export
+- **DID/VC** — Create DIDs, issue/verify Verifiable Credentials
+- **ZK Proofs** — Generate and verify Schnorr ZK proofs
+- **FL Simulations** — Run FedAvg + DP-FedAvg simulations
+- **Bias Audits** — Fairness reports and compliance status
+- **Consent** — Grant, check, revoke consent records
+
+The dashboard is served as static files from FastAPI — single deployment.
 
 ## API Reference
 
-**46 endpoints** across 8 domains. All endpoints require API key auth (header `X-API-Key`) except `/health`.
+**62+ endpoints** across 12 domains. All available at both `/` and `/api/v1/` prefix. All endpoints require API key auth (header `X-API-Key`) except `/health`.
 
 ### Health
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/health` | Health check (public) |
+| GET | `/api/version` | API version info |
 
 ### Forensic Events
 
@@ -70,6 +90,7 @@ pytest tests/ -v
 | POST | `/events` | Record a forensic event |
 | GET | `/events` | List all events |
 | GET | `/events/{id}` | Get event by ID |
+| GET | `/events/stream` | SSE real-time event stream |
 
 ### Merkle Tree
 
@@ -85,6 +106,8 @@ pytest tests/ -v
 | POST | `/bundles` | Create forensic bundle |
 | GET | `/bundles/{id}` | Get bundle by ID |
 | POST | `/verify/{bundle_id}` | Verify bundle integrity |
+| GET | `/bundles/{id}/export` | Export as JSON-LD |
+| POST | `/bundles/import` | Import JSON-LD bundle |
 | GET | `/chain/integrity` | Verify entire hash chain |
 
 ### Provenance
@@ -94,6 +117,23 @@ pytest tests/ -v
 | POST | `/provenance` | Add provenance node |
 | GET | `/provenance/{node_id}` | Get provenance chain |
 
+### DID / Verifiable Credentials
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/did/create` | Create Ed25519 DID:key |
+| GET | `/did/{did_id}/resolve` | Resolve DID to DID Document |
+| POST | `/vc/issue` | Issue signed Verifiable Credential |
+| POST | `/vc/verify` | Verify credential signature |
+
+### ZK Proofs
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/zk/prove` | Generate Schnorr ZK proof for bundle |
+| POST | `/zk/verify` | Verify ZK proof |
+| GET | `/zk/proofs/{bundle_id}` | Get stored proof |
+
 ### Recognition (Layer 1)
 
 | Method | Endpoint | Description |
@@ -102,12 +142,16 @@ pytest tests/ -v
 | POST | `/recognition/predict` | Upload image for recognition |
 | GET | `/recognition/models` | List trained models |
 | GET | `/recognition/models/{id}` | Model details + provenance chain |
+| POST | `/voice/enroll` | Enroll voice biometric |
+| POST | `/voice/verify` | Verify voice identity |
+| POST | `/fusion/verify` | Multi-modal face + voice fusion |
 
 ### Federated Learning (Layer 2)
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| POST | `/fl/start` | Start FL simulation |
+| POST | `/fl/start` | Start FL simulation (FedAvg) |
+| POST | `/fl/dp-start` | Start DP-FedAvg with privacy budget |
 | GET | `/fl/status` | Current FL training status |
 | GET | `/fl/rounds` | List completed rounds |
 | GET | `/fl/rounds/{sim}/{n}` | Round details + client contributions |
@@ -130,6 +174,7 @@ pytest tests/ -v
 |--------|----------|-------------|
 | POST | `/explainability/lime` | Generate LIME explanation |
 | POST | `/explainability/shap` | Generate SHAP explanation |
+| POST | `/explainability/sdd` | Generate SDD saliency map |
 | GET | `/explainability/explanations` | List all explanations |
 | GET | `/explainability/explanations/{id}` | Get explanation by ID |
 | GET | `/explainability/compare/{event_id}` | Compare LIME vs SHAP |
@@ -150,6 +195,12 @@ pytest tests/ -v
 |--------|----------|-------------|
 | GET | `/governance/compliance` | Latest compliance report |
 | POST | `/governance/compliance/generate` | Generate new report |
+
+### Dashboard
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/dashboard` | Audit dashboard with compliance summary |
 
 ## Authentication
 
@@ -175,6 +226,10 @@ When `FF_API_KEYS` is unset, auth is disabled (dev mode).
 | `FF_STORAGE` | `sqlite` | Storage backend (`sqlite` or `supabase`) |
 | `FF_DB_PATH` | `friendlyface.db` | SQLite database path |
 | `FF_API_KEYS` | *(empty)* | Comma-separated API keys |
+| `FF_DID_SEED` | *(auto-gen)* | Deterministic Ed25519 DID key seed |
+| `FF_LOG_FORMAT` | `text` | Set to `json` for structured JSON logs |
+| `FF_LOG_LEVEL` | `INFO` | Log level (DEBUG, INFO, WARNING, ERROR) |
+| `FF_SERVE_FRONTEND` | `true` | Serve React dashboard static files |
 | `FF_HOST` | `0.0.0.0` | Server bind host |
 | `FF_PORT` | `8000` | Server bind port |
 | `SUPABASE_URL` | — | Supabase project URL |
@@ -183,7 +238,7 @@ When `FF_API_KEYS` is unset, auth is disabled (dev mode).
 ## Testing
 
 ```bash
-# Full test suite (560 tests)
+# Full test suite (880+ tests)
 pytest tests/ -v
 
 # Specific layer
@@ -194,11 +249,16 @@ pytest tests/test_fairness.py tests/test_fairness_api.py -v                   # 
 pytest tests/test_explainability.py tests/test_shap_explainability.py -v      # Layer 5
 pytest tests/test_consent_api.py tests/test_governance.py tests/test_compliance.py -v  # Layer 6
 
+# Cryptographic layer
+pytest tests/test_ed25519_did.py tests/test_ed25519_vc.py tests/test_schnorr.py -v
+pytest tests/test_bundle_crypto.py tests/test_bundle_export.py -v
+
 # End-to-end pipeline
 pytest tests/test_e2e_pipeline.py -v
 
-# Lint
+# Lint + format
 ruff check friendlyface/ tests/
+ruff format --check friendlyface/ tests/
 ```
 
 ## Deployment
@@ -210,6 +270,13 @@ docker build -t friendlyface .
 docker run -p 8000:8000 -e FF_API_KEYS=mykey friendlyface
 ```
 
+### Railway
+
+```bash
+railway init
+railway up
+```
+
 ### Fly.io
 
 ```bash
@@ -218,46 +285,47 @@ fly secrets set FF_API_KEYS=mykey
 fly deploy
 ```
 
-### Railway
-
-```bash
-railway init
-railway up
-```
-
 ## Project Structure
 
 ```
 friendlyface/
 ├── api/
-│   └── app.py              # FastAPI application (46 endpoints)
+│   ├── app.py              # FastAPI application (62+ endpoints, /api/v1/ versioned)
+│   └── sse.py              # Server-Sent Events broadcaster
 ├── auth.py                  # API key authentication
 ├── core/
 │   ├── models.py            # ForensicEvent, MerkleTree, ProvenanceNode, Bundle
 │   ├── merkle.py            # Append-only Merkle tree
 │   ├── provenance.py        # Provenance DAG
 │   └── service.py           # ForensicService orchestrator
+├── crypto/
+│   ├── did.py               # Ed25519 DID:key (PyNaCl/libsodium)
+│   ├── vc.py                # Verifiable Credentials with Ed25519 signatures
+│   └── schnorr.py           # Schnorr ZK proofs (Fiat-Shamir, numpy-only)
 ├── recognition/
 │   ├── pca.py               # PCA dimensionality reduction
 │   ├── svm.py               # SVM classifier training
-│   └── inference.py         # Face recognition inference
+│   ├── inference.py         # Face recognition inference
+│   └── voice.py             # Voice biometrics (MFCC extraction)
 ├── fl/
-│   ├── engine.py            # Federated learning simulation (FedAvg)
+│   ├── engine.py            # Federated learning (FedAvg + DP-FedAvg)
 │   └── poisoning.py         # Norm-based poisoning detection
 ├── fairness/
 │   └── auditor.py           # Bias auditing (demographic parity + equalized odds)
 ├── explainability/
 │   ├── lime_explain.py      # LIME explanations
-│   └── shap_explain.py      # KernelSHAP explanations
+│   ├── shap_explain.py      # KernelSHAP explanations
+│   └── sdd.py               # SDD saliency maps (7-region decomposition)
 ├── governance/
 │   ├── consent.py           # Consent management (append-only)
 │   └── compliance.py        # EU AI Act compliance reporting
 ├── storage/
-│   ├── database.py          # SQLite async backend
+│   ├── database.py          # SQLite async backend (indexed)
 │   └── supabase_db.py       # Supabase backend
-└── stubs/
-    ├── did.py               # DID/VC stubs (Phase 2)
-    └── zk.py                # ZK proof stubs (Phase 2)
+├── logging_config.py        # Structured JSON logging
+└── frontend/                # React 19 + Vite + TailwindCSS dashboard
+    ├── src/pages/            # 9 dashboard pages
+    └── dist/                 # Built static files (served by FastAPI)
 ```
 
 ## Research Lineage
@@ -267,10 +335,10 @@ Built on Safiia Mohammed's forensic-friendly AI framework (University of Windsor
 | Paper | Integration |
 |-------|-------------|
 | Mohammed, ICDF2C 2024 | Hash-chained events, provenance DAG, forensic bundles |
-| BioZero (arXiv:2409.17509) | Merkle tree verification (ZK proofs in Phase 2) |
-| TBFL (arXiv:2602.02629) | DID/VC identity (Phase 2) |
-| FedFDP (arXiv:2402.16028) | Fairness-aware FL (Phase 2) |
-| SDD (arXiv:2505.03837) | Explainable saliency (Phase 2) |
+| BioZero (arXiv:2409.17509) | Merkle tree verification, Schnorr ZK proofs |
+| TBFL (arXiv:2602.02629) | Ed25519 DID:key identity, Verifiable Credentials |
+| FedFDP (arXiv:2402.16028) | DP-FedAvg with calibrated Gaussian noise |
+| SDD (arXiv:2505.03837) | Spatial-directional saliency decomposition |
 | EU AI Act (arXiv:2512.13907) | Compliance reporting framework |
 
 ## License
