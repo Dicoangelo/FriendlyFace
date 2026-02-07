@@ -57,16 +57,16 @@ export default function BiasAudits() {
   };
 
   const statusColors: Record<string, string> = {
-    pass: "bg-green-100 text-green-800 border-green-300",
-    warning: "bg-yellow-100 text-yellow-800 border-yellow-300",
-    fail: "bg-red-100 text-red-800 border-red-300",
-    unknown: "bg-gray-100 text-gray-600 border-gray-300",
+    pass: "bg-teal/10 text-teal border-teal/20",
+    warning: "bg-gold/10 text-gold border-gold/20",
+    fail: "bg-rose-ember/10 text-rose-ember border-rose-ember/20",
+    unknown: "bg-fg/5 text-fg-muted border-border-theme",
   };
 
   return (
     <div className="space-y-6">
-      <h2 className="text-xl font-bold">Bias Audits</h2>
-      {error && <div className="text-red-600 text-sm">{error}</div>}
+      <h2 className="text-xl font-bold text-fg">Bias Audits</h2>
+      {error && <div className="text-rose-ember text-sm">{error}</div>}
 
       {/* Status banner */}
       {fairness && (
@@ -88,10 +88,10 @@ export default function BiasAudits() {
 
       {/* Audit list */}
       {audits.length > 0 && (
-        <div className="bg-white rounded-lg shadow p-4">
-          <h3 className="font-semibold mb-2">Audit History</h3>
+        <div className="glass-card p-4">
+          <h3 className="font-semibold text-fg-secondary mb-2">Audit History</h3>
           <table className="w-full text-sm">
-            <thead className="text-left text-gray-500 border-b">
+            <thead className="text-left text-fg-muted border-b border-border-theme">
               <tr>
                 <th className="pb-2">ID</th>
                 <th className="pb-2">Timestamp</th>
@@ -103,10 +103,10 @@ export default function BiasAudits() {
             </thead>
             <tbody>
               {audits.map((a) => (
-                <tr key={a.audit_id} onClick={() => viewDetail(a.audit_id)} className="border-b hover:bg-gray-50 cursor-pointer">
+                <tr key={a.audit_id} onClick={() => viewDetail(a.audit_id)} className="border-b border-border-theme hover:bg-fg/[0.02] cursor-pointer">
                   <td className="py-2 font-mono text-xs">{a.audit_id.slice(0, 8)}...</td>
-                  <td className="py-2 text-gray-500">{new Date(a.timestamp).toLocaleString()}</td>
-                  <td className="py-2">{a.compliant ? <span className="text-green-600">Yes</span> : <span className="text-red-600">No</span>}</td>
+                  <td className="py-2 text-fg-muted">{new Date(a.timestamp).toLocaleString()}</td>
+                  <td className="py-2">{a.compliant ? <span className="text-teal">Yes</span> : <span className="text-rose-ember">No</span>}</td>
                   <td className="py-2">{a.fairness_score?.toFixed(3)}</td>
                   <td className="py-2">{a.demographic_parity_gap.toFixed(4)}</td>
                   <td className="py-2">{a.equalized_odds_gap.toFixed(4)}</td>
@@ -118,28 +118,28 @@ export default function BiasAudits() {
       )}
 
       {auditDetail && (
-        <div className="bg-white rounded-lg shadow p-4">
-          <h3 className="font-semibold mb-2">Audit Detail</h3>
-          <pre className="text-xs bg-gray-50 rounded p-2 overflow-x-auto">{JSON.stringify(auditDetail, null, 2)}</pre>
+        <div className="glass-card p-4">
+          <h3 className="font-semibold text-fg-secondary mb-2">Audit Detail</h3>
+          <pre className="text-xs bg-surface rounded-lg p-2 overflow-x-auto">{JSON.stringify(auditDetail, null, 2)}</pre>
         </div>
       )}
 
       {/* Run audit form */}
-      <div className="bg-white rounded-lg shadow p-4 space-y-2">
-        <h3 className="font-semibold">Run Audit</h3>
-        <textarea value={groups} onChange={(e) => setGroups(e.target.value)} className="w-full border rounded px-3 py-1 text-sm font-mono h-24" placeholder="Groups JSON array" />
+      <div className="glass-card p-4 space-y-2">
+        <h3 className="font-semibold text-fg-secondary">Run Audit</h3>
+        <textarea value={groups} onChange={(e) => setGroups(e.target.value)} className="w-full ff-textarea font-mono h-24" placeholder="Groups JSON array" />
         <div className="flex gap-4">
-          <label className="text-sm">DP Threshold <input type="number" value={dpThreshold} onChange={(e) => setDpThreshold(+e.target.value)} className="border rounded px-2 py-1 w-20 ml-1" step={0.01} /></label>
-          <label className="text-sm">EO Threshold <input type="number" value={eoThreshold} onChange={(e) => setEoThreshold(+e.target.value)} className="border rounded px-2 py-1 w-20 ml-1" step={0.01} /></label>
+          <label className="text-sm text-fg-secondary">DP Threshold <input type="number" value={dpThreshold} onChange={(e) => setDpThreshold(+e.target.value)} className="ff-input w-20 ml-1" step={0.01} /></label>
+          <label className="text-sm text-fg-secondary">EO Threshold <input type="number" value={eoThreshold} onChange={(e) => setEoThreshold(+e.target.value)} className="ff-input w-20 ml-1" step={0.01} /></label>
         </div>
-        <button onClick={runAudit} className="px-4 py-1 bg-blue-600 text-white rounded text-sm">Run Audit</button>
-        {auditResult && <pre className="text-xs bg-gray-50 rounded p-2 overflow-x-auto">{JSON.stringify(auditResult, null, 2)}</pre>}
+        <button onClick={runAudit} className="btn-primary">Run Audit</button>
+        {auditResult && <pre className="text-xs bg-surface rounded-lg p-2 overflow-x-auto">{JSON.stringify(auditResult, null, 2)}</pre>}
       </div>
 
       {/* Config */}
       {config && (
-        <div className="bg-white rounded-lg shadow p-4">
-          <h3 className="font-semibold mb-2">Auto-Audit Config</h3>
+        <div className="glass-card p-4">
+          <h3 className="font-semibold text-fg-secondary mb-2">Auto-Audit Config</h3>
           <pre className="text-xs">{JSON.stringify(config, null, 2)}</pre>
         </div>
       )}

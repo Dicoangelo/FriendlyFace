@@ -148,32 +148,32 @@ export default function Explainability() {
   };
 
   const methodColors: Record<string, string> = {
-    lime: "bg-green-100 text-green-700",
-    shap: "bg-purple-100 text-purple-700",
-    sdd: "bg-blue-100 text-blue-700",
+    lime: "bg-teal/10 text-teal",
+    shap: "bg-amethyst/10 text-amethyst",
+    sdd: "bg-cyan/10 text-cyan",
   };
 
   return (
     <div className="space-y-6">
-      <h2 className="text-xl font-bold">Explainability</h2>
-      {error && <div className="text-red-600 text-sm">{error}</div>}
+      <h2 className="text-xl font-bold text-fg">Explainability</h2>
+      {error && <div className="text-rose-ember text-sm">{error}</div>}
 
       {/* Stats cards */}
       {explanations && (
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          <div className="bg-white rounded-lg shadow p-4">
-            <p className="text-sm text-gray-500">Total Explanations</p>
-            <p className="text-2xl font-bold text-gray-800 mt-1">{explanations.total}</p>
+          <div className="glass-card p-4">
+            <p className="text-sm text-fg-muted">Total Explanations</p>
+            <p className="text-2xl font-bold text-fg mt-1">{explanations.total}</p>
           </div>
-          <div className="bg-white rounded-lg shadow p-4">
-            <p className="text-sm text-gray-500">LIME</p>
-            <p className="text-2xl font-bold text-green-700 mt-1">
+          <div className="glass-card p-4">
+            <p className="text-sm text-fg-muted">LIME</p>
+            <p className="text-2xl font-bold text-teal mt-1">
               {explanations.items.filter((e) => e.method === "lime").length}
             </p>
           </div>
-          <div className="bg-white rounded-lg shadow p-4">
-            <p className="text-sm text-gray-500">SHAP</p>
-            <p className="text-2xl font-bold text-purple-700 mt-1">
+          <div className="glass-card p-4">
+            <p className="text-sm text-fg-muted">SHAP</p>
+            <p className="text-2xl font-bold text-amethyst mt-1">
               {explanations.items.filter((e) => e.method === "shap").length}
             </p>
           </div>
@@ -182,10 +182,10 @@ export default function Explainability() {
 
       {/* Explanation list */}
       {explanations && explanations.items.length > 0 && (
-        <div className="bg-white rounded-lg shadow p-4">
-          <h3 className="font-semibold mb-2">Explanation History</h3>
+        <div className="glass-card p-4">
+          <h3 className="font-semibold text-fg-secondary mb-2">Explanation History</h3>
           <table className="w-full text-sm">
-            <thead className="text-left text-gray-500 border-b">
+            <thead className="text-left text-fg-muted border-b border-border-theme">
               <tr>
                 <th className="pb-2">ID</th>
                 <th className="pb-2">Method</th>
@@ -198,20 +198,20 @@ export default function Explainability() {
                 <tr
                   key={e.explanation_id}
                   onClick={() => viewDetail(e.explanation_id)}
-                  className="border-b hover:bg-gray-50 cursor-pointer"
+                  className="border-b border-border-theme hover:bg-fg/[0.02] cursor-pointer"
                 >
                   <td className="py-2 font-mono text-xs">{e.explanation_id.slice(0, 8)}...</td>
                   <td className="py-2">
                     <span
-                      className={`px-2 py-0.5 rounded text-xs font-medium ${methodColors[e.method] || "bg-gray-100 text-gray-700"}`}
+                      className={`px-2 py-0.5 rounded text-xs font-medium ${methodColors[e.method] || "bg-fg/5 text-fg-secondary"}`}
                     >
                       {e.method.toUpperCase()}
                     </span>
                   </td>
-                  <td className="py-2 font-mono text-xs text-gray-500">
+                  <td className="py-2 font-mono text-xs text-fg-muted">
                     {e.inference_event_id.slice(0, 8)}...
                   </td>
-                  <td className="py-2 text-gray-500">{new Date(e.timestamp).toLocaleString()}</td>
+                  <td className="py-2 text-fg-muted">{new Date(e.timestamp).toLocaleString()}</td>
                 </tr>
               ))}
             </tbody>
@@ -221,141 +221,141 @@ export default function Explainability() {
 
       {/* Detail view */}
       {selectedDetail && (
-        <div className="bg-white rounded-lg shadow p-4">
+        <div className="glass-card p-4">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="font-semibold">Explanation Detail</h3>
+            <h3 className="font-semibold text-fg-secondary">Explanation Detail</h3>
             <button
               onClick={() => setSelectedDetail(null)}
-              className="text-gray-400 hover:text-gray-600 text-sm"
+              className="text-fg-faint hover:text-fg-secondary text-sm"
             >
               Close
             </button>
           </div>
-          <pre className="text-xs bg-gray-50 rounded p-2 overflow-x-auto">
+          <pre className="text-xs bg-surface rounded-lg p-2 overflow-x-auto">
             {JSON.stringify(selectedDetail, null, 2)}
           </pre>
         </div>
       )}
 
       {/* Trigger LIME */}
-      <div className="bg-white rounded-lg shadow p-4 space-y-2">
-        <h3 className="font-semibold">Generate LIME Explanation</h3>
+      <div className="glass-card p-4 space-y-2">
+        <h3 className="font-semibold text-fg-secondary">Generate LIME Explanation</h3>
         <div className="flex flex-wrap gap-4 items-end">
-          <label className="text-sm">
+          <label className="text-sm text-fg-secondary">
             Event ID
             <input
               type="text"
               value={limeEventId}
               onChange={(e) => setLimeEventId(e.target.value)}
-              className="border rounded px-3 py-1 w-72 block mt-1 font-mono text-xs"
+              className="ff-input font-mono text-xs w-72 block mt-1"
               placeholder="Inference event UUID"
             />
           </label>
-          <label className="text-sm">
+          <label className="text-sm text-fg-secondary">
             Superpixels
             <input
               type="number"
               value={limeSuperpixels}
               onChange={(e) => setLimeSuperpixels(+e.target.value)}
-              className="border rounded px-2 py-1 w-20 block mt-1"
+              className="ff-input w-20 block mt-1"
               min={4}
             />
           </label>
-          <label className="text-sm">
+          <label className="text-sm text-fg-secondary">
             Samples
             <input
               type="number"
               value={limeSamples}
               onChange={(e) => setLimeSamples(+e.target.value)}
-              className="border rounded px-2 py-1 w-20 block mt-1"
+              className="ff-input w-20 block mt-1"
               min={10}
             />
           </label>
-          <label className="text-sm">
+          <label className="text-sm text-fg-secondary">
             Top K
             <input
               type="number"
               value={limeTopK}
               onChange={(e) => setLimeTopK(+e.target.value)}
-              className="border rounded px-2 py-1 w-20 block mt-1"
+              className="ff-input w-20 block mt-1"
               min={1}
             />
           </label>
         </div>
-        <button onClick={triggerLime} className="px-4 py-1 bg-green-600 text-white rounded text-sm">
+        <button onClick={triggerLime} className="btn-success">
           Run LIME
         </button>
         {limeResult && (
-          <pre className="text-xs bg-gray-50 rounded p-2 overflow-x-auto">
+          <pre className="text-xs bg-surface rounded-lg p-2 overflow-x-auto">
             {JSON.stringify(limeResult, null, 2)}
           </pre>
         )}
       </div>
 
       {/* Trigger SHAP */}
-      <div className="bg-white rounded-lg shadow p-4 space-y-2">
-        <h3 className="font-semibold">Generate SHAP Explanation</h3>
+      <div className="glass-card p-4 space-y-2">
+        <h3 className="font-semibold text-fg-secondary">Generate SHAP Explanation</h3>
         <div className="flex flex-wrap gap-4 items-end">
-          <label className="text-sm">
+          <label className="text-sm text-fg-secondary">
             Event ID
             <input
               type="text"
               value={shapEventId}
               onChange={(e) => setShapEventId(e.target.value)}
-              className="border rounded px-3 py-1 w-72 block mt-1 font-mono text-xs"
+              className="ff-input font-mono text-xs w-72 block mt-1"
               placeholder="Inference event UUID"
             />
           </label>
-          <label className="text-sm">
+          <label className="text-sm text-fg-secondary">
             Samples
             <input
               type="number"
               value={shapSamples}
               onChange={(e) => setShapSamples(+e.target.value)}
-              className="border rounded px-2 py-1 w-20 block mt-1"
+              className="ff-input w-20 block mt-1"
               min={10}
             />
           </label>
-          <label className="text-sm">
+          <label className="text-sm text-fg-secondary">
             Random State
             <input
               type="number"
               value={shapRandomState}
               onChange={(e) => setShapRandomState(+e.target.value)}
-              className="border rounded px-2 py-1 w-20 block mt-1"
+              className="ff-input w-20 block mt-1"
             />
           </label>
         </div>
-        <button onClick={triggerShap} className="px-4 py-1 bg-purple-600 text-white rounded text-sm">
+        <button onClick={triggerShap} className="btn-accent">
           Run SHAP
         </button>
         {shapResult && (
-          <pre className="text-xs bg-gray-50 rounded p-2 overflow-x-auto">
+          <pre className="text-xs bg-surface rounded-lg p-2 overflow-x-auto">
             {JSON.stringify(shapResult, null, 2)}
           </pre>
         )}
       </div>
 
       {/* Compare explanations */}
-      <div className="bg-white rounded-lg shadow p-4 space-y-2">
-        <h3 className="font-semibold">Compare Explanations</h3>
-        <p className="text-xs text-gray-500">
+      <div className="glass-card p-4 space-y-2">
+        <h3 className="font-semibold text-fg-secondary">Compare Explanations</h3>
+        <p className="text-xs text-fg-muted">
           Compare LIME, SHAP, and SDD explanations side-by-side for the same inference event.
         </p>
         <div className="flex gap-4 items-end">
-          <label className="text-sm">
+          <label className="text-sm text-fg-secondary">
             Inference Event ID
             <input
               type="text"
               value={compareEventId}
               onChange={(e) => setCompareEventId(e.target.value)}
-              className="border rounded px-3 py-1 w-72 block mt-1 font-mono text-xs"
+              className="ff-input font-mono text-xs w-72 block mt-1"
               placeholder="Inference event UUID"
             />
           </label>
           <button
             onClick={loadComparison}
-            className="px-4 py-1 bg-blue-600 text-white rounded text-sm"
+            className="btn-primary"
           >
             Compare
           </button>
@@ -364,8 +364,8 @@ export default function Explainability() {
 
       {/* Comparison results */}
       {comparison && (
-        <div className="bg-white rounded-lg shadow p-4">
-          <h3 className="font-semibold mb-3">
+        <div className="glass-card p-4">
+          <h3 className="font-semibold text-fg-secondary mb-3">
             Comparison for{" "}
             <span className="font-mono text-xs">{comparison.inference_event_id.slice(0, 12)}...</span>
           </h3>
@@ -374,19 +374,19 @@ export default function Explainability() {
               title="LIME"
               count={comparison.total_lime}
               items={comparison.lime_explanations}
-              color="green"
+              color="teal"
             />
             <CompareColumn
               title="SHAP"
               count={comparison.total_shap}
               items={comparison.shap_explanations}
-              color="purple"
+              color="amethyst"
             />
             <CompareColumn
               title="SDD"
               count={comparison.total_sdd}
               items={comparison.sdd_explanations}
-              color="blue"
+              color="cyan"
             />
           </div>
         </div>
@@ -406,24 +406,28 @@ function CompareColumn({
   items: ExplanationRecord[];
   color: string;
 }) {
-  const borderColor = `border-${color}-300`;
-  const bgColor = `bg-${color}-50`;
-  const textColor = `text-${color}-700`;
+  const colorMap: Record<string, { border: string; bg: string; text: string }> = {
+    teal: { border: "border-teal/20", bg: "bg-teal/5", text: "text-teal" },
+    amethyst: { border: "border-amethyst/20", bg: "bg-amethyst/5", text: "text-amethyst" },
+    cyan: { border: "border-cyan/20", bg: "bg-cyan/5", text: "text-cyan" },
+  };
+
+  const colors = colorMap[color] || colorMap.cyan;
 
   return (
-    <div className={`rounded-lg border-2 ${borderColor} ${bgColor} p-3`}>
+    <div className={`rounded-lg border-2 ${colors.border} ${colors.bg} p-3`}>
       <div className="flex items-center justify-between mb-2">
-        <span className={`font-semibold ${textColor}`}>{title}</span>
-        <span className="text-xs text-gray-500">{count} result{count !== 1 ? "s" : ""}</span>
+        <span className={`font-semibold ${colors.text}`}>{title}</span>
+        <span className="text-xs text-fg-muted">{count} result{count !== 1 ? "s" : ""}</span>
       </div>
       {items.length === 0 ? (
-        <p className="text-xs text-gray-400">No explanations</p>
+        <p className="text-xs text-fg-faint">No explanations</p>
       ) : (
         <div className="space-y-2">
           {items.map((item) => (
-            <div key={item.explanation_id} className="bg-white rounded p-2 text-xs">
-              <p className="font-mono text-gray-600">{item.explanation_id.slice(0, 12)}...</p>
-              <p className="text-gray-400">{new Date(item.timestamp).toLocaleString()}</p>
+            <div key={item.explanation_id} className="glass-card p-2 text-xs">
+              <p className="font-mono text-fg-secondary">{item.explanation_id.slice(0, 12)}...</p>
+              <p className="text-fg-faint">{new Date(item.timestamp).toLocaleString()}</p>
               {item.num_samples !== undefined && <p>Samples: {item.num_samples}</p>}
               {item.num_superpixels !== undefined && <p>Superpixels: {item.num_superpixels}</p>}
               {item.num_regions !== undefined && <p>Regions: {item.num_regions}</p>}

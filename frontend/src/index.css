@@ -1,12 +1,181 @@
+@import url("https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap");
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
-body {
-  margin: 0;
-  font-family:
-    -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue",
-    Arial, sans-serif;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
+@layer base {
+  /* ── Light theme (default) ────────────────────────────── */
+  :root {
+    --color-page: 248 250 252;       /* slate-50 */
+    --color-surface: 241 245 249;    /* slate-100 */
+    --color-surface-light: 226 232 240; /* slate-200 */
+    --color-card: 255 255 255;       /* white */
+    --color-fg: 15 23 42;            /* slate-900 */
+    --color-fg-secondary: 71 85 105; /* slate-500 */
+    --color-fg-muted: 148 163 184;   /* slate-400 */
+    --color-fg-faint: 203 213 225;   /* slate-300 */
+    --color-sidebar: 255 255 255;
+    --color-border: 226 232 240;     /* slate-200 */
+    --glass-bg: rgba(255, 255, 255, 0.85);
+    --glass-border: rgba(0, 0, 0, 0.06);
+    --glass-hover-border: rgba(123, 44, 255, 0.15);
+    --glass-hover-shadow: rgba(123, 44, 255, 0.05);
+    --code-bg: 241 245 249;
+    --input-bg: 255 255 255;
+    --input-border: rgba(0, 0, 0, 0.1);
+    --input-focus-border: rgba(123, 44, 255, 0.4);
+    --input-focus-ring: rgba(123, 44, 255, 0.1);
+    --terminal-bg: 15 23 42;        /* slate-900 */
+  }
+
+  /* ── Dark theme ───────────────────────────────────────── */
+  .dark {
+    --color-page: 11 16 32;          /* midnight */
+    --color-surface: 15 22 41;
+    --color-surface-light: 21 29 51;
+    --color-card: 15 22 41;
+    --color-fg: 230 237 245;
+    --color-fg-secondary: 179 186 197;
+    --color-fg-muted: 102 112 133;
+    --color-fg-faint: 51 65 85;
+    --color-sidebar: 5 7 13;         /* obsidian */
+    --color-border: 30 41 59;
+    --glass-bg: rgba(15, 22, 41, 0.7);
+    --glass-border: rgba(24, 230, 255, 0.08);
+    --glass-hover-border: rgba(24, 230, 255, 0.15);
+    --glass-hover-shadow: rgba(24, 230, 255, 0.05);
+    --code-bg: 5 7 13;
+    --input-bg: 15 22 41;
+    --input-border: rgba(255, 255, 255, 0.1);
+    --input-focus-border: rgba(24, 230, 255, 0.4);
+    --input-focus-ring: rgba(24, 230, 255, 0.2);
+    --terminal-bg: 5 7 13;
+  }
+
+  body {
+    margin: 0;
+    font-family: "Inter", system-ui, -apple-system, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background-color: rgb(var(--color-page));
+    color: rgb(var(--color-fg));
+  }
+
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: rgb(var(--color-surface)); }
+  ::-webkit-scrollbar-thumb { background: rgb(var(--color-fg-faint)); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: rgb(var(--color-fg-muted)); }
+}
+
+@layer components {
+  /* ── Glass card ─────────────────────────────────────── */
+  .glass-card {
+    background: var(--glass-bg);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border: 1px solid var(--glass-border);
+    border-radius: 0.75rem;
+    transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  }
+  .glass-card:hover {
+    border-color: var(--glass-hover-border);
+    box-shadow: 0 0 20px var(--glass-hover-shadow);
+  }
+
+  /* ── Inputs ─────────────────────────────────────────── */
+  .ff-input {
+    background: rgb(var(--input-bg));
+    border: 1px solid var(--input-border);
+    border-radius: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    color: rgb(var(--color-fg));
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .ff-input::placeholder { color: rgb(var(--color-fg-muted)); }
+  .ff-input:focus {
+    outline: none;
+    border-color: var(--input-focus-border);
+    box-shadow: 0 0 0 2px var(--input-focus-ring);
+  }
+
+  .ff-select {
+    background: rgb(var(--input-bg));
+    border: 1px solid var(--input-border);
+    border-radius: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    color: rgb(var(--color-fg));
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .ff-select:focus {
+    outline: none;
+    border-color: var(--input-focus-border);
+    box-shadow: 0 0 0 2px var(--input-focus-ring);
+  }
+
+  .ff-textarea {
+    background: rgb(var(--input-bg));
+    border: 1px solid var(--input-border);
+    border-radius: 0.5rem;
+    padding: 0.5rem 0.75rem;
+    font-size: 0.875rem;
+    font-family: "JetBrains Mono", ui-monospace, monospace;
+    color: rgb(var(--color-fg));
+    transition: border-color 0.15s, box-shadow 0.15s;
+  }
+  .ff-textarea::placeholder { color: rgb(var(--color-fg-muted)); }
+  .ff-textarea:focus {
+    outline: none;
+    border-color: var(--input-focus-border);
+    box-shadow: 0 0 0 2px var(--input-focus-ring);
+  }
+
+  /* ── Buttons ────────────────────────────────────────── */
+  .btn-primary {
+    @apply px-4 py-2 text-sm font-medium rounded-lg transition-all active:scale-[0.97];
+    background: linear-gradient(135deg, #7B2CFF, #18E6FF);
+    color: white;
+  }
+  .btn-primary:hover { box-shadow: 0 4px 15px rgba(123, 44, 255, 0.3); }
+
+  .btn-accent {
+    @apply px-4 py-2 text-sm font-medium rounded-lg transition-all active:scale-[0.97];
+    background: linear-gradient(135deg, #7B2CFF, #FF3DF2);
+    color: white;
+  }
+  .btn-accent:hover { box-shadow: 0 4px 15px rgba(123, 44, 255, 0.3); }
+
+  .btn-success {
+    @apply px-4 py-2 text-sm font-medium rounded-lg transition-all active:scale-[0.97];
+    background: #00FFC6;
+    color: #0B1020;
+  }
+  .btn-success:hover { box-shadow: 0 4px 15px rgba(0, 255, 198, 0.3); }
+
+  .btn-danger {
+    @apply px-4 py-2 text-sm font-medium rounded-lg transition-all active:scale-[0.97];
+    background: #FF6B8A;
+    color: white;
+  }
+  .btn-danger:hover { box-shadow: 0 4px 15px rgba(255, 107, 138, 0.3); }
+
+  .btn-ghost {
+    @apply px-4 py-2 text-sm font-medium rounded-lg transition-all active:scale-[0.97];
+    border: 1px solid var(--input-border);
+    color: rgb(var(--color-fg-secondary));
+  }
+  .btn-ghost:hover {
+    background: rgb(var(--color-surface));
+    color: rgb(var(--color-fg));
+  }
+
+  /* ── Gradient text ──────────────────────────────────── */
+  .gradient-text {
+    background: linear-gradient(135deg, #FF3DF2, #7B2CFF, #18E6FF);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
 }

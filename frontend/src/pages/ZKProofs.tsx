@@ -54,39 +54,39 @@ export default function ZKProofs() {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-xl font-bold">ZK Proof Viewer</h2>
-      {error && <div className="text-red-600 text-sm">{error}</div>}
+      <h2 className="text-xl font-bold text-fg">ZK Proof Viewer</h2>
+      {error && <div className="text-rose-ember text-sm">{error}</div>}
 
       {/* Generate */}
-      <div className="bg-white rounded-lg shadow p-4 space-y-2">
-        <h3 className="font-semibold">Generate Proof</h3>
+      <div className="glass-card p-4 space-y-2">
+        <h3 className="font-semibold text-fg-secondary">Generate Proof</h3>
         <div className="flex gap-2">
-          <input type="text" placeholder="Bundle ID" value={bundleId} onChange={(e) => setBundleId(e.target.value)} className="flex-1 border rounded px-3 py-1 text-sm font-mono" />
-          <button onClick={generateProof} className="px-4 py-1 bg-blue-600 text-white rounded text-sm">Prove</button>
-          <button onClick={getStoredProof} className="px-4 py-1 bg-gray-600 text-white rounded text-sm">Get Stored</button>
+          <input type="text" placeholder="Bundle ID" value={bundleId} onChange={(e) => setBundleId(e.target.value)} className="flex-1 ff-input font-mono" />
+          <button onClick={generateProof} className="btn-primary">Prove</button>
+          <button onClick={getStoredProof} className="btn-ghost">Get Stored</button>
         </div>
         {proof && (
           <div className="relative">
-            <pre className="text-xs bg-gray-900 text-green-400 rounded p-3 overflow-x-auto">{JSON.stringify(proof, null, 2)}</pre>
-            <button onClick={() => navigator.clipboard.writeText(JSON.stringify(proof, null, 2))} className="absolute top-2 right-2 text-gray-400 hover:text-white text-xs">Copy</button>
+            <pre className="text-xs bg-[rgb(var(--code-bg))] text-teal rounded p-3 overflow-x-auto">{JSON.stringify(proof, null, 2)}</pre>
+            <button onClick={() => navigator.clipboard.writeText(JSON.stringify(proof, null, 2))} className="absolute top-2 right-2 text-fg-faint hover:text-fg text-xs">Copy</button>
           </div>
         )}
         {storedProof && (
           <div className="relative">
-            <h4 className="text-sm font-medium text-gray-600">Stored Proof</h4>
-            <pre className="text-xs bg-gray-900 text-green-400 rounded p-3 overflow-x-auto">{JSON.stringify(storedProof, null, 2)}</pre>
+            <h4 className="text-sm font-medium text-fg-secondary">Stored Proof</h4>
+            <pre className="text-xs bg-[rgb(var(--code-bg))] text-teal rounded p-3 overflow-x-auto">{JSON.stringify(storedProof, null, 2)}</pre>
           </div>
         )}
       </div>
 
       {/* Verify */}
-      <div className="bg-white rounded-lg shadow p-4 space-y-2">
-        <h3 className="font-semibold">Verify Proof</h3>
-        <textarea placeholder="Paste proof JSON" value={verifyInput} onChange={(e) => setVerifyInput(e.target.value)} className="w-full border rounded px-3 py-1 text-sm font-mono h-24" />
-        <button onClick={verifyProof} className="px-4 py-1 bg-green-600 text-white rounded text-sm">Verify</button>
+      <div className="glass-card p-4 space-y-2">
+        <h3 className="font-semibold text-fg-secondary">Verify Proof</h3>
+        <textarea placeholder="Paste proof JSON" value={verifyInput} onChange={(e) => setVerifyInput(e.target.value)} className="w-full ff-textarea font-mono h-24" />
+        <button onClick={verifyProof} className="btn-success">Verify</button>
         {verifyResult && (
-          <div className={`rounded p-2 text-sm ${verifyResult.valid ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>
-            {verifyResult.valid ? "✓ Valid" : "✗ Invalid"} — Scheme: {verifyResult.scheme}
+          <div className={`rounded p-2 text-sm ${verifyResult.valid ? "bg-teal/10 text-teal" : "bg-rose-ember/10 text-rose-ember"}`}>
+            {verifyResult.valid ? "\u2713 Valid" : "\u2717 Invalid"} — Scheme: {verifyResult.scheme}
           </div>
         )}
       </div>

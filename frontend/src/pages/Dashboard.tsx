@@ -42,13 +42,13 @@ export default function Dashboard() {
     return () => clearInterval(id);
   }, []);
 
-  if (error) return <div className="text-red-600">Error loading dashboard: {error}</div>;
+  if (error) return <div className="text-rose-ember">Error loading dashboard: {error}</div>;
 
   if (!data)
     return (
       <div className="space-y-4">
         {[...Array(4)].map((_, i) => (
-          <div key={i} className="h-24 bg-gray-200 rounded animate-pulse" />
+          <div key={i} className="h-24 bg-surface rounded-lg animate-pulse" />
         ))}
       </div>
     );
@@ -57,55 +57,56 @@ export default function Dashboard() {
     <div className="space-y-6">
       {/* Stats cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="Total Events" value={data.total_events} />
-        <StatCard label="Total Bundles" value={data.total_bundles} />
-        <StatCard label="Provenance Nodes" value={data.total_provenance_nodes} />
+        <StatCard label="Total Events" value={data.total_events} color="cyan" />
+        <StatCard label="Total Bundles" value={data.total_bundles} color="amethyst" />
+        <StatCard label="Provenance Nodes" value={data.total_provenance_nodes} color="teal" />
         <StatCard
           label="Uptime"
           value={`${Math.floor(data.uptime_seconds / 60)}m ${Math.floor(data.uptime_seconds % 60)}s`}
+          color="gold"
         />
       </div>
 
       {/* Chain integrity + Crypto status */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        <div className="bg-white rounded-lg shadow p-4">
-          <h3 className="font-semibold text-gray-700 mb-3">Chain Integrity</h3>
+        <div className="glass-card p-4">
+          <h3 className="font-semibold text-fg-secondary mb-3">Chain Integrity</h3>
           <div className="flex items-center gap-2">
             <span
-              className={`w-3 h-3 rounded-full ${data.chain_integrity.valid ? "bg-green-500" : "bg-red-500"}`}
+              className={`w-3 h-3 rounded-full ${data.chain_integrity.valid ? "bg-teal shadow-lg shadow-teal/30" : "bg-rose-ember shadow-lg shadow-rose-ember/30"}`}
             />
-            <span className={data.chain_integrity.valid ? "text-green-700" : "text-red-700"}>
+            <span className={data.chain_integrity.valid ? "text-teal" : "text-rose-ember"}>
               {data.chain_integrity.valid ? "Valid" : "Invalid"}
             </span>
-            <span className="text-gray-400 text-sm">({data.chain_integrity.count} events)</span>
+            <span className="text-fg-faint text-sm">({data.chain_integrity.count} events)</span>
           </div>
         </div>
-        <div className="bg-white rounded-lg shadow p-4">
-          <h3 className="font-semibold text-gray-700 mb-3">Crypto Status</h3>
+        <div className="glass-card p-4">
+          <h3 className="font-semibold text-fg-secondary mb-3">Crypto Status</h3>
           <div className="text-sm space-y-1">
             <p>
               DID:{" "}
-              <span className={data.crypto_status.did_enabled ? "text-green-600" : "text-gray-400"}>
+              <span className={data.crypto_status.did_enabled ? "text-teal" : "text-fg-faint"}>
                 {data.crypto_status.did_enabled ? "Enabled" : "Disabled"}
               </span>
             </p>
-            <p>ZK Scheme: {data.crypto_status.zk_scheme}</p>
-            <p>DIDs: {data.crypto_status.total_dids} | VCs: {data.crypto_status.total_vcs}</p>
+            <p className="text-fg-secondary">ZK Scheme: {data.crypto_status.zk_scheme}</p>
+            <p className="text-fg-secondary">DIDs: {data.crypto_status.total_dids} | VCs: {data.crypto_status.total_vcs}</p>
           </div>
         </div>
       </div>
 
       {/* Events by type */}
-      <div className="bg-white rounded-lg shadow p-4">
-        <h3 className="font-semibold text-gray-700 mb-3">Events by Type</h3>
+      <div className="glass-card p-4">
+        <h3 className="font-semibold text-fg-secondary mb-3">Events by Type</h3>
         {Object.keys(data.events_by_type).length === 0 ? (
-          <p className="text-gray-400 text-sm">No events recorded yet</p>
+          <p className="text-fg-faint text-sm">No events recorded yet</p>
         ) : (
           <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
             {Object.entries(data.events_by_type).map(([type, count]) => (
-              <div key={type} className="bg-gray-50 rounded p-2">
-                <p className="text-xs text-gray-500 truncate">{type}</p>
-                <p className="text-lg font-semibold">{count}</p>
+              <div key={type} className="bg-surface rounded-lg p-2">
+                <p className="text-xs text-fg-muted truncate">{type}</p>
+                <p className="text-lg font-semibold text-fg">{count}</p>
               </div>
             ))}
           </div>
@@ -113,14 +114,14 @@ export default function Dashboard() {
       </div>
 
       {/* Recent events */}
-      <div className="bg-white rounded-lg shadow p-4">
-        <h3 className="font-semibold text-gray-700 mb-3">Recent Events</h3>
+      <div className="glass-card p-4">
+        <h3 className="font-semibold text-fg-secondary mb-3">Recent Events</h3>
         {data.recent_events.length === 0 ? (
-          <p className="text-gray-400 text-sm">No events yet</p>
+          <p className="text-fg-faint text-sm">No events yet</p>
         ) : (
           <table className="w-full text-sm">
             <thead>
-              <tr className="text-left text-gray-500 border-b">
+              <tr className="text-left text-fg-muted border-b border-border-theme">
                 <th className="pb-2">Type</th>
                 <th className="pb-2">Actor</th>
                 <th className="pb-2">Timestamp</th>
@@ -128,12 +129,12 @@ export default function Dashboard() {
             </thead>
             <tbody>
               {data.recent_events.map((e) => (
-                <tr key={e.id} className="border-b last:border-0">
+                <tr key={e.id} className="border-b border-border-theme last:border-0">
                   <td className="py-2">
                     <EventBadge type={e.event_type} />
                   </td>
-                  <td className="py-2 text-gray-600">{e.actor}</td>
-                  <td className="py-2 text-gray-400">{new Date(e.timestamp).toLocaleString()}</td>
+                  <td className="py-2 text-fg-secondary">{e.actor}</td>
+                  <td className="py-2 text-fg-faint">{new Date(e.timestamp).toLocaleString()}</td>
                 </tr>
               ))}
             </tbody>
@@ -144,25 +145,32 @@ export default function Dashboard() {
   );
 }
 
-function StatCard({ label, value }: { label: string; value: string | number }) {
+const STAT_COLORS: Record<string, string> = {
+  cyan: "border-cyan/20 text-cyan",
+  amethyst: "border-amethyst/20 text-amethyst",
+  teal: "border-teal/20 text-teal",
+  gold: "border-gold/20 text-gold",
+};
+
+function StatCard({ label, value, color = "cyan" }: { label: string; value: string | number; color?: string }) {
   return (
-    <div className="bg-white rounded-lg shadow p-4">
-      <p className="text-sm text-gray-500">{label}</p>
-      <p className="text-2xl font-bold text-gray-800 mt-1">{value}</p>
+    <div className={`glass-card p-4 border-l-2 ${STAT_COLORS[color] || STAT_COLORS.cyan}`}>
+      <p className="text-sm text-fg-muted">{label}</p>
+      <p className={`text-2xl font-bold mt-1 ${STAT_COLORS[color]?.split(" ")[1] || "text-cyan"}`}>{value}</p>
     </div>
   );
 }
 
 function EventBadge({ type }: { type: string }) {
   const colors: Record<string, string> = {
-    inference_result: "bg-blue-100 text-blue-700",
-    training_complete: "bg-purple-100 text-purple-700",
-    security_alert: "bg-red-100 text-red-700",
-    bias_audit_complete: "bg-yellow-100 text-yellow-700",
-    explanation_generated: "bg-green-100 text-green-700",
-    consent_granted: "bg-teal-100 text-teal-700",
-    consent_revoked: "bg-orange-100 text-orange-700",
+    inference_result: "bg-cyan/10 text-cyan",
+    training_complete: "bg-amethyst/10 text-amethyst",
+    security_alert: "bg-rose-ember/10 text-rose-ember",
+    bias_audit_complete: "bg-gold/10 text-gold",
+    explanation_generated: "bg-teal/10 text-teal",
+    consent_granted: "bg-teal/10 text-teal",
+    consent_revoked: "bg-rose-ember/10 text-rose-ember",
   };
-  const cls = colors[type] || "bg-gray-100 text-gray-700";
+  const cls = colors[type] || "bg-fg/5 text-fg-secondary";
   return <span className={`px-2 py-0.5 rounded text-xs font-medium ${cls}`}>{type}</span>;
 }

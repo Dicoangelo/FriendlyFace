@@ -88,10 +88,10 @@ export function useToast(): ToastActions {
 /* ------------------------------------------------------------------ */
 
 const STYLE_MAP: Record<ToastType, string> = {
-  success: "bg-green-600 text-white",
-  error: "bg-red-600 text-white",
-  warning: "bg-yellow-500 text-white",
-  info: "bg-blue-600 text-white",
+  success: "bg-teal text-white",
+  error: "bg-rose-ember text-white",
+  warning: "bg-gold text-white",
+  info: "bg-cyan text-white",
 };
 
 const ICON_MAP: Record<ToastType, string> = {

@@ -69,73 +69,73 @@ export default function FLSimulations() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold">Federated Learning</h2>
-        <button onClick={fetchStatus} className="px-3 py-1 border rounded text-sm hover:bg-gray-50">Refresh Status</button>
+        <h2 className="text-xl font-bold text-fg">Federated Learning</h2>
+        <button onClick={fetchStatus} className="btn-ghost">Refresh Status</button>
       </div>
-      {error && <div className="text-red-600 text-sm">{error}</div>}
+      {error && <div className="text-rose-ember text-sm">{error}</div>}
 
       {/* Tabs */}
       <div className="flex gap-2">
-        <button onClick={() => setTab("standard")} className={`px-4 py-2 rounded text-sm ${tab === "standard" ? "bg-blue-600 text-white" : "bg-gray-200"}`}>Standard FL</button>
-        <button onClick={() => setTab("dp")} className={`px-4 py-2 rounded text-sm ${tab === "dp" ? "bg-blue-600 text-white" : "bg-gray-200"}`}>DP-FedAvg</button>
+        <button onClick={() => setTab("standard")} className={`px-4 py-2 rounded text-sm ${tab === "standard" ? "bg-cyan text-white" : "bg-fg/5 text-fg-muted"}`}>Standard FL</button>
+        <button onClick={() => setTab("dp")} className={`px-4 py-2 rounded text-sm ${tab === "dp" ? "bg-cyan text-white" : "bg-fg/5 text-fg-muted"}`}>DP-FedAvg</button>
       </div>
 
       {/* Shared params */}
-      <div className="bg-white rounded-lg shadow p-4 grid grid-cols-2 md:grid-cols-4 gap-3">
-        <label className="text-sm">
+      <div className="glass-card p-4 grid grid-cols-2 md:grid-cols-4 gap-3">
+        <label className="text-sm text-fg-secondary">
           Clients
-          <input type="number" value={nClients} onChange={(e) => setNClients(+e.target.value)} className="w-full border rounded px-2 py-1 mt-1" min={1} />
+          <input type="number" value={nClients} onChange={(e) => setNClients(+e.target.value)} className="w-full ff-input mt-1" min={1} />
         </label>
-        <label className="text-sm">
+        <label className="text-sm text-fg-secondary">
           Rounds
-          <input type="number" value={nRounds} onChange={(e) => setNRounds(+e.target.value)} className="w-full border rounded px-2 py-1 mt-1" min={1} />
+          <input type="number" value={nRounds} onChange={(e) => setNRounds(+e.target.value)} className="w-full ff-input mt-1" min={1} />
         </label>
-        <label className="text-sm">
+        <label className="text-sm text-fg-secondary">
           Seed
-          <input type="number" value={seed} onChange={(e) => setSeed(+e.target.value)} className="w-full border rounded px-2 py-1 mt-1" />
+          <input type="number" value={seed} onChange={(e) => setSeed(+e.target.value)} className="w-full ff-input mt-1" />
         </label>
         {tab === "standard" ? (
-          <label className="text-sm flex items-center gap-2 self-end">
+          <label className="text-sm text-fg-secondary flex items-center gap-2 self-end">
             <input type="checkbox" checked={enablePoisoning} onChange={(e) => setEnablePoisoning(e.target.checked)} />
             Poisoning Detection
           </label>
         ) : (
           <>
-            <label className="text-sm">
+            <label className="text-sm text-fg-secondary">
               Epsilon
-              <input type="number" value={epsilon} onChange={(e) => setEpsilon(+e.target.value)} className="w-full border rounded px-2 py-1 mt-1" step={0.1} />
+              <input type="number" value={epsilon} onChange={(e) => setEpsilon(+e.target.value)} className="w-full ff-input mt-1" step={0.1} />
             </label>
-            <label className="text-sm">
+            <label className="text-sm text-fg-secondary">
               Delta
-              <input type="number" value={delta} onChange={(e) => setDelta(+e.target.value)} className="w-full border rounded px-2 py-1 mt-1" step={0.00001} />
+              <input type="number" value={delta} onChange={(e) => setDelta(+e.target.value)} className="w-full ff-input mt-1" step={0.00001} />
             </label>
-            <label className="text-sm">
+            <label className="text-sm text-fg-secondary">
               Max Grad Norm
-              <input type="number" value={maxGradNorm} onChange={(e) => setMaxGradNorm(+e.target.value)} className="w-full border rounded px-2 py-1 mt-1" step={0.1} />
+              <input type="number" value={maxGradNorm} onChange={(e) => setMaxGradNorm(+e.target.value)} className="w-full ff-input mt-1" step={0.1} />
             </label>
           </>
         )}
       </div>
 
-      <button onClick={tab === "standard" ? startSimulation : startDPSimulation} disabled={loading} className="px-4 py-2 bg-blue-600 text-white rounded text-sm hover:bg-blue-700 disabled:opacity-50">
+      <button onClick={tab === "standard" ? startSimulation : startDPSimulation} disabled={loading} className="btn-primary disabled:opacity-50">
         {loading ? "Running..." : "Start Simulation"}
       </button>
 
       {/* Results */}
       {(tab === "standard" ? result : dpResult) && (
-        <div className="bg-white rounded-lg shadow p-4">
-          <h3 className="font-semibold mb-2">Simulation Results</h3>
+        <div className="glass-card p-4">
+          <h3 className="font-semibold text-fg-secondary mb-2">Simulation Results</h3>
           {((tab === "standard" ? result : dpResult)!.rounds).map((r) => (
-            <div key={r.round} className="border-b last:border-0 py-2">
+            <div key={r.round} className="border-b border-border-theme last:border-0 py-2">
               <div className="flex items-center justify-between">
-                <span className="font-medium text-sm">Round {r.round}</span>
-                <code className="text-xs text-gray-400">{r.global_model_hash.slice(0, 16)}...</code>
+                <span className="font-medium text-sm text-fg-secondary">Round {r.round}</span>
+                <code className="text-xs text-fg-faint">{r.global_model_hash.slice(0, 16)}...</code>
               </div>
               {r.poisoning && r.poisoning.n_flagged > 0 && (
-                <p className="text-xs text-red-600 mt-1">Flagged: {r.poisoning.flagged_client_ids.join(", ")}</p>
+                <p className="text-xs text-rose-ember mt-1">Flagged: {r.poisoning.flagged_client_ids.join(", ")}</p>
               )}
               {r.noise_scale !== undefined && (
-                <p className="text-xs text-gray-500 mt-1">Noise: {r.noise_scale.toFixed(4)} | Clipped: {r.n_clipped} | Privacy: ε={r.privacy_spent?.toFixed(4)}</p>
+                <p className="text-xs text-fg-muted mt-1">Noise: {r.noise_scale.toFixed(4)} | Clipped: {r.n_clipped} | Privacy: ε={r.privacy_spent?.toFixed(4)}</p>
               )}
             </div>
           ))}
@@ -144,8 +144,8 @@ export default function FLSimulations() {
 
       {/* Status */}
       {status && (
-        <div className="bg-white rounded-lg shadow p-4">
-          <h3 className="font-semibold mb-2">FL Status</h3>
+        <div className="glass-card p-4">
+          <h3 className="font-semibold text-fg-secondary mb-2">FL Status</h3>
           <pre className="text-xs overflow-x-auto">{JSON.stringify(status, null, 2)}</pre>
         </div>
       )}
