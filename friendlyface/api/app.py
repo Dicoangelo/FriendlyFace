@@ -55,11 +55,17 @@ from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
+from slowapi import Limiter
+from slowapi.errors import RateLimitExceeded
+from slowapi.util import get_remote_address
 from starlette.responses import StreamingResponse
 
 from friendlyface.api.sse import EventBroadcaster
 from friendlyface.auth import require_api_key
+from friendlyface.config import settings
+from friendlyface.exceptions import FriendlyFaceError, NotFoundError
 from friendlyface.logging_config import log_startup_info, setup_logging
 from friendlyface.core.models import (
     BiasAuditRecord,
@@ -73,15 +79,28 @@ from friendlyface.crypto.vc import VerifiableCredential
 from friendlyface.storage.database import Database
 
 logger = logging.getLogger("friendlyface")
+_audit_logger = logging.getLogger("friendlyface.audit")
+
+# ---------------------------------------------------------------------------
+# Rate limiter
+# ---------------------------------------------------------------------------
+_rate_limit_enabled = settings.rate_limit.lower() != "none"
+limiter = Limiter(
+    key_func=get_remote_address,
+    default_limits=[settings.rate_limit] if _rate_limit_enabled else [],
+    enabled=_rate_limit_enabled,
+)
 
 _STARTUP_TIME: float = 0.0
 
 
 def _create_database():
-    """Create the appropriate database backend based on FF_STORAGE env var."""
-    import os
+    """Create the appropriate database backend based on config.
 
-    backend = os.environ.get("FF_STORAGE", "sqlite").lower()
+    Checks os.environ directly as well (for tests that set FF_STORAGE
+    after settings singleton is created).
+    """
+    backend = os.environ.get("FF_STORAGE", settings.storage).lower()
     if backend == "supabase":
         from friendlyface.storage.supabase_db import SupabaseDatabase
 
@@ -200,6 +219,28 @@ async def lifespan(app: FastAPI):
     await _db.close()
 
 
+# ---------------------------------------------------------------------------
+# OpenAPI tags
+# ---------------------------------------------------------------------------
+_OPENAPI_TAGS = [
+    {"name": "Health", "description": "Health checks and version info"},
+    {"name": "Dashboard", "description": "Forensic health dashboard"},
+    {"name": "Events", "description": "Forensic event recording and retrieval"},
+    {"name": "Merkle", "description": "Merkle tree root and inclusion proofs"},
+    {"name": "Bundles", "description": "Forensic bundles, verification, and export/import"},
+    {"name": "Provenance", "description": "Provenance DAG nodes and chains"},
+    {"name": "Recognition", "description": "Face recognition training, inference, and models"},
+    {"name": "Voice", "description": "Voice biometric enrollment and verification"},
+    {"name": "FL", "description": "Federated learning simulations and DP-FedAvg"},
+    {"name": "Fairness", "description": "Bias auditing, fairness status, and auto-audit config"},
+    {"name": "Explainability", "description": "LIME, SHAP, and SDD explanations"},
+    {"name": "Consent", "description": "Consent grant, revoke, check, and history"},
+    {"name": "Governance", "description": "Compliance reporting"},
+    {"name": "DID/VC", "description": "Decentralized Identifiers and Verifiable Credentials"},
+    {"name": "ZK", "description": "Schnorr zero-knowledge proofs"},
+    {"name": "Metrics", "description": "Prometheus metrics endpoint"},
+]
+
 app = FastAPI(
     title="FriendlyFace — Blockchain Forensic Layer",
     description=(
@@ -209,16 +250,59 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
     dependencies=[Depends(require_api_key)],
+    openapi_tags=_OPENAPI_TAGS,
 )
+
+# Attach limiter state to app
+app.state.limiter = limiter
+
+
+# ---------------------------------------------------------------------------
+# Error handlers
+# ---------------------------------------------------------------------------
+@app.exception_handler(FriendlyFaceError)
+async def friendlyface_error_handler(request: Request, exc: FriendlyFaceError) -> JSONResponse:
+    """Centralized handler for custom FriendlyFace exceptions."""
+    request_id = getattr(request.state, "request_id", "unknown")
+    return JSONResponse(
+        status_code=exc.status_code,
+        content={
+            "error": exc.error_type,
+            "message": exc.message,
+            "request_id": request_id,
+        },
+    )
+
+
+@app.exception_handler(RateLimitExceeded)
+async def rate_limit_handler(request: Request, exc: RateLimitExceeded) -> JSONResponse:
+    """Return 429 with Retry-After header on rate limit."""
+    request_id = getattr(request.state, "request_id", "unknown")
+    _audit_logger.warning(
+        "Rate limit exceeded: %s %s from %s",
+        request.method,
+        request.url.path,
+        get_remote_address(request),
+        extra={"event_category": "audit", "action": "rate_limit_exceeded"},
+    )
+    response = JSONResponse(
+        status_code=429,
+        content={
+            "error": "rate_limit_exceeded",
+            "message": str(exc.detail),
+            "request_id": request_id,
+        },
+    )
+    response.headers["Retry-After"] = "60"
+    return response
+
 
 # ---------------------------------------------------------------------------
 # CORS middleware
 # ---------------------------------------------------------------------------
-_cors_origins = os.environ.get("FF_CORS_ORIGINS", "*").split(",")
-
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_cors_origins,
+    allow_origins=settings.cors_origin_list,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -239,11 +323,12 @@ async def security_headers_middleware(request: Request, call_next) -> Response:
 
 
 # ---------------------------------------------------------------------------
-# Request logging middleware
+# Request logging middleware (also sets request_id on state for error handler)
 # ---------------------------------------------------------------------------
 @app.middleware("http")
 async def request_logging_middleware(request: Request, call_next) -> Response:
     request_id = str(uuid4())[:8]
+    request.state.request_id = request_id
     start = time.monotonic()
     response: Response = await call_next(request)
     elapsed_ms = round((time.monotonic() - start) * 1000, 1)
@@ -266,6 +351,18 @@ async def request_logging_middleware(request: Request, call_next) -> Response:
     return response
 
 
+# ---------------------------------------------------------------------------
+# Prometheus metrics
+# ---------------------------------------------------------------------------
+from prometheus_fastapi_instrumentator import Instrumentator  # noqa: E402
+
+_instrumentator = Instrumentator(
+    excluded_handlers=["/metrics"],
+    should_respect_env_var=False,
+)
+_instrumentator.instrument(app).expose(app, endpoint="/metrics", tags=["Metrics"])
+
+
 def get_service() -> ForensicService:
     return _service
 
@@ -275,7 +372,7 @@ def get_service() -> ForensicService:
 # ---------------------------------------------------------------------------
 
 
-@app.get("/health")
+@app.get("/health", tags=["Health"], summary="Health check")
 async def health():
     count = await _db.get_event_count()
     uptime_s = time.monotonic() - _STARTUP_TIME if _STARTUP_TIME > 0 else 0
@@ -285,7 +382,7 @@ async def health():
         "uptime_seconds": round(uptime_s, 1),
         "event_count": count,
         "merkle_root": _service.get_merkle_root(),
-        "storage_backend": os.environ.get("FF_STORAGE", "sqlite"),
+        "storage_backend": settings.storage,
     }
 
 
@@ -297,7 +394,7 @@ _dashboard_cache: dict[str, Any] = {"data": None, "timestamp": 0.0}
 _DASHBOARD_CACHE_TTL = 5.0  # seconds
 
 
-@app.get("/dashboard")
+@app.get("/dashboard", tags=["Dashboard"], summary="Forensic health dashboard")
 async def dashboard():
     now = time.monotonic()
     if (
@@ -317,7 +414,7 @@ async def dashboard():
 
     result = {
         "uptime_seconds": round(uptime_s, 2),
-        "storage_backend": os.environ.get("FF_STORAGE", "sqlite"),
+        "storage_backend": settings.storage,
         "total_events": total_events,
         "total_bundles": total_bundles,
         "total_provenance_nodes": total_provenance_nodes,
@@ -346,7 +443,7 @@ async def dashboard():
 # ---------------------------------------------------------------------------
 
 
-@app.post("/events", status_code=201)
+@app.post("/events", status_code=201, tags=["Events"], summary="Record a forensic event")
 async def record_event(req: RecordEventRequest):
     event = await _service.record_event(
         event_type=req.event_type,
@@ -358,10 +455,19 @@ async def record_event(req: RecordEventRequest):
     return event_data
 
 
-@app.get("/events")
-async def list_events():
-    events = await _service.get_all_events()
-    return [e.model_dump(mode="json") for e in events]
+@app.get("/events", tags=["Events"], summary="List forensic events (paginated)")
+async def list_events(
+    limit: int = Query(default=50, ge=1, le=500, description="Max items to return"),
+    offset: int = Query(default=0, ge=0, description="Number of items to skip"),
+):
+    events = await _db.get_events_paginated(limit=limit, offset=offset)
+    total = await _db.get_event_count()
+    return {
+        "items": [e.model_dump(mode="json") for e in events],
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -371,7 +477,7 @@ async def list_events():
 _HEARTBEAT_INTERVAL: float = 15.0  # seconds
 
 
-@app.get("/events/stream")
+@app.get("/events/stream", tags=["Events"], summary="SSE real-time event stream")
 async def event_stream(
     event_type: str | None = Query(default=None, description="Filter events by type"),
 ):
@@ -407,7 +513,7 @@ async def event_stream(
     )
 
 
-@app.get("/events/{event_id}")
+@app.get("/events/{event_id}", tags=["Events"], summary="Get event by ID")
 async def get_event(event_id: UUID):
     event = await _service.get_event(event_id)
     if event is None:
@@ -420,13 +526,13 @@ async def get_event(event_id: UUID):
 # ---------------------------------------------------------------------------
 
 
-@app.get("/merkle/root")
+@app.get("/merkle/root", tags=["Merkle"], summary="Current Merkle root")
 async def get_merkle_root():
     root = _service.get_merkle_root()
     return {"merkle_root": root, "leaf_count": _service.merkle.leaf_count}
 
 
-@app.get("/merkle/proof/{event_id}")
+@app.get("/merkle/proof/{event_id}", tags=["Merkle"], summary="Merkle inclusion proof")
 async def get_merkle_proof(event_id: UUID):
     proof = _service.get_merkle_proof(event_id)
     if proof is None:
@@ -439,7 +545,7 @@ async def get_merkle_proof(event_id: UUID):
 # ---------------------------------------------------------------------------
 
 
-@app.post("/bundles/import", status_code=201)
+@app.post("/bundles/import", status_code=201, tags=["Bundles"], summary="Import JSON-LD bundle")
 async def import_bundle(req: ImportBundleRequest):
     """Import a JSON-LD bundle document with integrity verification."""
     from datetime import datetime
@@ -544,7 +650,7 @@ async def import_bundle(req: ImportBundleRequest):
     }
 
 
-@app.get("/bundles/{bundle_id}/export")
+@app.get("/bundles/{bundle_id}/export", tags=["Bundles"], summary="Export bundle as JSON-LD")
 async def export_bundle(bundle_id: UUID):
     """Export a forensic bundle as a self-contained JSON-LD document."""
     bundle = await _service.get_bundle(bundle_id)
@@ -611,7 +717,7 @@ async def export_bundle(bundle_id: UUID):
 # ---------------------------------------------------------------------------
 
 
-@app.post("/bundles", status_code=201)
+@app.post("/bundles", status_code=201, tags=["Bundles"], summary="Create forensic bundle")
 async def create_bundle(req: CreateBundleRequest):
     bundle = await _service.create_bundle(
         event_ids=req.event_ids,
@@ -626,7 +732,7 @@ async def create_bundle(req: CreateBundleRequest):
     return bundle.model_dump(mode="json")
 
 
-@app.get("/bundles/{bundle_id}")
+@app.get("/bundles/{bundle_id}", tags=["Bundles"], summary="Get bundle by ID")
 async def get_bundle(bundle_id: UUID):
     bundle = await _service.get_bundle(bundle_id)
     if bundle is None:
@@ -639,13 +745,13 @@ async def get_bundle(bundle_id: UUID):
 # ---------------------------------------------------------------------------
 
 
-@app.post("/verify/{bundle_id}")
+@app.post("/verify/{bundle_id}", tags=["Bundles"], summary="Verify bundle integrity")
 async def verify_bundle(bundle_id: UUID):
     result = await _service.verify_bundle(bundle_id)
     return result
 
 
-@app.get("/chain/integrity")
+@app.get("/chain/integrity", tags=["Bundles"], summary="Verify full hash chain")
 async def verify_chain_integrity():
     return await _service.verify_chain_integrity()
 
@@ -655,7 +761,7 @@ async def verify_chain_integrity():
 # ---------------------------------------------------------------------------
 
 
-@app.post("/provenance", status_code=201)
+@app.post("/provenance", status_code=201, tags=["Provenance"], summary="Add provenance node")
 async def add_provenance_node(req: AddProvenanceRequest):
     try:
         node = _service.add_provenance_node(
@@ -670,7 +776,7 @@ async def add_provenance_node(req: AddProvenanceRequest):
     return node.model_dump(mode="json")
 
 
-@app.get("/provenance/{node_id}")
+@app.get("/provenance/{node_id}", tags=["Provenance"], summary="Get provenance chain")
 async def get_provenance_chain(node_id: UUID):
     chain = _service.get_provenance_chain(node_id)
     if not chain:
@@ -712,8 +818,9 @@ class TrainRequest(BaseModel):
     )
 
 
-@app.post("/recognition/train", status_code=201)
-async def train_model(req: TrainRequest):
+@app.post("/recognition/train", status_code=201, tags=["Recognition"], summary="Train PCA+SVM model")
+@limiter.limit("5/minute")
+async def train_model(request: Request, req: TrainRequest):
     """Train PCA+SVM pipeline on a dataset directory and register the model."""
     from datetime import datetime, timezone
     from pathlib import Path
@@ -894,19 +1001,19 @@ async def _do_predict(image: UploadFile, top_k: int = 5) -> dict[str, Any]:
     }
 
 
-@app.post("/recognition/predict", status_code=200)
+@app.post("/recognition/predict", status_code=200, tags=["Recognition"], summary="Predict face identity")
 async def predict(image: UploadFile, top_k: int = 5):
     """Upload a face image and get prediction matches with forensic event logging."""
     return await _do_predict(image, top_k)
 
 
-@app.post("/recognize", status_code=200)
+@app.post("/recognize", status_code=200, tags=["Recognition"], summary="(Legacy) Predict face identity", deprecated=True)
 async def recognize(image: UploadFile, top_k: int = 5):
     """Legacy endpoint — use POST /recognition/predict instead."""
     return await _do_predict(image, top_k)
 
 
-@app.get("/recognition/models")
+@app.get("/recognition/models", tags=["Recognition"], summary="List trained models")
 async def list_models():
     """List all available trained models with metadata."""
     return list(_model_registry.values())
@@ -948,7 +1055,7 @@ class MultiModalRequest(BaseModel):
     voice_weight: float = Field(default=0.4, gt=0, lt=1)
 
 
-@app.post("/recognition/voice/enroll", status_code=201)
+@app.post("/recognition/voice/enroll", status_code=201, tags=["Voice"], summary="Enroll voice biometric")
 async def enroll_voice(audio: UploadFile, subject_id: str = "unknown"):
     """Enroll a voice for a subject from uploaded PCM audio."""
     from friendlyface.recognition.voice import extract_voice_embedding
@@ -988,7 +1095,7 @@ async def enroll_voice(audio: UploadFile, subject_id: str = "unknown"):
     }
 
 
-@app.post("/recognition/voice/verify", status_code=200)
+@app.post("/recognition/voice/verify", status_code=200, tags=["Voice"], summary="Verify voice identity")
 async def verify_voice(audio: UploadFile, top_k: int = 3):
     """Verify a voice against enrolled subjects."""
     from friendlyface.recognition.voice import run_voice_inference
@@ -1020,7 +1127,7 @@ async def verify_voice(audio: UploadFile, top_k: int = 3):
     }
 
 
-@app.post("/recognition/multimodal", status_code=200)
+@app.post("/recognition/multimodal", status_code=200, tags=["Voice"], summary="Multi-modal face+voice fusion")
 async def multimodal_fusion(req: MultiModalRequest):
     """Fuse face and voice recognition scores into a unified decision."""
     from friendlyface.recognition.fusion import fuse_scores
@@ -1138,13 +1245,13 @@ async def _run_fl_simulation(req: FLSimulateRequest) -> dict[str, Any]:
     }
 
 
-@app.post("/fl/start", status_code=201)
+@app.post("/fl/start", status_code=201, tags=["FL"], summary="Start FL simulation")
 async def start_fl(req: FLSimulateRequest):
     """Start a federated learning simulation with configurable parameters."""
     return await _run_fl_simulation(req)
 
 
-@app.post("/fl/simulate", status_code=201)
+@app.post("/fl/simulate", status_code=201, tags=["FL"], summary="(Legacy) Start FL simulation", deprecated=True)
 async def simulate_fl(req: FLSimulateRequest):
     """Legacy alias for POST /fl/start."""
     return await _run_fl_simulation(req)
@@ -1164,7 +1271,7 @@ class DPFLSimulateRequest(BaseModel):
     seed: int = Field(default=42)
 
 
-@app.post("/fl/dp-start", status_code=201)
+@app.post("/fl/dp-start", status_code=201, tags=["FL"], summary="Start DP-FedAvg simulation")
 async def start_dp_fl(req: DPFLSimulateRequest):
     """Start a differentially-private federated learning simulation."""
     from uuid import uuid4
@@ -1247,7 +1354,7 @@ async def start_dp_fl(req: DPFLSimulateRequest):
     }
 
 
-@app.get("/fl/status")
+@app.get("/fl/status", tags=["FL"], summary="FL training status")
 async def get_fl_status():
     """Return current FL training status across all simulations."""
     simulations = []
@@ -1270,7 +1377,7 @@ async def get_fl_status():
     }
 
 
-@app.get("/fl/rounds")
+@app.get("/fl/rounds", tags=["FL"], summary="List FL rounds")
 async def list_fl_rounds():
     """List completed FL rounds across all simulations with summary."""
     all_rounds: list[dict[str, Any]] = []
@@ -1296,7 +1403,7 @@ async def list_fl_rounds():
     return {"total_rounds": len(all_rounds), "rounds": all_rounds}
 
 
-@app.get("/fl/rounds/{simulation_id}/{round_number}")
+@app.get("/fl/rounds/{simulation_id}/{round_number}", tags=["FL"], summary="FL round details")
 async def get_fl_round_details(simulation_id: str, round_number: int):
     """Get details for a specific FL round including client contributions and security status."""
     sim = _fl_simulations.get(simulation_id)
@@ -1347,7 +1454,7 @@ async def get_fl_round_details(simulation_id: str, round_number: int):
     }
 
 
-@app.get("/fl/rounds/{simulation_id}/{round_number}/security")
+@app.get("/fl/rounds/{simulation_id}/{round_number}/security", tags=["FL"], summary="FL round security")
 async def get_fl_round_security(simulation_id: str, round_number: int):
     """Get poisoning detection results for a specific FL round."""
     sim = _fl_simulations.get(simulation_id)
@@ -1400,7 +1507,7 @@ async def get_fl_round_security(simulation_id: str, round_number: int):
     }
 
 
-@app.get("/recognition/models/{model_id}")
+@app.get("/recognition/models/{model_id}", tags=["Recognition"], summary="Get model details")
 async def get_model(model_id: str):
     """Get model details including provenance chain."""
     model = _model_registry.get(model_id)
@@ -1428,7 +1535,7 @@ async def get_model(model_id: str):
 _latest_compliance_report: dict[str, Any] | None = None
 
 
-@app.get("/governance/compliance")
+@app.get("/governance/compliance", tags=["Governance"], summary="Get compliance report")
 async def get_compliance_report():
     """Get the latest compliance report, or generate one if none exists."""
     global _latest_compliance_report
@@ -1440,7 +1547,7 @@ async def get_compliance_report():
     return _latest_compliance_report
 
 
-@app.post("/governance/compliance/generate", status_code=201)
+@app.post("/governance/compliance/generate", status_code=201, tags=["Governance"], summary="Generate compliance report")
 async def generate_compliance_report():
     """Generate a new compliance report and cache it."""
     global _latest_compliance_report
@@ -1494,7 +1601,7 @@ def _get_consent_manager():
     return ConsentManager(_db, _service)
 
 
-@app.post("/consent/grant", status_code=201)
+@app.post("/consent/grant", status_code=201, tags=["Consent"], summary="Grant consent")
 async def grant_consent(req: ConsentGrantRequest):
     """Grant consent for a subject+purpose pair."""
     from datetime import datetime
@@ -1517,10 +1624,23 @@ async def grant_consent(req: ConsentGrantRequest):
         expiry=expiry_dt,
         actor=req.actor,
     )
+    _audit_logger.info(
+        "Consent granted: subject=%s purpose=%s actor=%s",
+        req.subject_id,
+        req.purpose,
+        req.actor,
+        extra={
+            "event_category": "audit",
+            "action": "consent_grant",
+            "subject_id": req.subject_id,
+            "purpose": req.purpose,
+            "actor": req.actor,
+        },
+    )
     return record.to_dict()
 
 
-@app.post("/consent/revoke", status_code=200)
+@app.post("/consent/revoke", status_code=200, tags=["Consent"], summary="Revoke consent")
 async def revoke_consent(req: ConsentRevokeRequest):
     """Revoke consent for a subject+purpose pair."""
     mgr = _get_consent_manager()
@@ -1530,17 +1650,31 @@ async def revoke_consent(req: ConsentRevokeRequest):
         reason=req.reason,
         actor=req.actor,
     )
+    _audit_logger.info(
+        "Consent revoked: subject=%s purpose=%s actor=%s reason=%s",
+        req.subject_id,
+        req.purpose,
+        req.actor,
+        req.reason,
+        extra={
+            "event_category": "audit",
+            "action": "consent_revoke",
+            "subject_id": req.subject_id,
+            "purpose": req.purpose,
+            "actor": req.actor,
+        },
+    )
     return record.to_dict()
 
 
-@app.get("/consent/status/{subject_id}")
+@app.get("/consent/status/{subject_id}", tags=["Consent"], summary="Check consent status")
 async def get_consent_status(subject_id: str, purpose: str = "recognition"):
     """Check current consent status for a subject."""
     mgr = _get_consent_manager()
     return await mgr.get_consent_status(subject_id, purpose)
 
 
-@app.get("/consent/history/{subject_id}")
+@app.get("/consent/history/{subject_id}", tags=["Consent"], summary="Consent history")
 async def get_consent_history(subject_id: str, purpose: str | None = None):
     """Get full consent history for a subject."""
     mgr = _get_consent_manager()
@@ -1548,7 +1682,7 @@ async def get_consent_history(subject_id: str, purpose: str | None = None):
     return {"subject_id": subject_id, "total": len(records), "records": records}
 
 
-@app.post("/consent/check", status_code=200)
+@app.post("/consent/check", status_code=200, tags=["Consent"], summary="Check consent before inference")
 async def check_consent(req: ConsentCheckRequest):
     """Verify consent before inference. Returns allow/deny decision."""
     mgr = _get_consent_manager()
@@ -1598,7 +1732,7 @@ class AutoAuditConfigRequest(BaseModel):
     )
 
 
-@app.post("/fairness/audit", status_code=201)
+@app.post("/fairness/audit", status_code=201, tags=["Fairness"], summary="Trigger bias audit")
 async def trigger_bias_audit(req: BiasAuditRequest):
     """Trigger a manual bias audit on provided group results."""
     from friendlyface.fairness.auditor import (
@@ -1658,13 +1792,16 @@ async def trigger_bias_audit(req: BiasAuditRequest):
     }
 
 
-@app.get("/fairness/audits")
-async def list_bias_audits():
+@app.get("/fairness/audits", tags=["Fairness"], summary="List bias audits (paginated)")
+async def list_bias_audits(
+    limit: int = Query(default=50, ge=1, le=500, description="Max items to return"),
+    offset: int = Query(default=0, ge=0, description="Number of items to skip"),
+):
     """List completed audits with summary scores."""
-    audits = await _db.get_all_bias_audits()
+    audits = await _db.get_bias_audits_paginated(limit=limit, offset=offset)
+    total = await _db.get_bias_audit_count()
     return {
-        "total": len(audits),
-        "audits": [
+        "items": [
             {
                 "audit_id": str(a.id),
                 "event_id": str(a.event_id) if a.event_id else None,
@@ -1679,10 +1816,13 @@ async def list_bias_audits():
             }
             for a in audits
         ],
+        "total": total,
+        "limit": limit,
+        "offset": offset,
     }
 
 
-@app.get("/fairness/audits/{audit_id}")
+@app.get("/fairness/audits/{audit_id}", tags=["Fairness"], summary="Get audit details")
 async def get_bias_audit(audit_id: UUID):
     """Get full audit details with per-group breakdowns."""
     audit = await _db.get_bias_audit(audit_id)
@@ -1691,7 +1831,7 @@ async def get_bias_audit(audit_id: UUID):
     return audit.model_dump(mode="json")
 
 
-@app.get("/fairness/status")
+@app.get("/fairness/status", tags=["Fairness"], summary="Fairness health status")
 async def get_fairness_status():
     """Current fairness health: pass / warning / fail.
 
@@ -1732,7 +1872,7 @@ async def get_fairness_status():
     }
 
 
-@app.post("/fairness/config")
+@app.post("/fairness/config", tags=["Fairness"], summary="Configure auto-audit")
 async def configure_auto_audit(req: AutoAuditConfigRequest):
     """Configure auto-audit interval."""
     global _auto_audit_interval
@@ -1743,7 +1883,7 @@ async def configure_auto_audit(req: AutoAuditConfigRequest):
     }
 
 
-@app.get("/fairness/config")
+@app.get("/fairness/config", tags=["Fairness"], summary="Get auto-audit config")
 async def get_auto_audit_config():
     """Get current auto-audit configuration."""
     return {
@@ -1821,7 +1961,7 @@ class ShapExplainRequest(BaseModel):
     random_state: int = Field(default=42)
 
 
-@app.post("/explainability/lime", status_code=201)
+@app.post("/explainability/lime", status_code=201, tags=["Explainability"], summary="LIME explanation")
 async def trigger_lime_explanation(req: LimeExplainRequest):
     """Trigger a LIME explanation for a given inference event.
 
@@ -1862,7 +2002,7 @@ async def trigger_lime_explanation(req: LimeExplainRequest):
     return record
 
 
-@app.post("/explainability/shap", status_code=201)
+@app.post("/explainability/shap", status_code=201, tags=["Explainability"], summary="SHAP explanation")
 async def trigger_shap_explanation(req: ShapExplainRequest):
     """Trigger a SHAP explanation for a given inference event."""
     from uuid import uuid4
@@ -1902,7 +2042,7 @@ class SddExplainRequest(BaseModel):
     event_id: UUID = Field(description="Inference event ID to explain")
 
 
-@app.post("/explainability/sdd", status_code=201)
+@app.post("/explainability/sdd", status_code=201, tags=["Explainability"], summary="SDD saliency explanation")
 async def trigger_sdd_explanation(req: SddExplainRequest):
     """Trigger an SDD saliency explanation for a given inference event.
 
@@ -1939,14 +2079,19 @@ async def trigger_sdd_explanation(req: SddExplainRequest):
     return record
 
 
-@app.get("/explainability/explanations")
-async def list_explanations():
+@app.get("/explainability/explanations", tags=["Explainability"], summary="List explanations (paginated)")
+async def list_explanations(
+    limit: int = Query(default=50, ge=1, le=500, description="Max items to return"),
+    offset: int = Query(default=0, ge=0, description="Number of items to skip"),
+):
     """List all generated explanations."""
-    items = list(_explanations.values())
-    return {"total": len(items), "explanations": items}
+    all_items = list(_explanations.values())
+    total = len(all_items)
+    page = all_items[offset : offset + limit]
+    return {"items": page, "total": total, "limit": limit, "offset": offset}
 
 
-@app.get("/explainability/explanations/{explanation_id}")
+@app.get("/explainability/explanations/{explanation_id}", tags=["Explainability"], summary="Get explanation by ID")
 async def get_explanation(explanation_id: str):
     """Get explanation details by ID."""
     record = _explanations.get(explanation_id)
@@ -1955,7 +2100,7 @@ async def get_explanation(explanation_id: str):
     return record
 
 
-@app.get("/explainability/compare/{event_id}")
+@app.get("/explainability/compare/{event_id}", tags=["Explainability"], summary="Compare explanations")
 async def compare_explanations(event_id: UUID):
     """Compare LIME vs SHAP vs SDD explanations for the same inference event.
 
@@ -1998,8 +2143,9 @@ async def compare_explanations(event_id: UUID):
 # ---------------------------------------------------------------------------
 
 
-@app.post("/did/create", status_code=201)
-async def create_did(req: CreateDIDRequest):
+@app.post("/did/create", status_code=201, tags=["DID/VC"], summary="Create Ed25519 DID:key")
+@limiter.limit("10/minute")
+async def create_did(request: Request, req: CreateDIDRequest):
     """Create a new Ed25519 DID:key identity."""
     from datetime import datetime, timezone
 
@@ -2026,7 +2172,7 @@ async def create_did(req: CreateDIDRequest):
     }
 
 
-@app.get("/did/{did_id:path}/resolve")
+@app.get("/did/{did_id:path}/resolve", tags=["DID/VC"], summary="Resolve DID document")
 async def resolve_did(did_id: str):
     """Resolve a DID to its DID Document."""
     entry = _did_keys.get(did_id)
@@ -2035,7 +2181,7 @@ async def resolve_did(did_id: str):
     return entry["did_key"].resolve()
 
 
-@app.post("/vc/issue", status_code=201)
+@app.post("/vc/issue", status_code=201, tags=["DID/VC"], summary="Issue Verifiable Credential")
 async def issue_vc(req: IssueVCRequest):
     """Issue a Verifiable Credential signed by the specified DID."""
     entry = _did_keys.get(req.issuer_did_id)
@@ -2051,7 +2197,7 @@ async def issue_vc(req: IssueVCRequest):
     return credential
 
 
-@app.post("/vc/verify")
+@app.post("/vc/verify", tags=["DID/VC"], summary="Verify Verifiable Credential")
 async def verify_vc(req: VerifyVCRequest):
     """Verify a Verifiable Credential's proof."""
     result = VerifiableCredential.verify(
@@ -2066,8 +2212,9 @@ async def verify_vc(req: VerifyVCRequest):
 # ---------------------------------------------------------------------------
 
 
-@app.post("/zk/prove", status_code=201)
-async def zk_prove(req: ZKProveRequest):
+@app.post("/zk/prove", status_code=201, tags=["ZK"], summary="Generate Schnorr ZK proof")
+@limiter.limit("20/minute")
+async def zk_prove(request: Request, req: ZKProveRequest):
     """Generate a Schnorr ZK proof for a forensic bundle."""
     bundle = await _service.get_bundle(UUID(req.bundle_id))
     if bundle is None:
@@ -2094,7 +2241,7 @@ async def zk_prove(req: ZKProveRequest):
     }
 
 
-@app.post("/zk/verify")
+@app.post("/zk/verify", tags=["ZK"], summary="Verify ZK proof")
 async def zk_verify(req: ZKVerifyRequest):
     """Verify a Schnorr ZK proof."""
     verifier = ZKBundleVerifier()
@@ -2110,7 +2257,7 @@ async def zk_verify(req: ZKVerifyRequest):
     return {"valid": valid, "scheme": scheme}
 
 
-@app.get("/zk/proofs/{bundle_id}")
+@app.get("/zk/proofs/{bundle_id}", tags=["ZK"], summary="Get stored ZK proof")
 async def get_zk_proof(bundle_id: UUID):
     """Get the stored ZK proof for a bundle."""
     bundle = await _service.get_bundle(bundle_id)
@@ -2253,7 +2400,7 @@ app.include_router(v1_router)
 
 
 # Version info endpoint (mounted on app, not the router)
-@app.get("/api/version")
+@app.get("/api/version", tags=["Health"], summary="API version info")
 async def api_version():
     """Return API version information."""
     return {"version": _API_VERSION, "api_prefix": _API_PREFIX}
@@ -2264,7 +2411,7 @@ async def api_version():
 # ---------------------------------------------------------------------------
 
 _FRONTEND_DIST = os.path.join(os.path.dirname(__file__), "..", "..", "frontend", "dist")
-_SERVE_FRONTEND = os.environ.get("FF_SERVE_FRONTEND", "").lower() not in ("false", "0", "no")
+_SERVE_FRONTEND = settings.serve_frontend
 
 
 if _SERVE_FRONTEND and os.path.isdir(_FRONTEND_DIST):

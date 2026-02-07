@@ -1,6 +1,10 @@
-import { useState } from "react";
+import { useState, useCallback } from "react";
+import { useToast } from "../components/Toast";
+import ConfirmDialog from "../components/ConfirmDialog";
 
 export default function ConsentManagement() {
+  const toast = useToast();
+
   // Grant consent
   const [subjectId, setSubjectId] = useState("");
   const [purpose, setPurpose] = useState("recognition");
@@ -22,6 +26,9 @@ export default function ConsentManagement() {
   const [revokeReason, setRevokeReason] = useState("");
   const [revokeResult, setRevokeResult] = useState<Record<string, unknown> | null>(null);
 
+  // Confirm dialog
+  const [confirmOpen, setConfirmOpen] = useState(false);
+
   const [error, setError] = useState("");
 
   const grantConsent = () => {
@@ -33,8 +40,14 @@ export default function ConsentManagement() {
       body: JSON.stringify({ subject_id: subjectId, purpose, expiry: expiry || null }),
     })
       .then((r) => { if (!r.ok) throw new Error(`${r.status}`); return r.json(); })
-      .then(setGrantResult)
-      .catch((e) => setError(e.message));
+      .then((data) => {
+        setGrantResult(data);
+        toast.success(`Consent granted for subject "${subjectId}"`);
+      })
+      .catch((e) => {
+        setError(e.message);
+        toast.error(`Failed to grant consent: ${e.message}`);
+      });
   };
 
   const checkConsent = () => {
@@ -47,7 +60,10 @@ export default function ConsentManagement() {
     })
       .then((r) => r.json())
       .then(setCheckResult)
-      .catch((e) => setError(e.message));
+      .catch((e) => {
+        setError(e.message);
+        toast.error(`Failed to check consent: ${e.message}`);
+      });
   };
 
   const fetchHistory = () => {
@@ -56,10 +72,14 @@ export default function ConsentManagement() {
     fetch(`/api/v1/consent/history/${encodeURIComponent(historySubject)}`)
       .then((r) => r.json())
       .then(setHistory)
-      .catch((e) => setError(e.message));
+      .catch((e) => {
+        setError(e.message);
+        toast.error(`Failed to fetch history: ${e.message}`);
+      });
   };
 
-  const revokeConsent = () => {
+  const executeRevoke = useCallback(() => {
+    setConfirmOpen(false);
     setError("");
     setRevokeResult(null);
     fetch("/api/v1/consent/revoke", {
@@ -68,8 +88,18 @@ export default function ConsentManagement() {
       body: JSON.stringify({ subject_id: revokeSubject, purpose: revokePurpose, reason: revokeReason }),
     })
       .then((r) => { if (!r.ok) throw new Error(`${r.status}`); return r.json(); })
-      .then(setRevokeResult)
-      .catch((e) => setError(e.message));
+      .then((data) => {
+        setRevokeResult(data);
+        toast.warning(`Consent revoked for subject "${revokeSubject}"`);
+      })
+      .catch((e) => {
+        setError(e.message);
+        toast.error(`Failed to revoke consent: ${e.message}`);
+      });
+  }, [revokeSubject, revokePurpose, revokeReason, toast]);
+
+  const handleRevokeClick = () => {
+    setConfirmOpen(true);
   };
 
   return (
@@ -136,9 +166,21 @@ export default function ConsentManagement() {
           <input type="text" placeholder="Purpose" value={revokePurpose} onChange={(e) => setRevokePurpose(e.target.value)} className="border rounded px-3 py-1 text-sm" />
           <input type="text" placeholder="Reason" value={revokeReason} onChange={(e) => setRevokeReason(e.target.value)} className="border rounded px-3 py-1 text-sm" />
         </div>
-        <button onClick={revokeConsent} className="px-4 py-1 bg-red-600 text-white rounded text-sm">Revoke</button>
+        <button onClick={handleRevokeClick} className="px-4 py-1 bg-red-600 text-white rounded text-sm">Revoke</button>
         {revokeResult && <pre className="text-xs bg-red-50 rounded p-2">{JSON.stringify(revokeResult, null, 2)}</pre>}
       </div>
+
+      {/* Confirmation Dialog for Revoke */}
+      <ConfirmDialog
+        open={confirmOpen}
+        title="Revoke Consent"
+        message={`This will permanently revoke consent for subject "${revokeSubject}" (purpose: ${revokePurpose}). This action cannot be undone.`}
+        confirmLabel="Revoke"
+        cancelLabel="Cancel"
+        variant="danger"
+        onConfirm={executeRevoke}
+        onCancel={() => setConfirmOpen(false)}
+      />
     </div>
   );
 }

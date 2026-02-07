@@ -11,24 +11,16 @@ query parameter.
 
 from __future__ import annotations
 
-import os
+import logging
 
 from fastapi import HTTPException, Request, status
 
+from friendlyface.config import settings
+
 # Paths that are always public, even when auth is enabled.
-PUBLIC_PATHS: frozenset[str] = frozenset({"/health"})
+PUBLIC_PATHS: frozenset[str] = frozenset({"/health", "/metrics"})
 
-
-def _load_api_keys() -> set[str]:
-    """Return the set of valid API keys from the environment.
-
-    If ``FF_API_KEYS`` is unset or empty, returns an empty set which
-    signals that authentication is disabled (dev mode).
-    """
-    raw = os.environ.get("FF_API_KEYS", "").strip()
-    if not raw:
-        return set()
-    return {k.strip() for k in raw.split(",") if k.strip()}
+_audit_logger = logging.getLogger("friendlyface.audit")
 
 
 async def require_api_key(request: Request) -> None:
@@ -53,7 +45,7 @@ async def require_api_key(request: Request) -> None:
     if request.url.path in PUBLIC_PATHS:
         return
 
-    valid_keys = _load_api_keys()
+    valid_keys = settings.api_key_set
 
     # Dev mode: no keys configured -> auth is disabled.
     if not valid_keys:
@@ -65,12 +57,36 @@ async def require_api_key(request: Request) -> None:
         api_key = request.query_params.get("api_key")
 
     if api_key is None:
+        _audit_logger.warning(
+            "Auth failure (no key): %s %s from %s",
+            request.method,
+            request.url.path,
+            request.client.host if request.client else "unknown",
+            extra={
+                "event_category": "audit",
+                "action": "auth_failure",
+                "reason": "no_key",
+                "path": request.url.path,
+            },
+        )
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="API key required. Provide via X-API-Key header or api_key query parameter.",
         )
 
     if api_key not in valid_keys:
+        _audit_logger.warning(
+            "Auth failure (invalid key): %s %s from %s",
+            request.method,
+            request.url.path,
+            request.client.host if request.client else "unknown",
+            extra={
+                "event_category": "audit",
+                "action": "auth_failure",
+                "reason": "invalid_key",
+                "path": request.url.path,
+            },
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid API key.",
