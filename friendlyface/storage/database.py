@@ -168,6 +168,40 @@ class Database:
         row = await cursor.fetchone()
         return row[0] if row else 0
 
+    async def get_bundle_count(self) -> int:
+        cursor = await self.db.execute("SELECT COUNT(*) FROM forensic_bundles")
+        row = await cursor.fetchone()
+        return row[0] if row else 0
+
+    async def get_provenance_count(self) -> int:
+        cursor = await self.db.execute("SELECT COUNT(*) FROM provenance_nodes")
+        row = await cursor.fetchone()
+        return row[0] if row else 0
+
+    async def get_events_by_type(self) -> dict[str, int]:
+        cursor = await self.db.execute(
+            "SELECT event_type, COUNT(*) as cnt FROM forensic_events GROUP BY event_type"
+        )
+        rows = await cursor.fetchall()
+        return {row["event_type"]: row["cnt"] for row in rows}
+
+    async def get_recent_events(self, limit: int = 10) -> list[dict[str, Any]]:
+        cursor = await self.db.execute(
+            "SELECT id, event_type, actor, timestamp FROM forensic_events "
+            "ORDER BY sequence_number DESC LIMIT ?",
+            (limit,),
+        )
+        rows = await cursor.fetchall()
+        return [
+            {
+                "id": row["id"],
+                "event_type": row["event_type"],
+                "actor": row["actor"],
+                "timestamp": row["timestamp"],
+            }
+            for row in rows
+        ]
+
     def _row_to_event(self, row: aiosqlite.Row) -> ForensicEvent:
         return ForensicEvent(
             id=UUID(row["id"]),

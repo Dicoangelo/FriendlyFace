@@ -28,11 +28,15 @@ Endpoints:
   GET    /fl/rounds/{sim_id}/{n}/security — Get poisoning detection results for a round
   GET    /fl/status                 — Current FL training status
   POST   /explainability/sdd        — Generate SDD saliency explanation
+  GET    /events/stream             — SSE stream of forensic events (real-time)
   GET    /health                    — Health check
+  GET    /dashboard                 — Comprehensive forensic health dashboard
 """
 
 from __future__ import annotations
 
+import asyncio
+import json
 import logging
 import os
 import time
@@ -40,10 +44,12 @@ from contextlib import asynccontextmanager
 from typing import Any
 from uuid import UUID, uuid4
 
-from fastapi import Depends, FastAPI, HTTPException, Request, Response, UploadFile
+from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
+from starlette.responses import StreamingResponse
 
+from friendlyface.api.sse import EventBroadcaster
 from friendlyface.auth import require_api_key
 from friendlyface.core.models import (
     BiasAuditRecord,
@@ -109,6 +115,7 @@ class AddProvenanceRequest(BaseModel):
 
 _db = _create_database()
 _service = ForensicService(_db)
+_broadcaster = EventBroadcaster()
 
 
 @asynccontextmanager
@@ -191,6 +198,58 @@ async def health():
 
 
 # ---------------------------------------------------------------------------
+# Dashboard — comprehensive forensic health summary
+# ---------------------------------------------------------------------------
+
+_dashboard_cache: dict[str, Any] = {"data": None, "timestamp": 0.0}
+_DASHBOARD_CACHE_TTL = 5.0  # seconds
+
+
+@app.get("/dashboard")
+async def dashboard():
+    now = time.monotonic()
+    if (
+        _dashboard_cache["data"] is not None
+        and (now - _dashboard_cache["timestamp"]) < _DASHBOARD_CACHE_TTL
+    ):
+        return _dashboard_cache["data"]
+
+    uptime_s = time.monotonic() - _STARTUP_TIME if _STARTUP_TIME > 0 else 0.0
+
+    total_events = await _db.get_event_count()
+    total_bundles = await _db.get_bundle_count()
+    total_provenance_nodes = await _db.get_provenance_count()
+    events_by_type = await _db.get_events_by_type()
+    recent_events = await _db.get_recent_events(limit=10)
+    chain_integrity = await _service.verify_chain_integrity()
+
+    result = {
+        "uptime_seconds": round(uptime_s, 2),
+        "storage_backend": os.environ.get("FF_STORAGE", "sqlite"),
+        "total_events": total_events,
+        "total_bundles": total_bundles,
+        "total_provenance_nodes": total_provenance_nodes,
+        "events_by_type": events_by_type,
+        "recent_events": recent_events,
+        "chain_integrity": {
+            "valid": chain_integrity["valid"],
+            "count": chain_integrity["count"],
+        },
+        "crypto_status": {
+            "did_enabled": False,
+            "zk_scheme": "schnorr-sha256",
+            "total_dids": 0,
+            "total_vcs": 0,
+        },
+    }
+
+    _dashboard_cache["data"] = result
+    _dashboard_cache["timestamp"] = time.monotonic()
+
+    return result
+
+
+# ---------------------------------------------------------------------------
 # Events
 # ---------------------------------------------------------------------------
 
@@ -202,13 +261,58 @@ async def record_event(req: RecordEventRequest):
         actor=req.actor,
         payload=req.payload,
     )
-    return event.model_dump(mode="json")
+    event_data = event.model_dump(mode="json")
+    _broadcaster.broadcast(event_data)
+    return event_data
 
 
 @app.get("/events")
 async def list_events():
     events = await _service.get_all_events()
     return [e.model_dump(mode="json") for e in events]
+
+
+# ---------------------------------------------------------------------------
+# SSE — real-time forensic event stream
+# ---------------------------------------------------------------------------
+
+_HEARTBEAT_INTERVAL: float = 15.0  # seconds
+
+
+@app.get("/events/stream")
+async def event_stream(
+    event_type: str | None = Query(default=None, description="Filter events by type"),
+):
+    """Server-Sent Events endpoint for real-time forensic event streaming."""
+
+    async def _generate():
+        queue = _broadcaster.subscribe()
+        try:
+            # Immediate heartbeat so the client receives headers right away
+            yield "event: heartbeat\ndata: {}\n\n"
+            while True:
+                try:
+                    event_data = await asyncio.wait_for(queue.get(), timeout=_HEARTBEAT_INTERVAL)
+                    # Apply optional event_type filter
+                    if event_type is not None and event_data.get("event_type") != event_type:
+                        continue
+                    yield f"event: forensic_event\ndata: {json.dumps(event_data)}\n\n"
+                except asyncio.TimeoutError:
+                    yield "event: heartbeat\ndata: {}\n\n"
+        except asyncio.CancelledError:
+            pass
+        finally:
+            _broadcaster.unsubscribe(queue)
+
+    return StreamingResponse(
+        _generate(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @app.get("/events/{event_id}")
@@ -845,15 +949,17 @@ async def start_dp_fl(req: DPFLSimulateRequest):
             payload=result.event.payload,
         )
 
-        rounds_summary.append({
-            "round": round_num,
-            "global_model_hash": result.global_model_hash,
-            "noise_scale": result.noise_scale,
-            "n_clipped": len(result.clipped_clients),
-            "clipped_clients": result.clipped_clients,
-            "privacy_spent": result.privacy_spent,
-            "event_id": str(recorded.id),
-        })
+        rounds_summary.append(
+            {
+                "round": round_num,
+                "global_model_hash": result.global_model_hash,
+                "noise_scale": result.noise_scale,
+                "n_clipped": len(result.clipped_clients),
+                "clipped_clients": result.clipped_clients,
+                "privacy_spent": result.privacy_spent,
+                "event_id": str(recorded.id),
+            }
+        )
 
     return {
         "simulation_id": sim_id,
