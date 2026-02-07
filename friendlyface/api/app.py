@@ -53,13 +53,14 @@ from contextlib import asynccontextmanager
 from typing import Any
 from uuid import UUID, uuid4
 
-from fastapi import Depends, FastAPI, HTTPException, Query, Request, Response, UploadFile
+from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field
 from starlette.responses import StreamingResponse
 
 from friendlyface.api.sse import EventBroadcaster
 from friendlyface.auth import require_api_key
+from friendlyface.logging_config import log_startup_info, setup_logging
 from friendlyface.core.models import (
     BiasAuditRecord,
     EventType,
@@ -181,8 +182,10 @@ _broadcaster = EventBroadcaster()
 async def lifespan(app: FastAPI):
     global _STARTUP_TIME
     _STARTUP_TIME = time.monotonic()
+    setup_logging()
     await _db.connect()
     await _service.initialize()
+    log_startup_info()
     yield
     await _db.close()
 
@@ -220,7 +223,7 @@ async def request_logging_middleware(request: Request, call_next) -> Response:
     request_id = str(uuid4())[:8]
     start = time.monotonic()
     response: Response = await call_next(request)
-    elapsed_ms = (time.monotonic() - start) * 1000
+    elapsed_ms = round((time.monotonic() - start) * 1000, 1)
     logger.info(
         "%s %s %s %.1fms [%s]",
         request.method,
@@ -228,6 +231,13 @@ async def request_logging_middleware(request: Request, call_next) -> Response:
         response.status_code,
         elapsed_ms,
         request_id,
+        extra={
+            "request_id": request_id,
+            "path": request.url.path,
+            "method": request.method,
+            "status_code": response.status_code,
+            "duration_ms": elapsed_ms,
+        },
     )
     response.headers["X-Request-ID"] = request_id
     return response
@@ -2087,3 +2097,165 @@ async def get_zk_proof(bundle_id: UUID):
         proof_data = proof_raw
 
     return {"bundle_id": str(bundle_id), "proof": proof_data}
+
+
+# ---------------------------------------------------------------------------
+# API Versioning — /api/v1 prefix (US-050)
+# ---------------------------------------------------------------------------
+
+_API_VERSION = "1.0.0"
+_API_PREFIX = "/api/v1"
+
+v1_router = APIRouter(prefix=_API_PREFIX)
+
+# Health
+v1_router.add_api_route("/health", health, methods=["GET"])
+
+# Dashboard
+v1_router.add_api_route("/dashboard", dashboard, methods=["GET"])
+
+# Events
+v1_router.add_api_route("/events", record_event, methods=["POST"], status_code=201)
+v1_router.add_api_route("/events", list_events, methods=["GET"])
+v1_router.add_api_route("/events/stream", event_stream, methods=["GET"])
+v1_router.add_api_route("/events/{event_id}", get_event, methods=["GET"])
+
+# Merkle
+v1_router.add_api_route("/merkle/root", get_merkle_root, methods=["GET"])
+v1_router.add_api_route("/merkle/proof/{event_id}", get_merkle_proof, methods=["GET"])
+
+# Bundles
+v1_router.add_api_route("/bundles/import", import_bundle, methods=["POST"], status_code=201)
+v1_router.add_api_route("/bundles/{bundle_id}/export", export_bundle, methods=["GET"])
+v1_router.add_api_route("/bundles", create_bundle, methods=["POST"], status_code=201)
+v1_router.add_api_route("/bundles/{bundle_id}", get_bundle, methods=["GET"])
+
+# Verification
+v1_router.add_api_route("/verify/{bundle_id}", verify_bundle, methods=["POST"])
+v1_router.add_api_route("/chain/integrity", verify_chain_integrity, methods=["GET"])
+
+# Provenance
+v1_router.add_api_route("/provenance", add_provenance_node, methods=["POST"], status_code=201)
+v1_router.add_api_route("/provenance/{node_id}", get_provenance_chain, methods=["GET"])
+
+# Recognition
+v1_router.add_api_route("/recognition/train", train_model, methods=["POST"], status_code=201)
+v1_router.add_api_route("/recognition/predict", predict, methods=["POST"])
+v1_router.add_api_route("/recognize", recognize, methods=["POST"])
+v1_router.add_api_route("/recognition/models", list_models, methods=["GET"])
+v1_router.add_api_route("/recognition/models/{model_id}", get_model, methods=["GET"])
+
+# Voice biometrics
+v1_router.add_api_route(
+    "/recognition/voice/enroll", enroll_voice, methods=["POST"], status_code=201
+)
+v1_router.add_api_route("/recognition/voice/verify", verify_voice, methods=["POST"])
+v1_router.add_api_route("/recognition/multimodal", multimodal_fusion, methods=["POST"])
+
+# Federated Learning
+v1_router.add_api_route("/fl/start", start_fl, methods=["POST"], status_code=201)
+v1_router.add_api_route("/fl/simulate", simulate_fl, methods=["POST"], status_code=201)
+v1_router.add_api_route("/fl/dp-start", start_dp_fl, methods=["POST"], status_code=201)
+v1_router.add_api_route("/fl/status", get_fl_status, methods=["GET"])
+v1_router.add_api_route("/fl/rounds", list_fl_rounds, methods=["GET"])
+v1_router.add_api_route(
+    "/fl/rounds/{simulation_id}/{round_number}", get_fl_round_details, methods=["GET"]
+)
+v1_router.add_api_route(
+    "/fl/rounds/{simulation_id}/{round_number}/security",
+    get_fl_round_security,
+    methods=["GET"],
+)
+
+# Governance
+v1_router.add_api_route("/governance/compliance", get_compliance_report, methods=["GET"])
+v1_router.add_api_route(
+    "/governance/compliance/generate",
+    generate_compliance_report,
+    methods=["POST"],
+    status_code=201,
+)
+
+# Consent
+v1_router.add_api_route("/consent/grant", grant_consent, methods=["POST"], status_code=201)
+v1_router.add_api_route("/consent/revoke", revoke_consent, methods=["POST"])
+v1_router.add_api_route("/consent/status/{subject_id}", get_consent_status, methods=["GET"])
+v1_router.add_api_route("/consent/history/{subject_id}", get_consent_history, methods=["GET"])
+v1_router.add_api_route("/consent/check", check_consent, methods=["POST"])
+
+# Fairness
+v1_router.add_api_route("/fairness/audit", trigger_bias_audit, methods=["POST"], status_code=201)
+v1_router.add_api_route("/fairness/audits", list_bias_audits, methods=["GET"])
+v1_router.add_api_route("/fairness/audits/{audit_id}", get_bias_audit, methods=["GET"])
+v1_router.add_api_route("/fairness/status", get_fairness_status, methods=["GET"])
+v1_router.add_api_route("/fairness/config", configure_auto_audit, methods=["POST"])
+v1_router.add_api_route("/fairness/config", get_auto_audit_config, methods=["GET"])
+
+# Explainability
+v1_router.add_api_route(
+    "/explainability/lime", trigger_lime_explanation, methods=["POST"], status_code=201
+)
+v1_router.add_api_route(
+    "/explainability/shap", trigger_shap_explanation, methods=["POST"], status_code=201
+)
+v1_router.add_api_route(
+    "/explainability/sdd", trigger_sdd_explanation, methods=["POST"], status_code=201
+)
+v1_router.add_api_route("/explainability/explanations", list_explanations, methods=["GET"])
+v1_router.add_api_route(
+    "/explainability/explanations/{explanation_id}", get_explanation, methods=["GET"]
+)
+v1_router.add_api_route("/explainability/compare/{event_id}", compare_explanations, methods=["GET"])
+
+# DID / VC
+v1_router.add_api_route("/did/create", create_did, methods=["POST"], status_code=201)
+v1_router.add_api_route("/did/{did_id:path}/resolve", resolve_did, methods=["GET"])
+v1_router.add_api_route("/vc/issue", issue_vc, methods=["POST"], status_code=201)
+v1_router.add_api_route("/vc/verify", verify_vc, methods=["POST"])
+
+# ZK Proofs
+v1_router.add_api_route("/zk/prove", zk_prove, methods=["POST"], status_code=201)
+v1_router.add_api_route("/zk/verify", zk_verify, methods=["POST"])
+v1_router.add_api_route("/zk/proofs/{bundle_id}", get_zk_proof, methods=["GET"])
+
+app.include_router(v1_router)
+
+
+# Version info endpoint (mounted on app, not the router)
+@app.get("/api/version")
+async def api_version():
+    """Return API version information."""
+    return {"version": _API_VERSION, "api_prefix": _API_PREFIX}
+
+
+# ---------------------------------------------------------------------------
+# Static frontend serving (US-037)
+# ---------------------------------------------------------------------------
+
+_FRONTEND_DIST = os.path.join(os.path.dirname(__file__), "..", "..", "frontend", "dist")
+_SERVE_FRONTEND = os.environ.get("FF_SERVE_FRONTEND", "").lower() not in ("false", "0", "no")
+
+
+if _SERVE_FRONTEND and os.path.isdir(_FRONTEND_DIST):
+    from fastapi.staticfiles import StaticFiles
+
+    # Serve static assets (JS, CSS, images) at /assets/
+    _assets_dir = os.path.join(_FRONTEND_DIST, "assets")
+    if os.path.isdir(_assets_dir):
+        app.mount("/assets", StaticFiles(directory=_assets_dir), name="static-assets")
+
+    # SPA fallback: serve index.html for all non-API routes
+    from starlette.responses import FileResponse as _FileResponse
+
+    @app.get("/{full_path:path}")
+    async def _spa_fallback(full_path: str):
+        """Serve index.html for SPA client-side routing."""
+        # If requesting a file that exists in dist, serve it
+        file_path = os.path.join(_FRONTEND_DIST, full_path)
+        if full_path and os.path.isfile(file_path):
+            return _FileResponse(file_path)
+        # Otherwise serve index.html for client-side routing
+        index_path = os.path.join(_FRONTEND_DIST, "index.html")
+        if os.path.isfile(index_path):
+            return _FileResponse(index_path)
+        raise HTTPException(status_code=404, detail="Frontend not built")
