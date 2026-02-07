@@ -184,9 +184,7 @@ class Database:
         rows = await cursor.fetchall()
         return [self._row_to_event(r) for r in rows]
 
-    async def get_events_paginated(
-        self, limit: int = 50, offset: int = 0
-    ) -> list[ForensicEvent]:
+    async def get_events_paginated(self, limit: int = 50, offset: int = 0) -> list[ForensicEvent]:
         """Return a page of events ordered by sequence number."""
         cursor = await self.db.execute(
             "SELECT * FROM forensic_events ORDER BY sequence_number ASC LIMIT ? OFFSET ?",

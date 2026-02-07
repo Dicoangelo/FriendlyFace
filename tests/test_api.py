@@ -84,7 +84,7 @@ class TestEvents:
         )
         resp = await client.get("/events")
         assert resp.status_code == 200
-        assert len(resp.json()) >= 1
+        assert len(resp.json()["items"]) >= 1
 
     async def test_get_event_by_id(self, client):
         r = await client.post(

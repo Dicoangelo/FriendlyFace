@@ -44,7 +44,9 @@ class TestVersionedEvents:
     async def test_v1_list_events(self, client):
         resp = await client.get("/api/v1/events")
         assert resp.status_code == 200
-        assert isinstance(resp.json(), list)
+        data = resp.json()
+        assert "items" in data
+        assert isinstance(data["items"], list)
 
     async def test_v1_record_event(self, client):
         resp = await client.post(

@@ -12,6 +12,7 @@ query parameter.
 from __future__ import annotations
 
 import logging
+import os
 
 from fastapi import HTTPException, Request, status
 
@@ -45,7 +46,9 @@ async def require_api_key(request: Request) -> None:
     if request.url.path in PUBLIC_PATHS:
         return
 
-    valid_keys = settings.api_key_set
+    # Read from env directly so tests can override via monkeypatch.
+    api_keys_raw = os.environ.get("FF_API_KEYS", settings.api_keys)
+    valid_keys = frozenset(k.strip() for k in api_keys_raw.split(",") if k.strip())
 
     # Dev mode: no keys configured -> auth is disabled.
     if not valid_keys:
