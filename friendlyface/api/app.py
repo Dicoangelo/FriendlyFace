@@ -70,23 +70,23 @@ warnings.filterwarnings(
 from slowapi import Limiter  # noqa: E402
 from slowapi.errors import RateLimitExceeded  # noqa: E402
 from slowapi.util import get_remote_address  # noqa: E402
-from starlette.responses import StreamingResponse
+from starlette.responses import StreamingResponse  # noqa: E402
 
-from friendlyface.api.sse import EventBroadcaster
-from friendlyface.auth import require_api_key
-from friendlyface.config import settings
-from friendlyface.exceptions import FriendlyFaceError
-from friendlyface.logging_config import log_startup_info, setup_logging
-from friendlyface.core.models import (
+from friendlyface.api.sse import EventBroadcaster  # noqa: E402
+from friendlyface.auth import require_api_key  # noqa: E402
+from friendlyface.config import settings  # noqa: E402
+from friendlyface.exceptions import FriendlyFaceError  # noqa: E402
+from friendlyface.logging_config import log_startup_info, setup_logging  # noqa: E402
+from friendlyface.core.models import (  # noqa: E402
     BiasAuditRecord,
     EventType,
     ProvenanceRelation,
 )
-from friendlyface.core.service import ForensicService
-from friendlyface.crypto.did import Ed25519DIDKey
-from friendlyface.crypto.schnorr import ZKBundleProver, ZKBundleVerifier
-from friendlyface.crypto.vc import VerifiableCredential
-from friendlyface.storage.database import Database
+from friendlyface.core.service import ForensicService  # noqa: E402
+from friendlyface.crypto.did import Ed25519DIDKey  # noqa: E402
+from friendlyface.crypto.schnorr import ZKBundleProver, ZKBundleVerifier  # noqa: E402
+from friendlyface.crypto.vc import VerifiableCredential  # noqa: E402
+from friendlyface.storage.database import Database  # noqa: E402
 
 logger = logging.getLogger("friendlyface")
 _audit_logger = logging.getLogger("friendlyface.audit")
@@ -223,10 +223,17 @@ async def lifespan(app: FastAPI):
     _STARTUP_TIME = time.monotonic()
     setup_logging()
     await _db.connect()
+    if settings.migrations_enabled:
+        await _db.run_migrations()
     await _service.initialize()
     log_startup_info()
     yield
+    # Graceful shutdown: drain SSE subscribers, flush logs, close DB
+    logger.info("Shutting down — draining SSE subscribers")
+    _broadcaster.shutdown()
+    logger.info("Closing database connection")
     await _db.close()
+    logger.info("Shutdown complete")
 
 
 # ---------------------------------------------------------------------------
@@ -263,7 +270,7 @@ app = FastAPI(
     openapi_tags=_OPENAPI_TAGS,
 )
 
-# Attach limiter state to app
+# Attach limiter state to app and install middleware
 app.state.limiter = limiter
 
 
@@ -318,6 +325,9 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# GZip compression for responses > 500 bytes
+app.add_middleware(GZipMiddleware, minimum_size=500)
+
 
 # ---------------------------------------------------------------------------
 # Security headers middleware
@@ -329,6 +339,15 @@ async def security_headers_middleware(request: Request, call_next) -> Response:
     response.headers["X-Frame-Options"] = "DENY"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     response.headers["Permissions-Policy"] = "camera=(), microphone=(), geolocation=()"
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data:; "
+        "font-src 'self'; "
+        "connect-src 'self'; "
+        "frame-ancestors 'none'"
+    )
     return response
 
 
@@ -394,6 +413,60 @@ async def health():
         "merkle_root": _service.get_merkle_root(),
         "storage_backend": settings.storage,
     }
+
+
+@app.get("/health/deep", tags=["Health"], summary="Deep health check with dependency status")
+async def deep_health():
+    """Check database connectivity, chain integrity, and storage backend status."""
+    checks: dict[str, Any] = {}
+    overall = True
+
+    # Database check
+    try:
+        count = await _db.get_event_count()
+        checks["database"] = {"status": "ok", "event_count": count}
+    except Exception as exc:
+        checks["database"] = {"status": "error", "detail": str(exc)}
+        overall = False
+
+    # Chain integrity check
+    try:
+        integrity = await _service.verify_chain_integrity()
+        chain_ok = integrity["valid"]
+        checks["chain_integrity"] = {
+            "status": "ok" if chain_ok else "degraded",
+            "valid": chain_ok,
+            "count": integrity["count"],
+        }
+        if not chain_ok:
+            overall = False
+    except Exception as exc:
+        checks["chain_integrity"] = {"status": "error", "detail": str(exc)}
+        overall = False
+
+    # Merkle tree check
+    try:
+        root = _service.get_merkle_root()
+        leaf_count = _service.merkle.leaf_count
+        checks["merkle_tree"] = {"status": "ok", "root": root, "leaf_count": leaf_count}
+    except Exception as exc:
+        checks["merkle_tree"] = {"status": "error", "detail": str(exc)}
+        overall = False
+
+    # Storage backend
+    checks["storage_backend"] = {"type": settings.storage, "status": "ok"}
+
+    uptime_s = time.monotonic() - _STARTUP_TIME if _STARTUP_TIME > 0 else 0
+    status_code = 200 if overall else 503
+    return JSONResponse(
+        status_code=status_code,
+        content={
+            "status": "ok" if overall else "degraded",
+            "version": "0.1.0",
+            "uptime_seconds": round(uptime_s, 1),
+            "checks": checks,
+        },
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -469,14 +542,37 @@ async def record_event(req: RecordEventRequest):
 async def list_events(
     limit: int = Query(default=50, ge=1, le=500, description="Max items to return"),
     offset: int = Query(default=0, ge=0, description="Number of items to skip"),
+    event_type: str | None = Query(default=None, description="Filter by event type"),
+    actor: str | None = Query(default=None, description="Filter by actor"),
 ):
-    events = await _db.get_events_paginated(limit=limit, offset=offset)
-    total = await _db.get_event_count()
+    events, total = await _db.get_events_filtered(
+        limit=limit, offset=offset, event_type=event_type, actor=actor
+    )
     return {
         "items": [e.model_dump(mode="json") for e in events],
         "total": total,
         "limit": limit,
         "offset": offset,
+    }
+
+
+class BatchEventRequest(BaseModel):
+    ids: list[str] = Field(..., min_length=1, max_length=100, description="Event IDs to fetch")
+
+
+@app.post("/events/batch", tags=["Events"], summary="Batch-fetch events by IDs")
+async def batch_get_events(req: BatchEventRequest):
+    """Fetch multiple events in a single request (max 100)."""
+    uuids = []
+    for eid in req.ids:
+        try:
+            uuids.append(UUID(eid))
+        except ValueError:
+            raise HTTPException(status_code=400, detail=f"Invalid UUID: {eid}")
+    events = await _db.get_events_by_ids(uuids)
+    return {
+        "items": [e.model_dump(mode="json") for e in events],
+        "total": len(events),
     }
 
 
@@ -1270,14 +1366,25 @@ async def _run_fl_simulation(req: FLSimulateRequest) -> dict[str, Any]:
         "n_rounds": result.n_rounds,
         "n_clients": result.n_clients,
         "final_model_hash": result.final_model_hash,
+        "mode": settings.fl_mode,
         "rounds": rounds_summary,
     }
+
+
+def _fl_response(body: dict[str, Any], status_code: int = 200) -> JSONResponse:
+    """Wrap an FL response body with the X-FL-Mode header."""
+    return JSONResponse(
+        content=body,
+        status_code=status_code,
+        headers={"X-FL-Mode": settings.fl_mode},
+    )
 
 
 @app.post("/fl/start", status_code=201, tags=["FL"], summary="Start FL simulation")
 async def start_fl(req: FLSimulateRequest):
     """Start a federated learning simulation with configurable parameters."""
-    return await _run_fl_simulation(req)
+    body = await _run_fl_simulation(req)
+    return _fl_response(body, status_code=201)
 
 
 @app.post(
@@ -1289,7 +1396,8 @@ async def start_fl(req: FLSimulateRequest):
 )
 async def simulate_fl(req: FLSimulateRequest):
     """Legacy alias for POST /fl/start."""
-    return await _run_fl_simulation(req)
+    body = await _run_fl_simulation(req)
+    return _fl_response(body, status_code=201)
 
 
 # ---------------------------------------------------------------------------
@@ -1375,18 +1483,22 @@ async def start_dp_fl(req: DPFLSimulateRequest):
             }
         )
 
-    return {
-        "simulation_id": sim_id,
-        "n_rounds": req.n_rounds,
-        "n_clients": req.n_clients,
-        "dp_config": {
-            "epsilon": req.epsilon,
-            "delta": req.delta,
-            "max_grad_norm": req.max_grad_norm,
+    return _fl_response(
+        {
+            "simulation_id": sim_id,
+            "n_rounds": req.n_rounds,
+            "n_clients": req.n_clients,
+            "dp_config": {
+                "epsilon": req.epsilon,
+                "delta": req.delta,
+                "max_grad_norm": req.max_grad_norm,
+            },
+            "total_epsilon": cumulative_epsilon,
+            "mode": settings.fl_mode,
+            "rounds": rounds_summary,
         },
-        "total_epsilon": cumulative_epsilon,
-        "rounds": rounds_summary,
-    }
+        status_code=201,
+    )
 
 
 @app.get("/fl/status", tags=["FL"], summary="FL training status")
@@ -1406,10 +1518,13 @@ async def get_fl_status():
                 "final_model_hash": sim.final_model_hash,
             }
         )
-    return {
-        "total_simulations": len(_fl_simulations),
-        "simulations": simulations,
-    }
+    return _fl_response(
+        {
+            "total_simulations": len(_fl_simulations),
+            "simulations": simulations,
+            "mode": settings.fl_mode,
+        }
+    )
 
 
 @app.get("/fl/rounds", tags=["FL"], summary="List FL rounds")
@@ -1435,7 +1550,9 @@ async def list_fl_rounds():
             else:
                 entry["security_status"] = None
             all_rounds.append(entry)
-    return {"total_rounds": len(all_rounds), "rounds": all_rounds}
+    return _fl_response(
+        {"total_rounds": len(all_rounds), "rounds": all_rounds, "mode": settings.fl_mode}
+    )
 
 
 @app.get("/fl/rounds/{simulation_id}/{round_number}", tags=["FL"], summary="FL round details")
@@ -1477,16 +1594,19 @@ async def get_fl_round_details(simulation_id: str, round_number: int):
             "provenance_node_id": str(pr.provenance_node.id) if pr.provenance_node else None,
         }
 
-    return {
-        "simulation_id": simulation_id,
-        "round": rr.round_number,
-        "n_clients": sim.n_clients,
-        "global_model_hash": rr.global_model_hash,
-        "event_id": str(rr.event.id),
-        "provenance_node_id": str(rr.provenance_node.id),
-        "client_contributions": client_contributions,
-        "security_status": security,
-    }
+    return _fl_response(
+        {
+            "simulation_id": simulation_id,
+            "round": rr.round_number,
+            "n_clients": sim.n_clients,
+            "global_model_hash": rr.global_model_hash,
+            "event_id": str(rr.event.id),
+            "provenance_node_id": str(rr.provenance_node.id),
+            "client_contributions": client_contributions,
+            "security_status": security,
+            "mode": settings.fl_mode,
+        }
+    )
 
 
 @app.get(
@@ -1507,41 +1627,47 @@ async def get_fl_round_security(simulation_id: str, round_number: int):
     pr = rr.poisoning_result
 
     if pr is None:
-        return {
-            "round": round_number,
-            "poisoning_detection_enabled": False,
-            "message": "Poisoning detection was not enabled for this simulation",
-        }
+        return _fl_response(
+            {
+                "round": round_number,
+                "poisoning_detection_enabled": False,
+                "message": "Poisoning detection was not enabled for this simulation",
+                "mode": settings.fl_mode,
+            }
+        )
 
-    return {
-        "round": round_number,
-        "poisoning_detection_enabled": True,
-        "n_clients": pr.n_clients,
-        "median_norm": pr.median_norm,
-        "threshold_multiplier": pr.threshold_multiplier,
-        "effective_threshold": pr.effective_threshold,
-        "has_poisoning": pr.has_poisoning,
-        "flagged_client_ids": pr.flagged_client_ids,
-        "client_results": [
-            {
-                "client_id": cr.client_id,
-                "update_norm": cr.update_norm,
-                "flagged": cr.flagged,
-                "threshold_used": cr.threshold_used,
-            }
-            for cr in pr.client_results
-        ],
-        "alert_events": [
-            {
-                "event_id": str(e.id),
-                "event_type": e.event_type.value,
-                "client_id": e.payload.get("client_id"),
-                "update_norm": e.payload.get("update_norm"),
-            }
-            for e in pr.alert_events
-        ],
-        "provenance_node_id": str(pr.provenance_node.id) if pr.provenance_node else None,
-    }
+    return _fl_response(
+        {
+            "round": round_number,
+            "poisoning_detection_enabled": True,
+            "n_clients": pr.n_clients,
+            "median_norm": pr.median_norm,
+            "threshold_multiplier": pr.threshold_multiplier,
+            "effective_threshold": pr.effective_threshold,
+            "has_poisoning": pr.has_poisoning,
+            "flagged_client_ids": pr.flagged_client_ids,
+            "client_results": [
+                {
+                    "client_id": cr.client_id,
+                    "update_norm": cr.update_norm,
+                    "flagged": cr.flagged,
+                    "threshold_used": cr.threshold_used,
+                }
+                for cr in pr.client_results
+            ],
+            "alert_events": [
+                {
+                    "event_id": str(e.id),
+                    "event_type": e.event_type.value,
+                    "client_id": e.payload.get("client_id"),
+                    "update_norm": e.payload.get("update_norm"),
+                }
+                for e in pr.alert_events
+            ],
+            "provenance_node_id": str(pr.provenance_node.id) if pr.provenance_node else None,
+            "mode": settings.fl_mode,
+        }
+    )
 
 
 @app.get("/recognition/models/{model_id}", tags=["Recognition"], summary="Get model details")
@@ -2339,6 +2465,114 @@ async def get_zk_proof(bundle_id: UUID):
 
 
 # ---------------------------------------------------------------------------
+# Erasure — Cryptographic erasure (US-050)
+# ---------------------------------------------------------------------------
+
+
+@app.post(
+    "/erasure/erase/{subject_id}",
+    status_code=200,
+    tags=["Governance"],
+    summary="Erase subject data",
+)
+async def erase_subject(subject_id: str):
+    """Cryptographically erase all data for a subject (GDPR Art 17)."""
+    from friendlyface.governance.erasure import ErasureManager
+
+    manager = ErasureManager(_db)
+    result = await manager.erase_subject(subject_id)
+    return result
+
+
+@app.get("/erasure/status/{subject_id}", tags=["Governance"], summary="Get erasure status")
+async def get_erasure_status(subject_id: str):
+    """Get the erasure status for a subject."""
+    from friendlyface.governance.erasure import ErasureManager
+
+    manager = ErasureManager(_db)
+    return await manager.get_erasure_status(subject_id)
+
+
+@app.get("/erasure/records", tags=["Governance"], summary="List erasure records")
+async def list_erasure_records(
+    limit: int = Query(default=50, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+):
+    """List all erasure records with pagination."""
+    from friendlyface.governance.erasure import ErasureManager
+
+    manager = ErasureManager(_db)
+    records, total = await manager.list_erasure_records(limit, offset)
+    return {"items": records, "total": total, "limit": limit, "offset": offset}
+
+
+# ---------------------------------------------------------------------------
+# Backup — Admin backup/restore (US-043)
+# ---------------------------------------------------------------------------
+
+
+@app.post("/admin/backup", status_code=201, tags=["Admin"], summary="Create backup")
+async def create_backup(label: str | None = None):
+    """Create a database backup."""
+    from friendlyface.ops.backup import BackupManager
+
+    mgr = BackupManager(_db.db_path, settings.backup_dir)
+    return mgr.create_backup(label=label)
+
+
+@app.get("/admin/backups", tags=["Admin"], summary="List backups")
+async def list_backups():
+    """List available database backups."""
+    from friendlyface.ops.backup import BackupManager
+
+    mgr = BackupManager(_db.db_path, settings.backup_dir)
+    backups = mgr.list_backups()
+    return {"backups": backups, "total": len(backups)}
+
+
+@app.post("/admin/backup/verify", tags=["Admin"], summary="Verify backup")
+async def verify_backup(filename: str):
+    """Verify integrity of a backup file."""
+    from friendlyface.ops.backup import BackupManager
+
+    mgr = BackupManager(_db.db_path, settings.backup_dir)
+    return mgr.verify_backup(filename)
+
+
+@app.post("/admin/backup/restore", tags=["Admin"], summary="Restore backup")
+async def restore_backup(filename: str):
+    """Restore database from a backup. WARNING: replaces current data."""
+    from friendlyface.ops.backup import BackupManager
+
+    mgr = BackupManager(_db.db_path, settings.backup_dir)
+    return mgr.restore_backup(filename)
+
+
+# ---------------------------------------------------------------------------
+# OSCAL / JSON-LD compliance export (US-052)
+# ---------------------------------------------------------------------------
+
+
+@app.get(
+    "/governance/compliance/export",
+    tags=["Governance"],
+    summary="Export compliance data in OSCAL or JSON-LD format",
+)
+async def export_compliance(format: str = "oscal"):
+    """Export compliance data for auditors.
+
+    Args:
+        format: Export format — 'oscal' (NIST OSCAL assessment results) or 'json-ld'.
+    """
+    from friendlyface.governance.oscal import OSCALExporter
+
+    exporter = OSCALExporter(_db)
+    if format == "json-ld":
+        return await exporter.export_json_ld()
+    return await exporter.export_oscal()
+
+
+# ---------------------------------------------------------------------------
 # API Versioning — /api/v1 prefix (US-050)
 # ---------------------------------------------------------------------------
 
@@ -2414,6 +2648,7 @@ v1_router.add_api_route(
     methods=["POST"],
     status_code=201,
 )
+v1_router.add_api_route("/governance/compliance/export", export_compliance, methods=["GET"])
 
 # Consent
 v1_router.add_api_route("/consent/grant", grant_consent, methods=["POST"], status_code=201)
@@ -2456,6 +2691,17 @@ v1_router.add_api_route("/vc/verify", verify_vc, methods=["POST"])
 v1_router.add_api_route("/zk/prove", zk_prove, methods=["POST"], status_code=201)
 v1_router.add_api_route("/zk/verify", zk_verify, methods=["POST"])
 v1_router.add_api_route("/zk/proofs/{bundle_id}", get_zk_proof, methods=["GET"])
+
+# Erasure
+v1_router.add_api_route("/erasure/erase/{subject_id}", erase_subject, methods=["POST"])
+v1_router.add_api_route("/erasure/status/{subject_id}", get_erasure_status, methods=["GET"])
+v1_router.add_api_route("/erasure/records", list_erasure_records, methods=["GET"])
+
+# Admin — Backup
+v1_router.add_api_route("/admin/backup", create_backup, methods=["POST"], status_code=201)
+v1_router.add_api_route("/admin/backups", list_backups, methods=["GET"])
+v1_router.add_api_route("/admin/backup/verify", verify_backup, methods=["POST"])
+v1_router.add_api_route("/admin/backup/restore", restore_backup, methods=["POST"])
 
 app.include_router(v1_router)
 

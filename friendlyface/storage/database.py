@@ -130,6 +130,12 @@ class Database:
         await self._db.executescript(SCHEMA_SQL)
         await self._db.commit()
 
+    async def run_migrations(self) -> list[str]:
+        """Apply pending SQL migrations. Returns list of applied versions."""
+        from friendlyface.storage.migrations import apply_migrations
+
+        return await apply_migrations(self.db)
+
     async def close(self) -> None:
         if self._db:
             await self._db.close()
@@ -192,6 +198,39 @@ class Database:
         )
         rows = await cursor.fetchall()
         return [self._row_to_event(r) for r in rows]
+
+    async def get_events_filtered(
+        self,
+        limit: int = 50,
+        offset: int = 0,
+        event_type: str | None = None,
+        actor: str | None = None,
+    ) -> tuple[list[ForensicEvent], int]:
+        """Return filtered and paginated events with total count."""
+        conditions = []
+        params: list[Any] = []
+        if event_type is not None:
+            conditions.append("event_type = ?")
+            params.append(event_type)
+        if actor is not None:
+            conditions.append("actor = ?")
+            params.append(actor)
+
+        where = f" WHERE {' AND '.join(conditions)}" if conditions else ""
+        count_cursor = await self.db.execute(
+            f"SELECT COUNT(*) FROM forensic_events{where}",
+            params,  # noqa: S608
+        )
+        row = await count_cursor.fetchone()
+        total = row[0] if row else 0
+
+        params.extend([limit, offset])
+        cursor = await self.db.execute(
+            f"SELECT * FROM forensic_events{where} ORDER BY sequence_number ASC LIMIT ? OFFSET ?",  # noqa: S608
+            params,
+        )
+        rows = await cursor.fetchall()
+        return [self._row_to_event(r) for r in rows], total
 
     async def get_events_by_ids(self, event_ids: list[UUID]) -> list[ForensicEvent]:
         """Batch-fetch events by a list of IDs (avoids N+1 queries)."""
@@ -612,4 +651,41 @@ class Database:
             "total_bundles": total,
             "verified_bundles": verified,
             "integrity_pct": round(integrity, 2),
+        }
+
+    # --- Merkle Checkpoints ---
+
+    async def insert_merkle_checkpoint(self, checkpoint: dict) -> None:
+        """Persist a Merkle tree checkpoint."""
+        now = __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()
+        await self.db.execute(
+            "INSERT INTO merkle_checkpoints "
+            "(id, created_at, leaf_count, root_hash, leaves_json, event_index_json) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (
+                checkpoint["id"],
+                now,
+                checkpoint["leaf_count"],
+                checkpoint["root_hash"],
+                json.dumps(checkpoint["leaves"]),
+                json.dumps(checkpoint["event_index"]),
+            ),
+        )
+        await self.db.commit()
+
+    async def get_latest_merkle_checkpoint(self) -> dict | None:
+        """Get the most recent Merkle checkpoint."""
+        cursor = await self.db.execute(
+            "SELECT * FROM merkle_checkpoints ORDER BY leaf_count DESC LIMIT 1"
+        )
+        row = await cursor.fetchone()
+        if row is None:
+            return None
+        return {
+            "id": row[0],
+            "created_at": row[1],
+            "leaf_count": row[2],
+            "root_hash": row[3],
+            "leaves": json.loads(row[4]),
+            "event_index": json.loads(row[5]),
         }
