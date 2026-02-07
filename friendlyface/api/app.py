@@ -49,17 +49,27 @@ import json
 import logging
 import os
 import time
+import warnings
 from contextlib import asynccontextmanager
 from typing import Any
 from uuid import UUID, uuid4
 
 from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
-from slowapi import Limiter
-from slowapi.errors import RateLimitExceeded
-from slowapi.util import get_remote_address
+
+# Suppress slowapi's use of deprecated asyncio.iscoroutinefunction (fixed upstream in Python 3.16)
+warnings.filterwarnings(
+    "ignore",
+    message=r".*asyncio\.iscoroutinefunction.*",
+    category=DeprecationWarning,
+    module=r"slowapi\..*",
+)
+from slowapi import Limiter  # noqa: E402
+from slowapi.errors import RateLimitExceeded  # noqa: E402
+from slowapi.util import get_remote_address  # noqa: E402
 from starlette.responses import StreamingResponse
 
 from friendlyface.api.sse import EventBroadcaster
