@@ -78,7 +78,7 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <div className="flex h-screen bg-page">
+      <div className="flex h-screen bg-page grid-bg">
         {/* Sidebar */}
         <aside
           className={`${
