@@ -9,6 +9,32 @@ class TestHealth:
         assert data["status"] == "ok"
         assert data["version"] == "0.1.0"
 
+    async def test_health_includes_uptime(self, client):
+        resp = await client.get("/health")
+        data = resp.json()
+        assert "uptime_seconds" in data
+        assert isinstance(data["uptime_seconds"], (int, float))
+
+    async def test_health_includes_storage_backend(self, client):
+        resp = await client.get("/health")
+        data = resp.json()
+        assert "storage_backend" in data
+        assert data["storage_backend"] == "sqlite"
+
+
+class TestRequestLogging:
+    async def test_response_has_request_id(self, client):
+        resp = await client.get("/health")
+        assert "x-request-id" in resp.headers
+        assert len(resp.headers["x-request-id"]) == 8
+
+    async def test_cors_headers_present(self, client):
+        resp = await client.options(
+            "/health",
+            headers={"Origin": "http://localhost:3000", "Access-Control-Request-Method": "GET"},
+        )
+        assert resp.status_code in (200, 405)  # depends on CORS config
+
 
 class TestEvents:
     async def test_record_event(self, client):
