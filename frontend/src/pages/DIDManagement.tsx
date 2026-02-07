@@ -93,30 +93,30 @@ export default function DIDManagement() {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-xl font-bold">DID / Verifiable Credentials</h2>
-      {error && <div className="text-red-600 text-sm">{error}</div>}
+      <h2 className="text-xl font-bold text-fg">DID / Verifiable Credentials</h2>
+      {error && <div className="text-rose-ember text-sm">{error}</div>}
 
       {/* Create DID */}
-      <div className="bg-white rounded-lg shadow p-4">
-        <h3 className="font-semibold mb-2">Create DID</h3>
+      <div className="glass-card p-4">
+        <h3 className="font-semibold text-fg-secondary mb-2">Create DID</h3>
         <div className="flex gap-2">
-          <input type="text" placeholder="Optional hex seed (64 chars)" value={seed} onChange={(e) => setSeed(e.target.value)} className="flex-1 border rounded px-3 py-1 text-sm font-mono" />
-          <button onClick={createDID} className="px-4 py-1 bg-blue-600 text-white rounded text-sm">Create</button>
+          <input type="text" placeholder="Optional hex seed (64 chars)" value={seed} onChange={(e) => setSeed(e.target.value)} className="flex-1 ff-input font-mono" />
+          <button onClick={createDID} className="btn-primary">Create</button>
         </div>
       </div>
 
       {/* DID list */}
       {dids.length > 0 && (
-        <div className="bg-white rounded-lg shadow p-4">
-          <h3 className="font-semibold mb-2">Created DIDs</h3>
+        <div className="glass-card p-4">
+          <h3 className="font-semibold text-fg-secondary mb-2">Created DIDs</h3>
           <div className="space-y-2">
             {dids.map((d) => (
-              <div key={d.did} className="flex items-center justify-between bg-gray-50 rounded p-2 text-sm">
+              <div key={d.did} className="flex items-center justify-between bg-surface rounded-lg p-2 text-sm">
                 <div>
                   <p className="font-mono text-xs">{d.did}</p>
-                  <p className="text-gray-400 text-xs">Key: {d.public_key_hex.slice(0, 16)}...</p>
+                  <p className="text-fg-faint text-xs">Key: {d.public_key_hex.slice(0, 16)}...</p>
                 </div>
-                <button onClick={() => resolveDID(d.did)} className="px-2 py-1 bg-gray-200 rounded text-xs hover:bg-gray-300">Resolve</button>
+                <button onClick={() => resolveDID(d.did)} className="btn-ghost">Resolve</button>
               </div>
             ))}
           </div>
@@ -124,35 +124,35 @@ export default function DIDManagement() {
       )}
 
       {resolvedDoc && (
-        <div className="bg-white rounded-lg shadow p-4">
-          <h3 className="font-semibold mb-2">DID Document</h3>
-          <pre className="text-xs bg-gray-50 rounded p-2 overflow-x-auto">{JSON.stringify(resolvedDoc, null, 2)}</pre>
+        <div className="glass-card p-4">
+          <h3 className="font-semibold text-fg-secondary mb-2">DID Document</h3>
+          <pre className="text-xs bg-surface rounded-lg p-2 overflow-x-auto">{JSON.stringify(resolvedDoc, null, 2)}</pre>
         </div>
       )}
 
       {/* Issue VC */}
-      <div className="bg-white rounded-lg shadow p-4 space-y-2">
-        <h3 className="font-semibold">Issue Credential</h3>
-        <input type="text" placeholder="Issuer DID" value={issuerDid} onChange={(e) => setIssuerDid(e.target.value)} className="w-full border rounded px-3 py-1 text-sm font-mono" />
-        <input type="text" placeholder="Subject DID (optional)" value={subjectDid} onChange={(e) => setSubjectDid(e.target.value)} className="w-full border rounded px-3 py-1 text-sm font-mono" />
-        <textarea placeholder='Claims JSON: {"name": "test"}' value={claims} onChange={(e) => setClaims(e.target.value)} className="w-full border rounded px-3 py-1 text-sm font-mono h-20" />
-        <select value={credType} onChange={(e) => setCredType(e.target.value)} className="border rounded px-2 py-1 text-sm">
+      <div className="glass-card p-4 space-y-2">
+        <h3 className="font-semibold text-fg-secondary">Issue Credential</h3>
+        <input type="text" placeholder="Issuer DID" value={issuerDid} onChange={(e) => setIssuerDid(e.target.value)} className="w-full ff-input font-mono" />
+        <input type="text" placeholder="Subject DID (optional)" value={subjectDid} onChange={(e) => setSubjectDid(e.target.value)} className="w-full ff-input font-mono" />
+        <textarea placeholder='Claims JSON: {"name": "test"}' value={claims} onChange={(e) => setClaims(e.target.value)} className="w-full ff-textarea font-mono h-20" />
+        <select value={credType} onChange={(e) => setCredType(e.target.value)} className="ff-select">
           <option>ForensicCredential</option>
           <option>FLParticipantCredential</option>
           <option>AuditCredential</option>
         </select>
-        <button onClick={issueCredential} className="px-4 py-1 bg-purple-600 text-white rounded text-sm">Issue</button>
-        {issuedVC && <pre className="text-xs bg-gray-50 rounded p-2 overflow-x-auto">{JSON.stringify(issuedVC, null, 2)}</pre>}
+        <button onClick={issueCredential} className="btn-accent">Issue</button>
+        {issuedVC && <pre className="text-xs bg-surface rounded-lg p-2 overflow-x-auto">{JSON.stringify(issuedVC, null, 2)}</pre>}
       </div>
 
       {/* Verify VC */}
-      <div className="bg-white rounded-lg shadow p-4 space-y-2">
-        <h3 className="font-semibold">Verify Credential</h3>
-        <textarea placeholder="Paste credential JSON" value={vcJson} onChange={(e) => setVcJson(e.target.value)} className="w-full border rounded px-3 py-1 text-sm font-mono h-20" />
-        <input type="text" placeholder="Issuer public key (hex)" value={pubKeyHex} onChange={(e) => setPubKeyHex(e.target.value)} className="w-full border rounded px-3 py-1 text-sm font-mono" />
-        <button onClick={verifyCredential} className="px-4 py-1 bg-green-600 text-white rounded text-sm">Verify</button>
+      <div className="glass-card p-4 space-y-2">
+        <h3 className="font-semibold text-fg-secondary">Verify Credential</h3>
+        <textarea placeholder="Paste credential JSON" value={vcJson} onChange={(e) => setVcJson(e.target.value)} className="w-full ff-textarea font-mono h-20" />
+        <input type="text" placeholder="Issuer public key (hex)" value={pubKeyHex} onChange={(e) => setPubKeyHex(e.target.value)} className="w-full ff-input font-mono" />
+        <button onClick={verifyCredential} className="btn-success">Verify</button>
         {verifyResult && (
-          <div className={`rounded p-2 text-sm ${verifyResult.valid ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>
+          <div className={`rounded p-2 text-sm ${verifyResult.valid ? "bg-teal/10 text-teal" : "bg-rose-ember/10 text-rose-ember"}`}>
             {verifyResult.valid ? "Valid" : "Invalid"}
             {verifyResult.legacy && " (legacy format)"}
           </div>

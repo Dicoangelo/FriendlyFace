@@ -55,17 +55,17 @@ export default function EventStream() {
   }, [filterType]);
 
   const statusColors = {
-    connected: "bg-green-100 text-green-800",
-    reconnecting: "bg-yellow-100 text-yellow-800",
-    disconnected: "bg-red-100 text-red-800",
+    connected: "bg-teal/10 text-teal border border-teal/20",
+    reconnecting: "bg-gold/10 text-gold border border-gold/20",
+    disconnected: "bg-rose-ember/10 text-rose-ember border border-rose-ember/20",
   };
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold">Live Event Stream</h2>
+        <h2 className="text-xl font-bold text-fg">Live Event Stream</h2>
         <div className="flex items-center gap-3">
-          <span className={`px-2 py-1 rounded text-xs font-medium ${statusColors[status]}`}>
+          <span className={`px-2 py-1 rounded-lg text-xs font-medium ${statusColors[status]}`}>
             {status}
           </span>
           <select
@@ -74,7 +74,7 @@ export default function EventStream() {
               esRef.current?.close();
               setFilterType(e.target.value);
             }}
-            className="border rounded px-2 py-1 text-sm"
+            className="ff-select"
           >
             <option value="">All types</option>
             <option value="inference_result">inference_result</option>
@@ -87,7 +87,7 @@ export default function EventStream() {
           </select>
           <button
             onClick={() => setPaused(!paused)}
-            className="px-3 py-1 border rounded text-sm hover:bg-gray-50"
+            className="btn-ghost"
           >
             {paused ? "Resume" : "Pause"}
           </button>
@@ -95,7 +95,7 @@ export default function EventStream() {
       </div>
 
       {events.length === 0 ? (
-        <div className="text-center py-12 text-gray-400">
+        <div className="text-center py-12 text-fg-faint">
           Waiting for events... Record some events via the API.
         </div>
       ) : (
@@ -103,18 +103,18 @@ export default function EventStream() {
           {(paused ? events : events).map((evt, i) => (
             <div
               key={`${evt.id}-${i}`}
-              className="bg-white rounded-lg shadow p-3 border-l-4 border-blue-500 animate-[slideIn_0.3s_ease-out]"
+              className="glass-card p-3 border-l-2 border-cyan/30 animate-[slideIn_0.3s_ease-out]"
             >
               <div className="flex items-center justify-between">
-                <span className="px-2 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">
+                <span className="px-2 py-0.5 rounded text-xs font-medium bg-cyan/10 text-cyan">
                   {evt.event_type}
                 </span>
-                <span className="text-xs text-gray-400">
+                <span className="text-xs text-fg-faint">
                   {new Date(evt.timestamp).toLocaleTimeString()}
                 </span>
               </div>
-              <p className="text-sm text-gray-600 mt-1">Actor: {evt.actor}</p>
-              <pre className="text-xs text-gray-400 mt-1 overflow-x-auto max-h-20">
+              <p className="text-sm text-fg-secondary mt-1">Actor: {evt.actor}</p>
+              <pre className="text-xs text-fg-faint mt-1 overflow-x-auto max-h-20 font-mono">
                 {JSON.stringify(evt.payload, null, 2)}
               </pre>
             </div>

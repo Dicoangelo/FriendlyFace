@@ -104,53 +104,53 @@ export default function ConsentManagement() {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-xl font-bold">Consent Management</h2>
-      {error && <div className="text-red-600 text-sm">{error}</div>}
+      <h2 className="text-xl font-bold text-fg">Consent Management</h2>
+      {error && <div className="text-rose-ember text-sm">{error}</div>}
 
       {/* Grant */}
-      <div className="bg-white rounded-lg shadow p-4 space-y-2">
-        <h3 className="font-semibold">Grant Consent</h3>
+      <div className="glass-card p-4 space-y-2">
+        <h3 className="font-semibold text-fg-secondary">Grant Consent</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-          <input type="text" placeholder="Subject ID" value={subjectId} onChange={(e) => setSubjectId(e.target.value)} className="border rounded px-3 py-1 text-sm" />
-          <input type="text" placeholder="Purpose" value={purpose} onChange={(e) => setPurpose(e.target.value)} className="border rounded px-3 py-1 text-sm" />
-          <input type="text" placeholder="Expiry (ISO-8601, optional)" value={expiry} onChange={(e) => setExpiry(e.target.value)} className="border rounded px-3 py-1 text-sm" />
+          <input type="text" placeholder="Subject ID" value={subjectId} onChange={(e) => setSubjectId(e.target.value)} className="ff-input" />
+          <input type="text" placeholder="Purpose" value={purpose} onChange={(e) => setPurpose(e.target.value)} className="ff-input" />
+          <input type="text" placeholder="Expiry (ISO-8601, optional)" value={expiry} onChange={(e) => setExpiry(e.target.value)} className="ff-input" />
         </div>
-        <button onClick={grantConsent} className="px-4 py-1 bg-blue-600 text-white rounded text-sm">Grant</button>
-        {grantResult && <pre className="text-xs bg-green-50 rounded p-2">{JSON.stringify(grantResult, null, 2)}</pre>}
+        <button onClick={grantConsent} className="btn-primary">Grant</button>
+        {grantResult && <pre className="text-xs bg-teal/10 rounded-lg p-2">{JSON.stringify(grantResult, null, 2)}</pre>}
       </div>
 
       {/* Check */}
-      <div className="bg-white rounded-lg shadow p-4 space-y-2">
-        <h3 className="font-semibold">Check Consent</h3>
+      <div className="glass-card p-4 space-y-2">
+        <h3 className="font-semibold text-fg-secondary">Check Consent</h3>
         <div className="flex gap-2">
-          <input type="text" placeholder="Subject ID" value={checkSubject} onChange={(e) => setCheckSubject(e.target.value)} className="flex-1 border rounded px-3 py-1 text-sm" />
-          <input type="text" placeholder="Purpose" value={checkPurpose} onChange={(e) => setCheckPurpose(e.target.value)} className="border rounded px-3 py-1 text-sm w-40" />
-          <button onClick={checkConsent} className="px-4 py-1 bg-green-600 text-white rounded text-sm">Check</button>
+          <input type="text" placeholder="Subject ID" value={checkSubject} onChange={(e) => setCheckSubject(e.target.value)} className="flex-1 ff-input" />
+          <input type="text" placeholder="Purpose" value={checkPurpose} onChange={(e) => setCheckPurpose(e.target.value)} className="ff-input w-40" />
+          <button onClick={checkConsent} className="btn-success">Check</button>
         </div>
         {checkResult && (
-          <div className={`rounded p-2 text-sm ${checkResult.allowed ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>
+          <div className={`rounded p-2 text-sm ${checkResult.allowed ? "bg-teal/10 text-teal" : "bg-rose-ember/10 text-rose-ember"}`}>
             {checkResult.allowed ? "Allowed" : "Denied"} — Active: {String(checkResult.active)}
           </div>
         )}
       </div>
 
       {/* History */}
-      <div className="bg-white rounded-lg shadow p-4 space-y-2">
-        <h3 className="font-semibold">Consent History</h3>
+      <div className="glass-card p-4 space-y-2">
+        <h3 className="font-semibold text-fg-secondary">Consent History</h3>
         <div className="flex gap-2">
-          <input type="text" placeholder="Subject ID" value={historySubject} onChange={(e) => setHistorySubject(e.target.value)} className="flex-1 border rounded px-3 py-1 text-sm" />
-          <button onClick={fetchHistory} className="px-4 py-1 bg-gray-600 text-white rounded text-sm">Lookup</button>
+          <input type="text" placeholder="Subject ID" value={historySubject} onChange={(e) => setHistorySubject(e.target.value)} className="flex-1 ff-input" />
+          <button onClick={fetchHistory} className="btn-ghost">Lookup</button>
         </div>
         {history && (
           <div className="space-y-1">
             {history.records.length === 0 ? (
-              <p className="text-gray-400 text-sm">No records found</p>
+              <p className="text-fg-faint text-sm">No records found</p>
             ) : (
               history.records.map((r, i) => (
-                <div key={i} className="bg-gray-50 rounded p-2 text-xs">
-                  <span className={`font-medium ${r.action === "grant" ? "text-green-600" : "text-red-600"}`}>{String(r.action).toUpperCase()}</span>
+                <div key={i} className="bg-surface rounded-lg p-2 text-xs">
+                  <span className={`font-medium ${r.action === "grant" ? "text-teal" : "text-rose-ember"}`}>{String(r.action).toUpperCase()}</span>
                   {" — "}{String(r.purpose)} at {String(r.timestamp)}
-                  {r.reason ? <span className="text-gray-400"> ({String(r.reason)})</span> : null}
+                  {r.reason ? <span className="text-fg-faint"> ({String(r.reason)})</span> : null}
                 </div>
               ))
             )}
@@ -159,15 +159,15 @@ export default function ConsentManagement() {
       </div>
 
       {/* Revoke */}
-      <div className="bg-white rounded-lg shadow p-4 space-y-2">
-        <h3 className="font-semibold">Revoke Consent</h3>
+      <div className="glass-card p-4 space-y-2">
+        <h3 className="font-semibold text-fg-secondary">Revoke Consent</h3>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
-          <input type="text" placeholder="Subject ID" value={revokeSubject} onChange={(e) => setRevokeSubject(e.target.value)} className="border rounded px-3 py-1 text-sm" />
-          <input type="text" placeholder="Purpose" value={revokePurpose} onChange={(e) => setRevokePurpose(e.target.value)} className="border rounded px-3 py-1 text-sm" />
-          <input type="text" placeholder="Reason" value={revokeReason} onChange={(e) => setRevokeReason(e.target.value)} className="border rounded px-3 py-1 text-sm" />
+          <input type="text" placeholder="Subject ID" value={revokeSubject} onChange={(e) => setRevokeSubject(e.target.value)} className="ff-input" />
+          <input type="text" placeholder="Purpose" value={revokePurpose} onChange={(e) => setRevokePurpose(e.target.value)} className="ff-input" />
+          <input type="text" placeholder="Reason" value={revokeReason} onChange={(e) => setRevokeReason(e.target.value)} className="ff-input" />
         </div>
-        <button onClick={handleRevokeClick} className="px-4 py-1 bg-red-600 text-white rounded text-sm">Revoke</button>
-        {revokeResult && <pre className="text-xs bg-red-50 rounded p-2">{JSON.stringify(revokeResult, null, 2)}</pre>}
+        <button onClick={handleRevokeClick} className="btn-danger">Revoke</button>
+        {revokeResult && <pre className="text-xs bg-rose-ember/10 rounded-lg p-2">{JSON.stringify(revokeResult, null, 2)}</pre>}
       </div>
 
       {/* Confirmation Dialog for Revoke */}
