@@ -202,10 +202,37 @@ class ZKVerifyRequest(BaseModel):
 
 
 # ---------------------------------------------------------------------------
-# In-memory DID key store
+# DID key helpers (DB-backed, US-040)
 # ---------------------------------------------------------------------------
 
-_did_keys: dict[str, dict] = {}
+
+async def _store_did_key(did_key: "Ed25519DIDKey", label: str | None = None) -> dict:
+    """Persist a DID key to the database and return metadata dict."""
+    from datetime import datetime, timezone
+
+    stored = did_key.to_stored_form()
+    created_at = datetime.now(timezone.utc).isoformat()
+    await _db.insert_did_key(
+        did=stored["did"],
+        public_key=stored["public_key"],
+        encrypted_private_key=stored["private_key"],
+        key_type=stored["key_type"],
+        created_at=created_at,
+        label=label,
+    )
+    return {
+        "did": stored["did"],
+        "public_key_hex": stored["public_key"].hex(),
+        "created_at": created_at,
+    }
+
+
+async def _load_did_key(did_id: str) -> "Ed25519DIDKey | None":
+    """Load a DID key from the database, returning an Ed25519DIDKey or None."""
+    entry = await _db.get_did_key(did_id)
+    if entry is None or entry["encrypted_private_key"] is None:
+        return None
+    return Ed25519DIDKey.from_stored_form(entry["encrypted_private_key"])
 
 
 # ---------------------------------------------------------------------------
@@ -222,7 +249,7 @@ async def lifespan(app: FastAPI):
     global _STARTUP_TIME
     _STARTUP_TIME = time.monotonic()
     setup_logging()
-    await _db.connect()
+    await _db.connect(db_key=settings.db_key, require_encryption=settings.require_encryption)
     if settings.migrations_enabled:
         await _db.run_migrations()
     await _service.initialize()
@@ -511,7 +538,7 @@ async def dashboard():
         "crypto_status": {
             "did_enabled": True,
             "zk_scheme": "schnorr-sha256",
-            "total_dids": len(_did_keys),
+            "total_dids": len(await _db.list_did_keys()),
             "total_vcs": 0,
         },
     }
@@ -926,7 +953,11 @@ class TrainRequest(BaseModel):
 
 
 @app.post(
-    "/recognition/train", status_code=201, tags=["Recognition"], summary="Train PCA+SVM model"
+    "/recognition/train",
+    status_code=201,
+    tags=["Recognition"],
+    summary="Train PCA+SVM model",
+    dependencies=[Depends(require_role("analyst"))],
 )
 @limiter.limit("5/minute")
 async def train_model(request: Request, req: TrainRequest):
@@ -1381,7 +1412,13 @@ def _fl_response(body: dict[str, Any], status_code: int = 200) -> JSONResponse:
     )
 
 
-@app.post("/fl/start", status_code=201, tags=["FL"], summary="Start FL simulation")
+@app.post(
+    "/fl/start",
+    status_code=201,
+    tags=["FL"],
+    summary="Start FL simulation",
+    dependencies=[Depends(require_role("analyst"))],
+)
 async def start_fl(req: FLSimulateRequest):
     """Start a federated learning simulation with configurable parameters."""
     body = await _run_fl_simulation(req)
@@ -1394,6 +1431,7 @@ async def start_fl(req: FLSimulateRequest):
     tags=["FL"],
     summary="(Legacy) Start FL simulation",
     deprecated=True,
+    dependencies=[Depends(require_role("analyst"))],
 )
 async def simulate_fl(req: FLSimulateRequest):
     """Legacy alias for POST /fl/start."""
@@ -1415,7 +1453,13 @@ class DPFLSimulateRequest(BaseModel):
     seed: int = Field(default=42)
 
 
-@app.post("/fl/dp-start", status_code=201, tags=["FL"], summary="Start DP-FedAvg simulation")
+@app.post(
+    "/fl/dp-start",
+    status_code=201,
+    tags=["FL"],
+    summary="Start DP-FedAvg simulation",
+    dependencies=[Depends(require_role("analyst"))],
+)
 async def start_dp_fl(req: DPFLSimulateRequest):
     """Start a differentially-private federated learning simulation."""
     from uuid import uuid4
@@ -1904,7 +1948,13 @@ class AutoAuditConfigRequest(BaseModel):
     )
 
 
-@app.post("/fairness/audit", status_code=201, tags=["Fairness"], summary="Trigger bias audit")
+@app.post(
+    "/fairness/audit",
+    status_code=201,
+    tags=["Fairness"],
+    summary="Trigger bias audit",
+    dependencies=[Depends(require_role("analyst"))],
+)
 async def trigger_bias_audit(req: BiasAuditRequest):
     """Trigger a manual bias audit on provided group results."""
     from friendlyface.fairness.auditor import (
@@ -2044,7 +2094,12 @@ async def get_fairness_status():
     }
 
 
-@app.post("/fairness/config", tags=["Fairness"], summary="Configure auto-audit")
+@app.post(
+    "/fairness/config",
+    tags=["Fairness"],
+    summary="Configure auto-audit",
+    dependencies=[Depends(require_role("admin"))],
+)
 async def configure_auto_audit(req: AutoAuditConfigRequest):
     """Configure auto-audit interval."""
     global _auto_audit_interval
@@ -2336,48 +2391,32 @@ async def compare_explanations(event_id: UUID):
 @limiter.limit("10/minute")
 async def create_did(request: Request, req: CreateDIDRequest):
     """Create a new Ed25519 DID:key identity."""
-    from datetime import datetime, timezone
-
     if req.seed is not None:
         did_key = Ed25519DIDKey.from_seed(bytes.fromhex(req.seed))
     else:
         did_key = Ed25519DIDKey()
 
-    did = did_key.did
-    public_key_hex = did_key.export_public().hex()
-    created_at = datetime.now(timezone.utc).isoformat()
-
-    _did_keys[did] = {
-        "did_key": did_key,
-        "did": did,
-        "public_key_hex": public_key_hex,
-        "created_at": created_at,
-    }
-
-    return {
-        "did": did,
-        "public_key_hex": public_key_hex,
-        "created_at": created_at,
-    }
+    result = await _store_did_key(did_key, label=None)
+    return result
 
 
 @app.get("/did/{did_id:path}/resolve", tags=["DID/VC"], summary="Resolve DID document")
 async def resolve_did(did_id: str):
     """Resolve a DID to its DID Document."""
-    entry = _did_keys.get(did_id)
-    if entry is None:
+    did_key = await _load_did_key(did_id)
+    if did_key is None:
         raise HTTPException(status_code=404, detail="DID not found")
-    return entry["did_key"].resolve()
+    return did_key.resolve()
 
 
 @app.post("/vc/issue", status_code=201, tags=["DID/VC"], summary="Issue Verifiable Credential")
 async def issue_vc(req: IssueVCRequest):
     """Issue a Verifiable Credential signed by the specified DID."""
-    entry = _did_keys.get(req.issuer_did_id)
-    if entry is None:
+    did_key = await _load_did_key(req.issuer_did_id)
+    if did_key is None:
         raise HTTPException(status_code=404, detail="Issuer DID not found")
 
-    vc = VerifiableCredential(issuer=entry["did_key"])
+    vc = VerifiableCredential(issuer=did_key)
     credential = vc.issue(
         claims=req.claims,
         credential_type=req.credential_type,
@@ -2476,6 +2515,7 @@ async def get_zk_proof(bundle_id: UUID):
     status_code=200,
     tags=["Governance"],
     summary="Erase subject data",
+    dependencies=[Depends(require_role("admin"))],
 )
 async def erase_subject(subject_id: str):
     """Cryptographically erase all data for a subject (GDPR Art 17)."""
@@ -2506,6 +2546,85 @@ async def list_erasure_records(
     manager = ErasureManager(_db)
     records, total = await manager.list_erasure_records(limit, offset)
     return {"items": records, "total": total, "limit": limit, "offset": offset}
+
+
+# ---------------------------------------------------------------------------
+# Retention Policies (US-051)
+# ---------------------------------------------------------------------------
+
+
+class RetentionPolicyRequest(BaseModel):
+    """Request body for POST /retention/policies."""
+
+    name: str = Field(min_length=1, max_length=256, description="Policy name")
+    entity_type: str = Field(
+        min_length=1, max_length=128, description="Entity type (e.g. consent, subject)"
+    )
+    retention_days: int = Field(ge=1, description="Days to retain before action")
+    action: str = Field(default="erase", description="Action: erase")
+    enabled: bool = Field(default=True, description="Whether the policy is active")
+
+
+@app.post(
+    "/retention/policies",
+    status_code=201,
+    tags=["Governance"],
+    summary="Create retention policy",
+    dependencies=[Depends(require_role("admin"))],
+)
+async def create_retention_policy(req: RetentionPolicyRequest):
+    """Create a new data retention policy."""
+    from friendlyface.governance.retention import RetentionEngine
+
+    engine = RetentionEngine(_db)
+    return await engine.create_policy(
+        name=req.name,
+        entity_type=req.entity_type,
+        retention_days=req.retention_days,
+        action=req.action,
+        enabled=req.enabled,
+    )
+
+
+@app.get("/retention/policies", tags=["Governance"], summary="List retention policies")
+async def list_retention_policies(enabled_only: bool = False):
+    """List all retention policies."""
+    from friendlyface.governance.retention import RetentionEngine
+
+    engine = RetentionEngine(_db)
+    policies = await engine.list_policies(enabled_only=enabled_only)
+    return {"policies": policies, "total": len(policies)}
+
+
+@app.delete(
+    "/retention/policies/{policy_id}",
+    tags=["Governance"],
+    summary="Delete retention policy",
+    dependencies=[Depends(require_role("admin"))],
+)
+async def delete_retention_policy(policy_id: str):
+    """Delete a retention policy by ID."""
+    from friendlyface.governance.retention import RetentionEngine
+
+    engine = RetentionEngine(_db)
+    deleted = await engine.delete_policy(policy_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Policy not found")
+    return {"deleted": True, "policy_id": policy_id}
+
+
+@app.post(
+    "/retention/evaluate",
+    tags=["Governance"],
+    summary="Evaluate retention policies",
+    dependencies=[Depends(require_role("admin"))],
+)
+async def evaluate_retention():
+    """Evaluate all enabled retention policies and erase expired data."""
+    from friendlyface.governance.retention import RetentionEngine
+
+    engine = RetentionEngine(_db)
+    return await engine.evaluate()
 
 
 # ---------------------------------------------------------------------------
@@ -2543,7 +2662,12 @@ async def list_backups():
     return {"backups": backups, "total": len(backups)}
 
 
-@app.post("/admin/backup/verify", tags=["Admin"], summary="Verify backup")
+@app.post(
+    "/admin/backup/verify",
+    tags=["Admin"],
+    summary="Verify backup",
+    dependencies=[Depends(require_role("admin"))],
+)
 async def verify_backup(filename: str):
     """Verify integrity of a backup file."""
     from friendlyface.ops.backup import BackupManager
@@ -2630,6 +2754,7 @@ async def rollback_migration(dry_run: bool = False):
     "/governance/compliance/export",
     tags=["Governance"],
     summary="Export compliance data in OSCAL or JSON-LD format",
+    dependencies=[Depends(require_role("auditor"))],
 )
 async def export_compliance(format: str = "oscal"):
     """Export compliance data for auditors.
@@ -2769,6 +2894,16 @@ v1_router.add_api_route("/zk/proofs/{bundle_id}", get_zk_proof, methods=["GET"])
 v1_router.add_api_route("/erasure/erase/{subject_id}", erase_subject, methods=["POST"])
 v1_router.add_api_route("/erasure/status/{subject_id}", get_erasure_status, methods=["GET"])
 v1_router.add_api_route("/erasure/records", list_erasure_records, methods=["GET"])
+
+# Retention
+v1_router.add_api_route(
+    "/retention/policies", create_retention_policy, methods=["POST"], status_code=201
+)
+v1_router.add_api_route("/retention/policies", list_retention_policies, methods=["GET"])
+v1_router.add_api_route(
+    "/retention/policies/{policy_id}", delete_retention_policy, methods=["DELETE"]
+)
+v1_router.add_api_route("/retention/evaluate", evaluate_retention, methods=["POST"])
 
 # Admin — Backup
 v1_router.add_api_route("/admin/backup", create_backup, methods=["POST"], status_code=201)

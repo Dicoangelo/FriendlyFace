@@ -124,9 +124,23 @@ class Database:
         self.db_path = Path(db_path)
         self._db: aiosqlite.Connection | None = None
 
-    async def connect(self) -> None:
+    async def connect(self, db_key: str | None = None, require_encryption: bool = False) -> None:
+        if require_encryption and not db_key:
+            raise RuntimeError(
+                "FF_REQUIRE_ENCRYPTION is set but FF_DB_KEY is not configured. "
+                "Provide an encryption key or disable the requirement."
+            )
+
         self._db = await aiosqlite.connect(self.db_path)
         self._db.row_factory = aiosqlite.Row
+
+        # Encryption at rest — activate SQLCipher PRAGMA key if provided.
+        # PRAGMA does not support parameterized queries; db_key comes from
+        # server config (FF_DB_KEY env var), not user input.
+        if db_key:
+            escaped = db_key.replace("'", "''")
+            await self._db.execute(f"PRAGMA key = '{escaped}'")
+
         await self._db.executescript(SCHEMA_SQL)
         await self._db.commit()
 
@@ -689,3 +703,145 @@ class Database:
             "leaves": json.loads(row[4]),
             "event_index": json.loads(row[5]),
         }
+
+    # --- DID Keys (US-040) ---
+
+    async def insert_did_key(
+        self,
+        did: str,
+        public_key: bytes,
+        encrypted_private_key: bytes | None = None,
+        key_type: str = "Ed25519",
+        created_at: str | None = None,
+        label: str | None = None,
+        is_platform_key: bool = False,
+    ) -> None:
+        """Persist a DID key entry."""
+        now = (
+            created_at
+            or __import__("datetime").datetime.now(__import__("datetime").timezone.utc).isoformat()
+        )
+        await self.db.execute(
+            "INSERT OR REPLACE INTO did_keys "
+            "(did, public_key, encrypted_private_key, key_type, created_at, label, is_platform_key) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (did, public_key, encrypted_private_key, key_type, now, label, int(is_platform_key)),
+        )
+        await self.db.commit()
+
+    async def get_did_key(self, did: str) -> dict[str, Any] | None:
+        """Retrieve a stored DID key by its DID identifier."""
+        cursor = await self.db.execute("SELECT * FROM did_keys WHERE did = ?", (did,))
+        row = await cursor.fetchone()
+        if row is None:
+            return None
+        return {
+            "did": row[0],
+            "public_key": row[1],
+            "encrypted_private_key": row[2],
+            "key_type": row[3],
+            "created_at": row[4],
+            "label": row[5],
+            "is_platform_key": bool(row[6]),
+        }
+
+    async def list_did_keys(self, platform_only: bool = False) -> list[dict[str, Any]]:
+        """List stored DID keys, optionally filtering to platform keys only."""
+        if platform_only:
+            cursor = await self.db.execute(
+                "SELECT * FROM did_keys WHERE is_platform_key = 1 ORDER BY created_at ASC"
+            )
+        else:
+            cursor = await self.db.execute("SELECT * FROM did_keys ORDER BY created_at ASC")
+        rows = await cursor.fetchall()
+        return [
+            {
+                "did": r[0],
+                "public_key": r[1],
+                "encrypted_private_key": r[2],
+                "key_type": r[3],
+                "created_at": r[4],
+                "label": r[5],
+                "is_platform_key": bool(r[6]),
+            }
+            for r in rows
+        ]
+
+    # --- Retention Policies (US-051) ---
+
+    async def insert_retention_policy(self, policy: dict[str, Any]) -> None:
+        """Insert or replace a retention policy."""
+        await self.db.execute(
+            "INSERT OR REPLACE INTO retention_policies "
+            "(id, name, entity_type, retention_days, action, enabled, created_at, updated_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                policy["id"],
+                policy["name"],
+                policy["entity_type"],
+                policy["retention_days"],
+                policy.get("action", "erase"),
+                int(policy.get("enabled", True)),
+                policy["created_at"],
+                policy["updated_at"],
+            ),
+        )
+        await self.db.commit()
+
+    async def get_retention_policy(self, policy_id: str) -> dict[str, Any] | None:
+        """Get a retention policy by ID."""
+        cursor = await self.db.execute(
+            "SELECT * FROM retention_policies WHERE id = ?", (policy_id,)
+        )
+        row = await cursor.fetchone()
+        if row is None:
+            return None
+        return self._row_to_retention_policy(row)
+
+    async def list_retention_policies(self, enabled_only: bool = False) -> list[dict[str, Any]]:
+        """List all retention policies."""
+        if enabled_only:
+            cursor = await self.db.execute(
+                "SELECT * FROM retention_policies WHERE enabled = 1 ORDER BY created_at ASC"
+            )
+        else:
+            cursor = await self.db.execute(
+                "SELECT * FROM retention_policies ORDER BY created_at ASC"
+            )
+        rows = await cursor.fetchall()
+        return [self._row_to_retention_policy(r) for r in rows]
+
+    async def delete_retention_policy(self, policy_id: str) -> bool:
+        """Delete a retention policy. Returns True if a row was deleted."""
+        cursor = await self.db.execute("DELETE FROM retention_policies WHERE id = ?", (policy_id,))
+        await self.db.commit()
+        return cursor.rowcount > 0
+
+    def _row_to_retention_policy(self, row: Any) -> dict[str, Any]:
+        return {
+            "id": row[0],
+            "name": row[1],
+            "entity_type": row[2],
+            "retention_days": row[3],
+            "action": row[4],
+            "enabled": bool(row[5]),
+            "created_at": row[6],
+            "updated_at": row[7],
+        }
+
+    async def get_subjects_exceeding_retention(
+        self, entity_type: str, retention_days: int
+    ) -> list[str]:
+        """Find subjects with consent records older than retention_days.
+
+        Returns list of subject_ids whose earliest consent is past the
+        retention window.
+        """
+        cursor = await self.db.execute(
+            "SELECT DISTINCT subject_id FROM consent_records "
+            "WHERE julianday('now') - julianday(timestamp) > ? "
+            "ORDER BY subject_id",
+            (retention_days,),
+        )
+        rows = await cursor.fetchall()
+        return [r[0] for r in rows]
