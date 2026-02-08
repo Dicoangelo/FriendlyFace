@@ -21,6 +21,7 @@ async def rl_client(tmp_path):
     """HTTP test client with rate limiting ENABLED."""
     _db.db_path = tmp_path / "rl_test.db"
     await _db.connect()
+    await _db.run_migrations()
     await _service.initialize()
 
     _service.merkle = __import__("friendlyface.core.merkle", fromlist=["MerkleTree"]).MerkleTree()

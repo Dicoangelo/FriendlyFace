@@ -82,6 +82,28 @@ class Settings(BaseSettings):
         default=None, ge=1, description="Delete backups older than N days (None = no age limit)"
     )
 
+    # RBAC
+    rbac_enabled: bool = Field(default=True, description="Enable role-based access control")
+
+    # Encryption at rest
+    db_key: str | None = Field(
+        default=None, description="Encryption key for SQLCipher (enables encryption at rest)"
+    )
+    require_encryption: bool = Field(
+        default=False, description="Refuse to start if db_key is not set"
+    )
+
+    # Retention
+    retention_check_interval_minutes: int = Field(
+        default=60, ge=1, description="Interval for automatic retention policy evaluation"
+    )
+
+    # Recognition engine
+    recognition_engine: str = Field(
+        default="fallback",
+        description="Recognition backend: 'mediapipe' (requires mediapipe), 'onnx' (requires onnxruntime), or 'fallback'",
+    )
+
     # Supabase
     supabase_url: str | None = Field(default=None, description="Supabase project URL")
     supabase_key: str | None = Field(default=None, description="Supabase service role key")

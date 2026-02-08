@@ -149,6 +149,10 @@ async def require_api_key(request: Request) -> None:
 def require_role(*roles: str):
     """Dependency factory: require the authenticated user to have one of the given roles.
 
+    Respects ``FF_RBAC_ENABLED`` — when disabled, all role checks pass.
+    Uses role hierarchy from :mod:`friendlyface.rbac` so that, e.g., an
+    ``admin`` implicitly satisfies an ``analyst`` requirement.
+
     Usage::
 
         @app.post("/admin/thing", dependencies=[Depends(require_role("admin"))])
@@ -156,13 +160,21 @@ def require_role(*roles: str):
     """
 
     async def _check(request: Request) -> None:
+        # When RBAC is disabled globally, skip enforcement.
+        rbac_on = os.environ.get("FF_RBAC_ENABLED", "true").lower() not in ("0", "false", "no")
+        if not rbac_on:
+            return
+
         auth: AuthResult | None = getattr(request.state, "auth", None)
         if auth is None:
             raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authenticated.")
         # Dev mode always passes role checks.
         if auth.provider == "dev":
             return
-        if not any(r in auth.roles for r in roles):
+
+        from friendlyface.rbac import has_role
+
+        if not any(has_role(auth.roles, r) for r in roles):
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail=f"Requires one of roles: {', '.join(roles)}",

@@ -128,3 +128,21 @@ class Ed25519DIDKey:
     def export_public(self) -> bytes:
         """Export the raw 32-byte Ed25519 verify (public) key."""
         return bytes(self._verify_key)
+
+    def to_stored_form(self) -> dict:
+        """Serialize to a dict suitable for DB persistence.
+
+        Returns dict with ``public_key`` (bytes), ``private_key`` (bytes),
+        ``did`` (str), and ``key_type`` (str).
+        """
+        return {
+            "did": self.did,
+            "public_key": bytes(self._verify_key),
+            "private_key": bytes(self._signing_key),
+            "key_type": "Ed25519",
+        }
+
+    @classmethod
+    def from_stored_form(cls, private_key: bytes) -> Ed25519DIDKey:
+        """Reconstruct an Ed25519DIDKey from a stored 32-byte private key."""
+        return cls(signing_key=SigningKey(private_key))
