@@ -114,6 +114,108 @@ CREATE INDEX IF NOT EXISTS idx_provenance_entity
 
 CREATE INDEX IF NOT EXISTS idx_bias_audits_timestamp
     ON bias_audits (timestamp);
+
+CREATE TABLE IF NOT EXISTS audit_log (
+    id TEXT PRIMARY KEY,
+    timestamp TEXT NOT NULL,
+    actor TEXT NOT NULL,
+    action TEXT NOT NULL,
+    resource_type TEXT,
+    resource_id TEXT,
+    details TEXT NOT NULL DEFAULT '{}',
+    ip_address TEXT,
+    user_agent TEXT
+);
+
+CREATE INDEX IF NOT EXISTS idx_audit_log_timestamp
+    ON audit_log (timestamp);
+
+CREATE INDEX IF NOT EXISTS idx_audit_log_actor
+    ON audit_log (actor);
+
+CREATE INDEX IF NOT EXISTS idx_audit_log_action
+    ON audit_log (action);
+
+CREATE TABLE IF NOT EXISTS subject_keys (
+    subject_id TEXT PRIMARY KEY,
+    encrypted_key BLOB NOT NULL,
+    key_nonce BLOB NOT NULL,
+    created_at TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active'
+);
+
+CREATE TABLE IF NOT EXISTS erasure_records (
+    id TEXT PRIMARY KEY,
+    subject_id TEXT NOT NULL,
+    requested_at TEXT NOT NULL,
+    completed_at TEXT,
+    status TEXT NOT NULL DEFAULT 'pending',
+    tables_affected TEXT NOT NULL DEFAULT '[]',
+    event_count INTEGER NOT NULL DEFAULT 0,
+    method TEXT NOT NULL DEFAULT 'key_deletion'
+);
+
+CREATE INDEX IF NOT EXISTS idx_erasure_records_subject
+    ON erasure_records (subject_id);
+
+CREATE INDEX IF NOT EXISTS idx_erasure_records_status
+    ON erasure_records (status);
+
+CREATE TABLE IF NOT EXISTS retention_policies (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    entity_type TEXT NOT NULL,
+    retention_days INTEGER NOT NULL,
+    action TEXT NOT NULL DEFAULT 'erase',
+    enabled INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_retention_policies_entity
+    ON retention_policies (entity_type);
+
+CREATE TABLE IF NOT EXISTS did_keys (
+    did TEXT PRIMARY KEY,
+    public_key BLOB NOT NULL,
+    encrypted_private_key BLOB,
+    key_type TEXT NOT NULL DEFAULT 'Ed25519',
+    created_at TEXT NOT NULL,
+    label TEXT,
+    is_platform_key INTEGER NOT NULL DEFAULT 0
+);
+
+CREATE INDEX IF NOT EXISTS idx_did_keys_platform
+    ON did_keys (is_platform_key);
+
+CREATE TABLE IF NOT EXISTS merkle_checkpoints (
+    id TEXT PRIMARY KEY,
+    created_at TEXT NOT NULL,
+    leaf_count INTEGER NOT NULL,
+    root_hash TEXT NOT NULL,
+    leaves_json TEXT NOT NULL,
+    event_index_json TEXT NOT NULL
+);
+
+CREATE INDEX IF NOT EXISTS idx_merkle_checkpoints_leaf_count
+    ON merkle_checkpoints (leaf_count DESC);
+
+CREATE TABLE IF NOT EXISTS face_gallery (
+    id TEXT PRIMARY KEY,
+    subject_id TEXT NOT NULL,
+    embedding BLOB NOT NULL,
+    embedding_dim INTEGER NOT NULL DEFAULT 512,
+    model_version TEXT NOT NULL,
+    quality_score REAL,
+    created_at TEXT NOT NULL,
+    metadata TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS idx_face_gallery_subject
+    ON face_gallery (subject_id);
+
+CREATE INDEX IF NOT EXISTS idx_face_gallery_model
+    ON face_gallery (model_version);
 """
 
 
