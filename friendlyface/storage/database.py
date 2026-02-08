@@ -257,6 +257,15 @@ CREATE TABLE IF NOT EXISTS compliance_reports (
 
 CREATE INDEX IF NOT EXISTS idx_compliance_reports_created
     ON compliance_reports (created_at DESC);
+
+CREATE TABLE IF NOT EXISTS inference_artifacts (
+    event_id TEXT PRIMARY KEY,
+    image_bytes BLOB NOT NULL,
+    feature_vector BLOB,
+    pca_model_path TEXT,
+    svm_model_path TEXT,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
 """
 
 
@@ -532,6 +541,29 @@ class Database:
         if row is None:
             return None
         return self._row_to_bundle(row)
+
+    async def list_bundles(self, limit: int = 50, offset: int = 0) -> list[dict]:
+        """List bundles with summary info (no full artifacts)."""
+        cursor = await self.db.execute(
+            "SELECT id, created_at, status, bundle_hash, merkle_root, event_ids "
+            "FROM forensic_bundles ORDER BY created_at DESC LIMIT ? OFFSET ?",
+            (limit, offset),
+        )
+        rows = await cursor.fetchall()
+        result = []
+        for row in rows:
+            event_ids = json.loads(row["event_ids"]) if row["event_ids"] else []
+            result.append(
+                {
+                    "id": row["id"],
+                    "created_at": row["created_at"],
+                    "status": row["status"],
+                    "bundle_hash": row["bundle_hash"],
+                    "merkle_root": row["merkle_root"],
+                    "event_count": len(event_ids),
+                }
+            )
+        return result
 
     async def update_bundle_status(self, bundle_id: UUID, status: BundleStatus) -> None:
         await self.db.execute(
@@ -997,7 +1029,7 @@ class Database:
         """Insert an explanation record."""
         await self.db.execute(
             "INSERT OR REPLACE INTO explanation_records (id, event_id, method, created_at, data) VALUES (?, ?, ?, ?, ?)",
-            (record_id, event_id, method, created_at, json.dumps(data)),
+            (record_id, event_id, method, created_at, json.dumps(data, default=str)),
         )
         await self.db.commit()
 
@@ -1111,3 +1143,47 @@ class Database:
         cursor = await self.db.execute("SELECT * FROM compliance_reports ORDER BY created_at DESC")
         rows = await cursor.fetchall()
         return [{"id": r[0], "created_at": r[1], **json.loads(r[2])} for r in rows]
+
+    # ------------------------------------------------------------------
+    # Inference artifacts (US-092–094)
+    # ------------------------------------------------------------------
+
+    async def save_inference_artifact(
+        self,
+        event_id: str,
+        image_bytes: bytes,
+        feature_vector: bytes | None = None,
+        pca_model_path: str | None = None,
+        svm_model_path: str | None = None,
+    ) -> None:
+        """Save inference image + feature data for later explainability."""
+        await self.db.execute(
+            "INSERT OR REPLACE INTO inference_artifacts "
+            "(event_id, image_bytes, feature_vector, pca_model_path, svm_model_path) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (event_id, image_bytes, feature_vector, pca_model_path, svm_model_path),
+        )
+        await self.db.commit()
+
+    async def get_inference_artifact(self, event_id: str) -> dict[str, Any] | None:
+        """Retrieve inference artifact by event ID."""
+        cursor = await self.db.execute(
+            "SELECT event_id, image_bytes, feature_vector, pca_model_path, svm_model_path "
+            "FROM inference_artifacts WHERE event_id = ?",
+            (event_id,),
+        )
+        row = await cursor.fetchone()
+        if row is None:
+            return None
+        return {
+            "event_id": row[0],
+            "image_bytes": row[1],
+            "feature_vector": row[2],
+            "pca_model_path": row[3],
+            "svm_model_path": row[4],
+        }
+
+    async def delete_inference_artifact(self, event_id: str) -> None:
+        """Delete an inference artifact."""
+        await self.db.execute("DELETE FROM inference_artifacts WHERE event_id = ?", (event_id,))
+        await self.db.commit()
