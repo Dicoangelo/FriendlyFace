@@ -7,6 +7,7 @@ from httpx import ASGITransport, AsyncClient
 
 import friendlyface.api.app as app_module
 from friendlyface.api.app import _dashboard_cache, _db, _service, app, limiter
+from friendlyface.recognition.gallery import FaceGallery
 from friendlyface.core.service import ForensicService
 from friendlyface.storage.database import Database
 
@@ -53,6 +54,12 @@ async def client(tmp_path):
     app_module._latest_compliance_report = None
     app_module._auto_audit_interval = 50
     app_module._recognition_event_count = 0
+
+    # Initialize gallery and pipeline for tests
+    app_module._gallery = FaceGallery(_db)
+    from friendlyface.recognition.pipeline import RecognitionPipeline
+
+    app_module._recognition_pipeline = RecognitionPipeline(gallery=app_module._gallery)
 
     # Disable rate limiter for tests
     limiter.enabled = False

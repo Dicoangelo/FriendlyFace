@@ -15,6 +15,7 @@ from pathlib import Path
 import numpy as np
 from PIL import Image
 
+import friendlyface.api.app as app_module
 from friendlyface.recognition.pca import IMAGE_SIZE
 
 
@@ -507,3 +508,171 @@ class TestGetModelEndpoint:
         assert model["svm_event_id"] == data["svm_event_id"]
         assert model["pca_provenance_id"] == data["pca_provenance_id"]
         assert model["svm_provenance_id"] == data["svm_provenance_id"]
+
+
+# ---------------------------------------------------------------------------
+# Deep / Auto / Fallback engine modes (US-086, US-087)
+# ---------------------------------------------------------------------------
+
+
+def _make_face_bytes(seed: int = 42, size: tuple[int, int] = (200, 200)) -> bytes:
+    """Create a synthetic RGB face image as PNG bytes."""
+    rng = np.random.RandomState(seed)
+    arr = rng.randint(60, 200, (size[1], size[0], 3), dtype=np.uint8)
+    img = Image.fromarray(arr)
+    buf = io.BytesIO()
+    img.save(buf, format="PNG")
+    buf.seek(0)
+    return buf.read()
+
+
+class TestDeepEngine:
+    async def test_predict_deep_returns_enriched_response(self, client, monkeypatch):
+        """Deep engine returns liveness, quality, and faces_detected."""
+        monkeypatch.setenv("FF_RECOGNITION_ENGINE", "deep")
+        face_bytes = _make_face_bytes(seed=1)
+        resp = await client.post(
+            "/recognition/predict",
+            files={"image": ("face.png", face_bytes, "image/png")},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["engine"] == "deep"
+        assert "quality_score" in data
+        assert "faces_detected" in data
+        assert "liveness" in data
+
+    async def test_predict_deep_gallery_match(self, client, monkeypatch):
+        """Deep engine finds enrolled face and returns calibration."""
+        monkeypatch.setenv("FF_RECOGNITION_ENGINE", "deep")
+        face_bytes = _make_face_bytes(seed=10)
+
+        enroll = await client.post(
+            "/gallery/enroll",
+            files={"image": ("face.png", face_bytes, "image/png")},
+            params={"subject_id": "deep_match"},
+        )
+        assert enroll.status_code == 201
+
+        resp = await client.post(
+            "/recognition/predict",
+            files={"image": ("face.png", face_bytes, "image/png")},
+        )
+        data = resp.json()
+        assert len(data["matches"]) >= 1
+        assert data["matches"][0]["label"] == "deep_match"
+        assert "calibration" in data
+
+    async def test_predict_deep_liveness_fields(self, client, monkeypatch):
+        """Liveness result includes is_live, score, and checks."""
+        monkeypatch.setenv("FF_RECOGNITION_ENGINE", "deep")
+        face_bytes = _make_face_bytes(seed=20)
+        resp = await client.post(
+            "/recognition/predict",
+            files={"image": ("face.png", face_bytes, "image/png")},
+        )
+        liveness = resp.json()["liveness"]
+        assert "is_live" in liveness
+        assert "score" in liveness
+        assert "checks" in liveness
+
+    async def test_predict_deep_empty_image(self, client, monkeypatch):
+        """Empty image returns 400 in deep mode."""
+        monkeypatch.setenv("FF_RECOGNITION_ENGINE", "deep")
+        resp = await client.post(
+            "/recognition/predict",
+            files={"image": ("empty.png", b"", "image/png")},
+        )
+        assert resp.status_code == 400
+
+    async def test_predict_deep_records_event(self, client, monkeypatch):
+        """Deep engine records a forensic event with engine=deep in payload."""
+        monkeypatch.setenv("FF_RECOGNITION_ENGINE", "deep")
+        face_bytes = _make_face_bytes(seed=30)
+        resp = await client.post(
+            "/recognition/predict",
+            files={"image": ("face.png", face_bytes, "image/png")},
+        )
+        event_id = resp.json()["event_id"]
+        event_resp = await client.get(f"/events/{event_id}")
+        assert event_resp.status_code == 200
+        assert event_resp.json()["payload"]["engine"] == "deep"
+
+
+class TestAutoEngine:
+    async def test_auto_resolves_to_deep(self, client, monkeypatch):
+        """Auto mode resolves to deep when pipeline is available."""
+        monkeypatch.setenv("FF_RECOGNITION_ENGINE", "auto")
+        face_bytes = _make_face_bytes(seed=40)
+        resp = await client.post(
+            "/recognition/predict",
+            files={"image": ("face.png", face_bytes, "image/png")},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["engine"] == "deep"
+
+    async def test_auto_resolves_to_fallback(self, client, monkeypatch):
+        """Auto mode falls back to PCA+SVM when pipeline is None."""
+        monkeypatch.setenv("FF_RECOGNITION_ENGINE", "auto")
+        original_pipeline = app_module._recognition_pipeline
+        original_pca = app_module._pca_model_path
+        original_svm = app_module._svm_model_path
+        app_module._recognition_pipeline = None
+        app_module._pca_model_path = None
+        app_module._svm_model_path = None
+        try:
+            face_bytes = _make_face_bytes(seed=50)
+            resp = await client.post(
+                "/recognition/predict",
+                files={"image": ("face.png", face_bytes, "image/png")},
+            )
+            # Without PCA/SVM models, fallback returns 503
+            assert resp.status_code == 503
+        finally:
+            app_module._recognition_pipeline = original_pipeline
+            app_module._pca_model_path = original_pca
+            app_module._svm_model_path = original_svm
+
+
+class TestFallbackEngine:
+    async def test_fallback_no_models_returns_503(self, client, monkeypatch):
+        """Fallback mode returns 503 when no PCA/SVM models are loaded."""
+        monkeypatch.setenv("FF_RECOGNITION_ENGINE", "fallback")
+        original_pca = app_module._pca_model_path
+        original_svm = app_module._svm_model_path
+        app_module._pca_model_path = None
+        app_module._svm_model_path = None
+        try:
+            face_bytes = _make_face_bytes(seed=60)
+            resp = await client.post(
+                "/recognition/predict",
+                files={"image": ("face.png", face_bytes, "image/png")},
+            )
+            assert resp.status_code == 503
+            assert "Models not loaded" in resp.json()["detail"]
+        finally:
+            app_module._pca_model_path = original_pca
+            app_module._svm_model_path = original_svm
+
+
+class TestLegacyRecognize:
+    async def test_legacy_uses_active_engine(self, client, monkeypatch):
+        """Legacy /recognize endpoint uses the active engine."""
+        monkeypatch.setenv("FF_RECOGNITION_ENGINE", "deep")
+        face_bytes = _make_face_bytes(seed=70)
+        resp = await client.post(
+            "/recognize",
+            files={"image": ("face.png", face_bytes, "image/png")},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["engine"] == "deep"
+
+
+class TestResolveEngine:
+    def test_default_is_fallback(self, monkeypatch):
+        monkeypatch.delenv("FF_RECOGNITION_ENGINE", raising=False)
+        assert app_module._resolve_engine() == "fallback"
+
+    def test_explicit_deep(self, monkeypatch):
+        monkeypatch.setenv("FF_RECOGNITION_ENGINE", "deep")
+        assert app_module._resolve_engine() == "deep"

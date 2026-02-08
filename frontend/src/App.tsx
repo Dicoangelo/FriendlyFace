@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, NavLink, Navigate } from "react-router-dom";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useTheme } from "./components/ThemeProvider";
 import Dashboard from "./pages/Dashboard";
 import EventStream from "./pages/EventStream";
@@ -171,11 +171,11 @@ export default function App() {
 function HealthBadge() {
   const [status, setStatus] = useState<"ok" | "error" | "loading">("loading");
 
-  useState(() => {
+  useEffect(() => {
     fetch("/api/v1/health")
       .then((r) => (r.ok ? setStatus("ok") : setStatus("error")))
       .catch(() => setStatus("error"));
-  });
+  }, []);
 
   const colors = {
     ok: "bg-teal/10 text-teal border border-teal/20",

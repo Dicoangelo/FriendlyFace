@@ -101,7 +101,10 @@ class Settings(BaseSettings):
     # Recognition engine
     recognition_engine: str = Field(
         default="fallback",
-        description="Recognition backend: 'mediapipe' (requires mediapipe), 'onnx' (requires onnxruntime), or 'fallback'",
+        description=(
+            "Recognition backend: 'fallback' (PCA+SVM only), 'deep' (detection+embedding pipeline), "
+            "'auto' (deep when gallery non-empty, else fallback), 'mediapipe', or 'onnx'"
+        ),
     )
 
     # Supabase
