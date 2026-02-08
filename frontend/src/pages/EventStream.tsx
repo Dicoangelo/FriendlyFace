@@ -19,7 +19,7 @@ export default function EventStream() {
   const retryRef = useRef(1000);
 
   const connect = () => {
-    const url = filterType ? `/events/stream?event_type=${filterType}` : "/events/stream";
+    const url = filterType ? `/api/v1/events/stream?event_type=${filterType}` : "/api/v1/events/stream";
     const es = new EventSource(url);
     esRef.current = es;
 
@@ -77,13 +77,19 @@ export default function EventStream() {
             className="ff-select"
           >
             <option value="">All types</option>
-            <option value="inference_result">inference_result</option>
+            <option value="training_start">training_start</option>
             <option value="training_complete">training_complete</option>
-            <option value="security_alert">security_alert</option>
-            <option value="bias_audit_complete">bias_audit_complete</option>
+            <option value="model_registered">model_registered</option>
+            <option value="inference_request">inference_request</option>
+            <option value="inference_result">inference_result</option>
             <option value="explanation_generated">explanation_generated</option>
-            <option value="consent_granted">consent_granted</option>
-            <option value="consent_revoked">consent_revoked</option>
+            <option value="bias_audit">bias_audit</option>
+            <option value="consent_recorded">consent_recorded</option>
+            <option value="consent_update">consent_update</option>
+            <option value="bundle_created">bundle_created</option>
+            <option value="fl_round">fl_round</option>
+            <option value="security_alert">security_alert</option>
+            <option value="compliance_report">compliance_report</option>
           </select>
           <button
             onClick={() => setPaused(!paused)}

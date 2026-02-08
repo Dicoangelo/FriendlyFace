@@ -243,16 +243,109 @@ _db = _create_database()
 _service = ForensicService(_db)
 _broadcaster = EventBroadcaster()
 
+# Gallery and pipeline instances (initialized after DB connect in lifespan)
+_gallery: Any = None
+_recognition_pipeline: Any = None
+
+
+async def _load_persisted_caches() -> None:
+    """Load persisted data from DB into in-memory caches on startup."""
+    global _latest_compliance_report
+
+    # Load model registry
+    try:
+        db_models = await _db.list_models()
+        for m in db_models:
+            _model_registry[m["id"]] = m
+    except Exception:
+        logger.debug("No model_registry table yet — skipping cache load")
+
+    # Load FL simulations
+    try:
+        db_sims = await _db.list_fl_simulations()
+        for s in db_sims:
+            _fl_simulations[s["id"]] = s
+    except Exception:
+        logger.debug("No fl_simulations table yet — skipping cache load")
+
+    # Load explanations
+    try:
+        db_expls, _ = await _db.list_explanations(limit=10000)
+        for e in db_expls:
+            _explanations[e["id"]] = e.get("data", e)
+    except Exception:
+        logger.debug("No explanation_records table yet — skipping cache load")
+
+    # Load latest compliance report
+    try:
+        report = await _db.get_latest_compliance_report()
+        if report:
+            _latest_compliance_report = report
+    except Exception:
+        logger.debug("No compliance_reports table yet — skipping cache load")
+
+    logger.info(
+        "Loaded persisted caches: %d models, %d FL sims, %d explanations",
+        len(_model_registry),
+        len(_fl_simulations),
+        len(_explanations),
+    )
+
+
+async def _persist_explanation(
+    record_id: str, event_id: str, method: str, created_at: str, data: dict
+) -> None:
+    """Write-through: persist explanation to DB."""
+    try:
+        await _db.insert_explanation(record_id, event_id, method, created_at, data)
+    except Exception:
+        logger.warning("Failed to persist explanation %s to DB", record_id, exc_info=True)
+
+
+async def _persist_model(model_id: str, created_at: str, data: dict) -> None:
+    """Write-through: persist model to DB."""
+    try:
+        await _db.insert_model(model_id, created_at, data)
+    except Exception:
+        logger.warning("Failed to persist model %s to DB", model_id, exc_info=True)
+
+
+async def _persist_fl_simulation(sim_id: str, created_at: str, data: dict) -> None:
+    """Write-through: persist FL simulation to DB."""
+    try:
+        await _db.insert_fl_simulation(sim_id, created_at, data)
+    except Exception:
+        logger.warning("Failed to persist FL simulation %s to DB", sim_id, exc_info=True)
+
+
+async def _persist_compliance_report(report_id: str, created_at: str, data: dict) -> None:
+    """Write-through: persist compliance report to DB."""
+    try:
+        await _db.insert_compliance_report(report_id, created_at, data)
+    except Exception:
+        logger.warning("Failed to persist compliance report %s to DB", report_id, exc_info=True)
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global _STARTUP_TIME
+    global _STARTUP_TIME, _gallery, _recognition_pipeline
     _STARTUP_TIME = time.monotonic()
     setup_logging()
     await _db.connect(db_key=settings.db_key, require_encryption=settings.require_encryption)
     if settings.migrations_enabled:
         await _db.run_migrations()
     await _service.initialize()
+
+    # Initialize gallery and deep recognition pipeline
+    from friendlyface.recognition.gallery import FaceGallery
+    from friendlyface.recognition.pipeline import RecognitionPipeline
+
+    _gallery = FaceGallery(_db)
+    _recognition_pipeline = RecognitionPipeline(gallery=_gallery)
+
+    # Load persisted caches from DB into memory (write-through cache)
+    await _load_persisted_caches()
+
     log_startup_info()
     yield
     # Graceful shutdown: drain SSE subscribers, flush logs, close DB
@@ -274,6 +367,7 @@ _OPENAPI_TAGS = [
     {"name": "Bundles", "description": "Forensic bundles, verification, and export/import"},
     {"name": "Provenance", "description": "Provenance DAG nodes and chains"},
     {"name": "Recognition", "description": "Face recognition training, inference, and models"},
+    {"name": "Gallery", "description": "Face gallery enrollment, search, and management"},
     {"name": "Voice", "description": "Voice biometric enrollment and verification"},
     {"name": "FL", "description": "Federated learning simulations and DP-FedAvg"},
     {"name": "Fairness", "description": "Bias auditing, fairness status, and auto-audit config"},
@@ -1077,6 +1171,11 @@ async def train_model(request: Request, req: TrainRequest):
         "svm_provenance_id": str(svm_prov.id),
     }
 
+    # Persist model to DB (write-through)
+    await _persist_model(
+        model_id, _model_registry[model_id]["created_at"], _model_registry[model_id]
+    )
+
     # Auto-configure model paths for inference
     global _pca_model_path, _svm_model_path
     _pca_model_path = str(pca_path)
@@ -1097,8 +1196,107 @@ async def train_model(request: Request, req: TrainRequest):
     }
 
 
+def _resolve_engine() -> str:
+    """Determine the active recognition engine (fallback / deep / auto)."""
+    engine = os.environ.get("FF_RECOGNITION_ENGINE", settings.recognition_engine).lower()
+    if engine == "auto":
+        # Use deep pipeline when it's available; otherwise fall back
+        if _recognition_pipeline is not None:
+            return "deep"
+        return "fallback"
+    return engine
+
+
 async def _do_predict(image: UploadFile, top_k: int = 5) -> dict[str, Any]:
-    """Shared prediction logic for /recognition/predict and /recognize."""
+    """Shared prediction logic for /recognition/predict and /recognize.
+
+    Supports three engine modes (set via FF_RECOGNITION_ENGINE):
+    - ``fallback``: PCA+SVM only (original behavior, requires trained models)
+    - ``deep``: detection→embedding→gallery→liveness→calibration pipeline
+    - ``auto``: use deep when the pipeline is available, else fallback
+    """
+    image_bytes = await image.read()
+    if not image_bytes:
+        raise HTTPException(status_code=400, detail="Empty image upload")
+
+    engine = _resolve_engine()
+
+    if engine == "deep":
+        return await _do_predict_deep(image_bytes, top_k)
+    return await _do_predict_fallback(image_bytes, top_k)
+
+
+async def _do_predict_deep(image_bytes: bytes, top_k: int = 5) -> dict[str, Any]:
+    """Run prediction through the deep recognition pipeline."""
+    import hashlib
+    import io
+
+    import numpy as np
+    from PIL import Image as PILImage
+
+    if _recognition_pipeline is None:
+        raise HTTPException(status_code=503, detail="Deep recognition pipeline not initialized")
+
+    pil_img = PILImage.open(io.BytesIO(image_bytes)).convert("RGB")
+    img_array = np.asarray(pil_img, dtype=np.uint8)
+
+    result = await _recognition_pipeline.run(img_array, top_k=top_k)
+
+    input_hash = hashlib.sha256(image_bytes).hexdigest()[:16]
+
+    # Record forensic event
+    event = await _service.record_event(
+        event_type=EventType.INFERENCE_RESULT,
+        actor="api_recognize",
+        payload={
+            "engine": "deep",
+            "input_hash": input_hash,
+            "faces_detected": result.faces_detected,
+            "gallery_matches": len(result.gallery_matches),
+            "liveness": result.liveness.is_live if result.liveness else None,
+            "quality_score": result.quality_score,
+        },
+    )
+
+    await _maybe_auto_audit()
+
+    response: dict[str, Any] = {
+        "event_id": str(event.id),
+        "input_hash": input_hash,
+        "engine": "deep",
+        "matches": [
+            {
+                "label": m.subject_id,
+                "confidence": m.similarity,
+                "entry_id": m.entry_id,
+                "model_version": m.model_version,
+            }
+            for m in result.gallery_matches
+        ],
+        "quality_score": result.quality_score,
+        "faces_detected": result.faces_detected,
+    }
+
+    if result.liveness is not None:
+        response["liveness"] = {
+            "is_live": result.liveness.is_live,
+            "score": result.liveness.score,
+            "checks": result.liveness.checks,
+        }
+
+    if result.calibration is not None:
+        response["calibration"] = {
+            "raw_score": result.calibration.raw_score,
+            "calibrated_score": result.calibration.calibrated_score,
+            "final_score": result.calibration.final_score,
+            "method": result.calibration.method,
+        }
+
+    return response
+
+
+async def _do_predict_fallback(image_bytes: bytes, top_k: int = 5) -> dict[str, Any]:
+    """Run prediction through the legacy PCA+SVM pipeline."""
     from pathlib import Path
 
     from friendlyface.recognition.inference import run_inference
@@ -1108,10 +1306,6 @@ async def _do_predict(image: UploadFile, top_k: int = 5) -> dict[str, Any]:
             status_code=503,
             detail="Models not loaded. Configure PCA and SVM model paths.",
         )
-
-    image_bytes = await image.read()
-    if not image_bytes:
-        raise HTTPException(status_code=400, detail="Empty image upload")
 
     try:
         result = run_inference(
@@ -1137,6 +1331,7 @@ async def _do_predict(image: UploadFile, top_k: int = 5) -> dict[str, Any]:
     return {
         "event_id": str(event.id),
         "input_hash": result.input_hash,
+        "engine": "fallback",
         "matches": [{"label": m.label, "confidence": m.confidence} for m in result.matches],
     }
 
@@ -1165,6 +1360,171 @@ async def recognize(image: UploadFile, top_k: int = 5):
 async def list_models():
     """List all available trained models with metadata."""
     return list(_model_registry.values())
+
+
+# ---------------------------------------------------------------------------
+# Gallery — face enrollment, search, and management (US-085)
+# ---------------------------------------------------------------------------
+
+
+class GalleryEnrollRequest(BaseModel):
+    subject_id: str = Field(min_length=1, max_length=256, description="Subject identifier")
+    quality_score: float | None = Field(default=None, ge=0, le=1, description="Face quality score")
+    metadata: dict[str, Any] = Field(default_factory=dict, description="Arbitrary metadata")
+
+
+class GallerySearchRequest(BaseModel):
+    top_k: int = Field(default=5, ge=1, le=100, description="Max matches to return")
+
+
+@app.post(
+    "/gallery/enroll",
+    status_code=201,
+    tags=["Gallery"],
+    summary="Enroll face embedding",
+)
+async def gallery_enroll(image: UploadFile, subject_id: str, quality_score: float | None = None):
+    """Detect a face, extract embedding, and enroll in the gallery."""
+    from friendlyface.recognition.detection import FaceDetector
+    from friendlyface.recognition.embeddings import EmbeddingExtractor
+
+    if _gallery is None:
+        raise HTTPException(status_code=503, detail="Gallery not initialized")
+
+    image_bytes = await image.read()
+    if not image_bytes:
+        raise HTTPException(status_code=400, detail="Empty image upload")
+
+    import numpy as np
+    from PIL import Image as PILImage
+    import io
+
+    pil_img = PILImage.open(io.BytesIO(image_bytes)).convert("RGB")
+    img_array = np.asarray(pil_img, dtype=np.uint8)
+
+    detector = FaceDetector()
+    faces = detector.detect(img_array)
+    if not faces:
+        raise HTTPException(status_code=400, detail="No face detected in image")
+
+    best = faces[0]
+    if best.aligned is None:
+        raise HTTPException(status_code=400, detail="Face alignment failed")
+
+    extractor = EmbeddingExtractor()
+    embedding = extractor.extract(best.aligned)
+
+    qs = quality_score if quality_score is not None else best.quality_score
+    entry = await _gallery.enroll(subject_id, embedding, quality_score=qs)
+
+    # Record forensic event for gallery enrollment
+    await _service.record_event(
+        event_type=EventType.CONSENT_RECORDED,
+        actor="gallery_enroll",
+        payload={
+            "action": "gallery_enroll",
+            "subject_id": subject_id,
+            "entry_id": entry["entry_id"],
+            "embedding_dim": entry["embedding_dim"],
+            "model_version": entry["model_version"],
+        },
+    )
+
+    return entry
+
+
+@app.post(
+    "/gallery/search",
+    tags=["Gallery"],
+    summary="Search gallery by face",
+)
+async def gallery_search(image: UploadFile, top_k: int = 5):
+    """Detect a face, extract embedding, and search the gallery for matches."""
+    from friendlyface.recognition.detection import FaceDetector
+    from friendlyface.recognition.embeddings import EmbeddingExtractor
+
+    if _gallery is None:
+        raise HTTPException(status_code=503, detail="Gallery not initialized")
+
+    image_bytes = await image.read()
+    if not image_bytes:
+        raise HTTPException(status_code=400, detail="Empty image upload")
+
+    import numpy as np
+    from PIL import Image as PILImage
+    import io
+
+    pil_img = PILImage.open(io.BytesIO(image_bytes)).convert("RGB")
+    img_array = np.asarray(pil_img, dtype=np.uint8)
+
+    detector = FaceDetector()
+    faces = detector.detect(img_array)
+    if not faces:
+        raise HTTPException(status_code=400, detail="No face detected in image")
+
+    best = faces[0]
+    if best.aligned is None:
+        raise HTTPException(status_code=400, detail="Face alignment failed")
+
+    extractor = EmbeddingExtractor()
+    embedding = extractor.extract(best.aligned)
+
+    matches = await _gallery.search(embedding, top_k=top_k)
+    return {
+        "matches": [
+            {
+                "subject_id": m.subject_id,
+                "entry_id": m.entry_id,
+                "similarity": m.similarity,
+                "model_version": m.model_version,
+            }
+            for m in matches
+        ],
+        "query_embedding_dim": embedding.dim,
+        "total_matches": len(matches),
+    }
+
+
+@app.get("/gallery/subjects", tags=["Gallery"], summary="List enrolled subjects")
+async def gallery_list_subjects():
+    """List all enrolled subjects with entry counts."""
+    if _gallery is None:
+        raise HTTPException(status_code=503, detail="Gallery not initialized")
+    subjects = await _gallery.list_subjects()
+    return {"subjects": subjects, "total": len(subjects)}
+
+
+@app.delete(
+    "/gallery/subjects/{subject_id}",
+    tags=["Gallery"],
+    summary="Delete subject from gallery",
+    dependencies=[Depends(require_role("admin"))],
+)
+async def gallery_delete_subject(subject_id: str):
+    """Delete all gallery entries for a subject."""
+    if _gallery is None:
+        raise HTTPException(status_code=503, detail="Gallery not initialized")
+
+    deleted = await _gallery.delete_subject(subject_id)
+    if deleted == 0:
+        raise HTTPException(status_code=404, detail=f"Subject '{subject_id}' not found in gallery")
+
+    await _service.record_event(
+        event_type=EventType.CONSENT_UPDATE,
+        actor="gallery_delete",
+        payload={"action": "gallery_delete", "subject_id": subject_id, "entries_deleted": deleted},
+    )
+
+    return {"subject_id": subject_id, "entries_deleted": deleted}
+
+
+@app.get("/gallery/count", tags=["Gallery"], summary="Gallery entry count")
+async def gallery_count():
+    """Return total number of gallery entries."""
+    if _gallery is None:
+        raise HTTPException(status_code=503, detail="Gallery not initialized")
+    total = await _gallery.count()
+    return {"total": total}
 
 
 # ---------------------------------------------------------------------------
@@ -1359,6 +1719,19 @@ async def _run_fl_simulation(req: FLSimulateRequest) -> dict[str, Any]:
 
     sim_id = str(uuid4())
     _fl_simulations[sim_id] = result
+
+    # Persist FL simulation to DB (write-through)
+    from datetime import datetime, timezone as _tz
+
+    _sim_created = datetime.now(_tz.utc).isoformat()
+    await _persist_fl_simulation(
+        sim_id,
+        _sim_created,
+        {
+            "n_rounds": result.n_rounds,
+            "n_clients": getattr(result, "n_clients", None),
+        },
+    )
 
     # Record round events in the forensic chain
     recorded_event_ids: list[str] = []
@@ -1769,6 +2142,14 @@ async def generate_compliance_report():
 
     reporter = ComplianceReporter(_db, _service)
     _latest_compliance_report = await reporter.generate_report()
+
+    # Persist to DB (write-through)
+    from datetime import datetime, timezone as _tz2
+
+    _report_id = str(uuid4())
+    _report_ts = datetime.now(_tz2.utc).isoformat()
+    await _persist_compliance_report(_report_id, _report_ts, _latest_compliance_report)
+
     return _latest_compliance_report
 
 
@@ -2228,6 +2609,9 @@ async def trigger_lime_explanation(req: LimeExplainRequest):
         "timestamp": expl_event.timestamp.isoformat(),
     }
     _explanations[explanation_id] = record
+    await _persist_explanation(
+        explanation_id, str(expl_event.id), "lime", record["timestamp"], record
+    )
     return record
 
 
@@ -2264,6 +2648,9 @@ async def trigger_shap_explanation(req: ShapExplainRequest):
         "timestamp": expl_event.timestamp.isoformat(),
     }
     _explanations[explanation_id] = record
+    await _persist_explanation(
+        explanation_id, str(expl_event.id), "shap", record["timestamp"], record
+    )
     return record
 
 
@@ -2312,6 +2699,9 @@ async def trigger_sdd_explanation(req: SddExplainRequest):
         "timestamp": expl_event.timestamp.isoformat(),
     }
     _explanations[explanation_id] = record
+    await _persist_explanation(
+        explanation_id, str(expl_event.id), "sdd", record["timestamp"], record
+    )
     return record
 
 
@@ -2815,6 +3205,15 @@ v1_router.add_api_route("/recognition/predict", predict, methods=["POST"])
 v1_router.add_api_route("/recognize", recognize, methods=["POST"])
 v1_router.add_api_route("/recognition/models", list_models, methods=["GET"])
 v1_router.add_api_route("/recognition/models/{model_id}", get_model, methods=["GET"])
+
+# Gallery
+v1_router.add_api_route("/gallery/enroll", gallery_enroll, methods=["POST"], status_code=201)
+v1_router.add_api_route("/gallery/search", gallery_search, methods=["POST"])
+v1_router.add_api_route("/gallery/subjects", gallery_list_subjects, methods=["GET"])
+v1_router.add_api_route(
+    "/gallery/subjects/{subject_id}", gallery_delete_subject, methods=["DELETE"]
+)
+v1_router.add_api_route("/gallery/count", gallery_count, methods=["GET"])
 
 # Voice biometrics
 v1_router.add_api_route(

@@ -216,6 +216,47 @@ CREATE INDEX IF NOT EXISTS idx_face_gallery_subject
 
 CREATE INDEX IF NOT EXISTS idx_face_gallery_model
     ON face_gallery (model_version);
+
+CREATE TABLE IF NOT EXISTS explanation_records (
+    id TEXT PRIMARY KEY,
+    event_id TEXT NOT NULL,
+    method TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    data TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS idx_explanation_records_event
+    ON explanation_records (event_id);
+
+CREATE INDEX IF NOT EXISTS idx_explanation_records_method
+    ON explanation_records (method);
+
+CREATE TABLE IF NOT EXISTS model_registry (
+    id TEXT PRIMARY KEY,
+    created_at TEXT NOT NULL,
+    data TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS idx_model_registry_created
+    ON model_registry (created_at DESC);
+
+CREATE TABLE IF NOT EXISTS fl_simulations (
+    id TEXT PRIMARY KEY,
+    created_at TEXT NOT NULL,
+    data TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS idx_fl_simulations_created
+    ON fl_simulations (created_at DESC);
+
+CREATE TABLE IF NOT EXISTS compliance_reports (
+    id TEXT PRIMARY KEY,
+    created_at TEXT NOT NULL,
+    data TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX IF NOT EXISTS idx_compliance_reports_created
+    ON compliance_reports (created_at DESC);
 """
 
 
@@ -947,3 +988,126 @@ class Database:
         )
         rows = await cursor.fetchall()
         return [r[0] for r in rows]
+
+    # --- Explanation Records (US-088) ---
+
+    async def insert_explanation(
+        self, record_id: str, event_id: str, method: str, created_at: str, data: dict
+    ) -> None:
+        """Insert an explanation record."""
+        await self.db.execute(
+            "INSERT OR REPLACE INTO explanation_records (id, event_id, method, created_at, data) VALUES (?, ?, ?, ?, ?)",
+            (record_id, event_id, method, created_at, json.dumps(data)),
+        )
+        await self.db.commit()
+
+    async def get_explanation(self, record_id: str) -> dict[str, Any] | None:
+        """Get an explanation record by ID."""
+        cursor = await self.db.execute(
+            "SELECT * FROM explanation_records WHERE id = ?", (record_id,)
+        )
+        row = await cursor.fetchone()
+        if row is None:
+            return None
+        return {
+            "id": row[0],
+            "event_id": row[1],
+            "method": row[2],
+            "created_at": row[3],
+            "data": json.loads(row[4]),
+        }
+
+    async def list_explanations(self, limit: int = 100, offset: int = 0) -> tuple[list[dict], int]:
+        """List explanation records with pagination."""
+        count_cursor = await self.db.execute("SELECT COUNT(*) FROM explanation_records")
+        total = (await count_cursor.fetchone())[0]
+        cursor = await self.db.execute(
+            "SELECT * FROM explanation_records ORDER BY created_at DESC LIMIT ? OFFSET ?",
+            (limit, offset),
+        )
+        rows = await cursor.fetchall()
+        items = [
+            {
+                "id": r[0],
+                "event_id": r[1],
+                "method": r[2],
+                "created_at": r[3],
+                "data": json.loads(r[4]),
+            }
+            for r in rows
+        ]
+        return items, total
+
+    # --- Model Registry (US-089) ---
+
+    async def insert_model(self, model_id: str, created_at: str, data: dict) -> None:
+        """Insert a model registry entry."""
+        await self.db.execute(
+            "INSERT OR REPLACE INTO model_registry (id, created_at, data) VALUES (?, ?, ?)",
+            (model_id, created_at, json.dumps(data)),
+        )
+        await self.db.commit()
+
+    async def get_model(self, model_id: str) -> dict[str, Any] | None:
+        """Get a model registry entry by ID."""
+        cursor = await self.db.execute("SELECT * FROM model_registry WHERE id = ?", (model_id,))
+        row = await cursor.fetchone()
+        if row is None:
+            return None
+        return {"id": row[0], "created_at": row[1], **json.loads(row[2])}
+
+    async def list_models(self) -> list[dict[str, Any]]:
+        """List all model registry entries."""
+        cursor = await self.db.execute("SELECT * FROM model_registry ORDER BY created_at DESC")
+        rows = await cursor.fetchall()
+        return [{"id": r[0], "created_at": r[1], **json.loads(r[2])} for r in rows]
+
+    # --- FL Simulations (US-090) ---
+
+    async def insert_fl_simulation(self, sim_id: str, created_at: str, data: dict) -> None:
+        """Insert an FL simulation result."""
+        await self.db.execute(
+            "INSERT OR REPLACE INTO fl_simulations (id, created_at, data) VALUES (?, ?, ?)",
+            (sim_id, created_at, json.dumps(data)),
+        )
+        await self.db.commit()
+
+    async def get_fl_simulation(self, sim_id: str) -> dict[str, Any] | None:
+        """Get an FL simulation by ID."""
+        cursor = await self.db.execute("SELECT * FROM fl_simulations WHERE id = ?", (sim_id,))
+        row = await cursor.fetchone()
+        if row is None:
+            return None
+        return {"id": row[0], "created_at": row[1], **json.loads(row[2])}
+
+    async def list_fl_simulations(self) -> list[dict[str, Any]]:
+        """List all FL simulations."""
+        cursor = await self.db.execute("SELECT * FROM fl_simulations ORDER BY created_at DESC")
+        rows = await cursor.fetchall()
+        return [{"id": r[0], "created_at": r[1], **json.loads(r[2])} for r in rows]
+
+    # --- Compliance Reports (US-091) ---
+
+    async def insert_compliance_report(self, report_id: str, created_at: str, data: dict) -> None:
+        """Insert a compliance report."""
+        await self.db.execute(
+            "INSERT OR REPLACE INTO compliance_reports (id, created_at, data) VALUES (?, ?, ?)",
+            (report_id, created_at, json.dumps(data)),
+        )
+        await self.db.commit()
+
+    async def get_latest_compliance_report(self) -> dict[str, Any] | None:
+        """Get the most recent compliance report."""
+        cursor = await self.db.execute(
+            "SELECT * FROM compliance_reports ORDER BY created_at DESC LIMIT 1"
+        )
+        row = await cursor.fetchone()
+        if row is None:
+            return None
+        return {"id": row[0], "created_at": row[1], **json.loads(row[2])}
+
+    async def list_compliance_reports(self) -> list[dict[str, Any]]:
+        """List all compliance reports."""
+        cursor = await self.db.execute("SELECT * FROM compliance_reports ORDER BY created_at DESC")
+        rows = await cursor.fetchall()
+        return [{"id": r[0], "created_at": r[1], **json.loads(r[2])} for r in rows]

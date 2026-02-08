@@ -260,14 +260,14 @@ class TestRollback:
         try:
             await apply_migrations(db)
             versions_before = await get_applied_versions(db)
-            assert "007" in versions_before
+            assert "011" in versions_before
 
             result = await rollback_last(db)
-            assert result["rolled_back"] == "007"
+            assert result["rolled_back"] == "011"
 
-            # face_gallery should be gone
+            # compliance_reports should be gone
             cursor = await db.execute(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name='face_gallery'"
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='compliance_reports'"
             )
             assert await cursor.fetchone() is None
         finally:
