@@ -9,10 +9,27 @@ interface ForensicEvent {
   payload: Record<string, unknown>;
 }
 
+const EVENT_TYPE_COLORS: Record<string, string> = {
+  training_start: "bg-amethyst/10 text-amethyst border-amethyst/20",
+  training_complete: "bg-amethyst/10 text-amethyst border-amethyst/20",
+  model_registered: "bg-amethyst/10 text-amethyst border-amethyst/20",
+  inference_request: "bg-cyan/10 text-cyan border-cyan/20",
+  inference_result: "bg-cyan/10 text-cyan border-cyan/20",
+  explanation_generated: "bg-teal/10 text-teal border-teal/20",
+  bias_audit: "bg-gold/10 text-gold border-gold/20",
+  consent_recorded: "bg-teal/10 text-teal border-teal/20",
+  consent_update: "bg-teal/10 text-teal border-teal/20",
+  bundle_created: "bg-amethyst/10 text-amethyst border-amethyst/20",
+  fl_round: "bg-cyan/10 text-cyan border-cyan/20",
+  security_alert: "bg-rose-ember/10 text-rose-ember border-rose-ember/20",
+  compliance_report: "bg-gold/10 text-gold border-gold/20",
+};
+
 export default function EventsTable() {
   const [events, setEvents] = useState<ForensicEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
+  const [activeType, setActiveType] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -25,12 +42,22 @@ export default function EventsTable() {
       .catch(() => setLoading(false));
   }, []);
 
-  const filtered = events.filter(
-    (e) =>
+  // Count events by type
+  const typeCounts: Record<string, number> = {};
+  for (const e of events) {
+    typeCounts[e.event_type] = (typeCounts[e.event_type] || 0) + 1;
+  }
+  const sortedTypes = Object.entries(typeCounts).sort((a, b) => b[1] - a[1]);
+
+  const filtered = events.filter((e) => {
+    const matchesType = !activeType || e.event_type === activeType;
+    const matchesSearch =
+      !search ||
       e.event_type.includes(search) ||
       e.actor.includes(search) ||
-      e.id.includes(search),
-  );
+      e.id.includes(search);
+    return matchesType && matchesSearch;
+  });
 
   if (loading)
     return <div className="h-48 bg-surface rounded-lg animate-pulse" />;
@@ -46,6 +73,35 @@ export default function EventsTable() {
           onChange={(e) => setSearch(e.target.value)}
           className="ff-input w-64"
         />
+      </div>
+
+      {/* Type filter chips */}
+      <div className="flex flex-wrap gap-2">
+        <button
+          onClick={() => setActiveType(null)}
+          className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+            activeType === null
+              ? "bg-cyan/10 text-cyan border-cyan/30"
+              : "bg-surface text-fg-muted border-border-theme hover:border-fg-faint/30"
+          }`}
+        >
+          All ({events.length})
+        </button>
+        {sortedTypes.map(([type, count]) => {
+          const colors = EVENT_TYPE_COLORS[type] || "bg-fg/5 text-fg-secondary border-fg-faint/20";
+          const isActive = activeType === type;
+          return (
+            <button
+              key={type}
+              onClick={() => setActiveType(isActive ? null : type)}
+              className={`px-3 py-1.5 rounded-lg text-xs font-medium border transition-all ${
+                isActive ? colors : "bg-surface text-fg-muted border-border-theme hover:border-fg-faint/30"
+              }`}
+            >
+              {type.replace(/_/g, " ")} ({count})
+            </button>
+          );
+        })}
       </div>
 
       <div className="glass-card overflow-hidden">
@@ -103,7 +159,7 @@ export default function EventsTable() {
           </tbody>
         </table>
         {filtered.length === 0 && (
-          <p className="text-center py-8 text-fg-faint">No events match your search</p>
+          <p className="text-center py-8 text-fg-faint">No events match your filters</p>
         )}
       </div>
     </div>
@@ -111,13 +167,6 @@ export default function EventsTable() {
 }
 
 function EventBadge({ type }: { type: string }) {
-  const colors: Record<string, string> = {
-    inference_result: "bg-cyan/10 text-cyan",
-    training_complete: "bg-amethyst/10 text-amethyst",
-    security_alert: "bg-rose-ember/10 text-rose-ember",
-    bias_audit_complete: "bg-gold/10 text-gold",
-    explanation_generated: "bg-teal/10 text-teal",
-  };
-  const cls = colors[type] || "bg-fg/5 text-fg-secondary";
-  return <span className={`px-2 py-0.5 rounded text-xs font-medium ${cls}`}>{type}</span>;
+  const colors = EVENT_TYPE_COLORS[type] || "bg-fg/5 text-fg-secondary border-transparent";
+  return <span className={`px-2 py-0.5 rounded text-xs font-medium ${colors.split(" ").slice(0, 2).join(" ")}`}>{type}</span>;
 }

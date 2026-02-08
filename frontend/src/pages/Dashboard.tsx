@@ -22,8 +22,27 @@ interface DashboardData {
   };
 }
 
+interface FLRound {
+  simulation_id: string;
+  round_number: number;
+  global_accuracy: number;
+  num_clients: number;
+  dp_enabled: boolean;
+  timestamp: string;
+}
+
+interface RecognitionModel {
+  model_id: string;
+  model_type: string;
+  accuracy: number;
+  trained_at: string;
+  num_classes: number;
+}
+
 export default function Dashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
+  const [flRounds, setFlRounds] = useState<FLRound[]>([]);
+  const [models, setModels] = useState<RecognitionModel[]>([]);
   const [error, setError] = useState("");
 
   const fetchData = () => {
@@ -39,6 +58,17 @@ export default function Dashboard() {
   useEffect(() => {
     fetchData();
     const id = setInterval(fetchData, 10_000);
+
+    fetch("/api/v1/fl/rounds")
+      .then((r) => r.json())
+      .then((data) => setFlRounds(Array.isArray(data) ? data : []))
+      .catch(() => {});
+
+    fetch("/api/v1/recognition/models")
+      .then((r) => r.json())
+      .then((data) => setModels(Array.isArray(data) ? data : []))
+      .catch(() => {});
+
     return () => clearInterval(id);
   }, []);
 
@@ -113,6 +143,70 @@ export default function Dashboard() {
         )}
       </div>
 
+      {/* FL Simulation History + Model Registry row */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        {/* FL Simulation History */}
+        <div className="glass-card p-4">
+          <h3 className="font-semibold text-fg-secondary mb-3">FL Simulation History</h3>
+          {flRounds.length === 0 ? (
+            <p className="text-fg-faint text-sm">No FL rounds completed yet</p>
+          ) : (
+            <div className="space-y-2">
+              {flRounds.slice(0, 5).map((r, i) => (
+                <div key={i} className="flex items-center justify-between bg-surface rounded-lg px-3 py-2">
+                  <div>
+                    <p className="text-sm text-fg-secondary">
+                      {r.simulation_id.slice(0, 8)} — Round {r.round_number}
+                    </p>
+                    <p className="text-xs text-fg-faint">
+                      {r.num_clients} client{r.num_clients !== 1 ? "s" : ""}{r.dp_enabled ? " + DP" : ""}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className={`text-sm font-semibold ${r.global_accuracy >= 0.8 ? "text-teal" : r.global_accuracy >= 0.5 ? "text-gold" : "text-rose-ember"}`}>
+                      {(r.global_accuracy * 100).toFixed(1)}%
+                    </p>
+                    <p className="text-xs text-fg-faint">accuracy</p>
+                  </div>
+                </div>
+              ))}
+              {flRounds.length > 5 && (
+                <p className="text-xs text-fg-faint text-center">+{flRounds.length - 5} more rounds</p>
+              )}
+            </div>
+          )}
+        </div>
+
+        {/* Model Registry */}
+        <div className="glass-card p-4">
+          <h3 className="font-semibold text-fg-secondary mb-3">Recognition Models</h3>
+          {models.length === 0 ? (
+            <p className="text-fg-faint text-sm">No models trained yet</p>
+          ) : (
+            <div className="space-y-2">
+              {models.slice(0, 5).map((m) => (
+                <div key={m.model_id} className="flex items-center justify-between bg-surface rounded-lg px-3 py-2">
+                  <div>
+                    <p className="text-sm text-fg-secondary font-mono">{m.model_id.slice(0, 12)}</p>
+                    <p className="text-xs text-fg-faint">
+                      {m.model_type} — {m.num_classes} classes
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className={`text-sm font-semibold ${m.accuracy >= 0.9 ? "text-teal" : m.accuracy >= 0.7 ? "text-gold" : "text-rose-ember"}`}>
+                      {(m.accuracy * 100).toFixed(1)}%
+                    </p>
+                    <p className="text-xs text-fg-faint">
+                      {new Date(m.trained_at).toLocaleDateString()}
+                    </p>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
       {/* Recent events */}
       <div className="glass-card p-4">
         <h3 className="font-semibold text-fg-secondary mb-3">Recent Events</h3>
@@ -163,13 +257,19 @@ function StatCard({ label, value, color = "cyan" }: { label: string; value: stri
 
 function EventBadge({ type }: { type: string }) {
   const colors: Record<string, string> = {
-    inference_result: "bg-cyan/10 text-cyan",
+    training_start: "bg-amethyst/10 text-amethyst",
     training_complete: "bg-amethyst/10 text-amethyst",
-    security_alert: "bg-rose-ember/10 text-rose-ember",
-    bias_audit_complete: "bg-gold/10 text-gold",
+    model_registered: "bg-amethyst/10 text-amethyst",
+    inference_request: "bg-cyan/10 text-cyan",
+    inference_result: "bg-cyan/10 text-cyan",
     explanation_generated: "bg-teal/10 text-teal",
-    consent_granted: "bg-teal/10 text-teal",
-    consent_revoked: "bg-rose-ember/10 text-rose-ember",
+    bias_audit: "bg-gold/10 text-gold",
+    consent_recorded: "bg-teal/10 text-teal",
+    consent_update: "bg-teal/10 text-teal",
+    bundle_created: "bg-amethyst/10 text-amethyst",
+    fl_round: "bg-cyan/10 text-cyan",
+    security_alert: "bg-rose-ember/10 text-rose-ember",
+    compliance_report: "bg-gold/10 text-gold",
   };
   const cls = colors[type] || "bg-fg/5 text-fg-secondary";
   return <span className={`px-2 py-0.5 rounded text-xs font-medium ${cls}`}>{type}</span>;

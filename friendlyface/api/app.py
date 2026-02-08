@@ -91,6 +91,27 @@ from friendlyface.storage.database import Database  # noqa: E402
 logger = logging.getLogger("friendlyface")
 _audit_logger = logging.getLogger("friendlyface.audit")
 
+
+def _sanitize_numpy(obj: Any) -> Any:
+    """Recursively convert numpy types to Python natives for JSON serialization."""
+    if isinstance(obj, dict):
+        return {k: _sanitize_numpy(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_sanitize_numpy(v) for v in obj]
+    try:
+        import numpy as np
+
+        if isinstance(obj, (np.integer,)):
+            return int(obj)
+        if isinstance(obj, (np.floating,)):
+            return float(obj)
+        if isinstance(obj, np.ndarray):
+            return obj.tolist()
+    except ImportError:
+        pass
+    return obj
+
+
 # ---------------------------------------------------------------------------
 # Rate limiter
 # ---------------------------------------------------------------------------
@@ -945,6 +966,14 @@ async def export_bundle(bundle_id: UUID):
 # ---------------------------------------------------------------------------
 
 
+@app.get("/bundles", tags=["Bundles"], summary="List all bundles")
+async def list_bundles(limit: int = 50, offset: int = 0):
+    """List forensic bundles with summary info and pagination."""
+    items = await _db.list_bundles(limit=limit, offset=offset)
+    total = await _db.get_bundle_count()
+    return {"items": items, "total": total, "limit": limit, "offset": offset}
+
+
 @app.post("/bundles", status_code=201, tags=["Bundles"], summary="Create forensic bundle")
 async def create_bundle(req: CreateBundleRequest):
     bundle = await _service.create_bundle(
@@ -1324,6 +1353,18 @@ async def _do_predict_fallback(image_bytes: bytes, top_k: int = 5) -> dict[str, 
         actor=result.inference_event.actor,
         payload=result.inference_event.payload,
     )
+
+    # Store inference artifact for later explainability (US-092–094)
+    if settings.store_inference_artifacts:
+        try:
+            await _db.save_inference_artifact(
+                event_id=str(event.id),
+                image_bytes=image_bytes,
+                pca_model_path=_pca_model_path,
+                svm_model_path=_svm_model_path,
+            )
+        except Exception:
+            logger.warning("Failed to save inference artifact for %s", event.id, exc_info=True)
 
     # Check if auto-audit should trigger
     await _maybe_auto_audit()
@@ -2575,9 +2616,8 @@ class ShapExplainRequest(BaseModel):
 async def trigger_lime_explanation(req: LimeExplainRequest):
     """Trigger a LIME explanation for a given inference event.
 
-    Since LIME requires the original image and model, this endpoint
-    creates a stub explanation record when the full pipeline is not
-    available, or a real one when it is.
+    If the inference artifact (image + model paths) is available,
+    computes a real LIME explanation. Otherwise returns a stub record.
     """
     from uuid import uuid4
 
@@ -2586,6 +2626,16 @@ async def trigger_lime_explanation(req: LimeExplainRequest):
         raise HTTPException(status_code=404, detail="Inference event not found")
 
     explanation_id = str(uuid4())
+
+    # Attempt real LIME computation
+    artifact = await _db.get_inference_artifact(str(req.event_id))
+    real_data: dict[str, Any] | None = None
+    if artifact is not None and artifact.get("pca_model_path") and artifact.get("svm_model_path"):
+        try:
+            real_data = await _compute_lime(artifact, req, explanation_id)
+        except Exception:
+            logger.warning("Real LIME computation failed, falling back to stub", exc_info=True)
+
     expl_event = await _service.record_event(
         event_type=EventType.EXPLANATION_GENERATED,
         actor="lime_explainer",
@@ -2595,10 +2645,11 @@ async def trigger_lime_explanation(req: LimeExplainRequest):
             "num_superpixels": req.num_superpixels,
             "num_samples": req.num_samples,
             "top_k": req.top_k,
+            "computed": real_data is not None,
         },
     )
 
-    record = {
+    record: dict[str, Any] = {
         "explanation_id": explanation_id,
         "method": "lime",
         "event_id": str(expl_event.id),
@@ -2607,7 +2658,12 @@ async def trigger_lime_explanation(req: LimeExplainRequest):
         "num_samples": req.num_samples,
         "top_k": req.top_k,
         "timestamp": expl_event.timestamp.isoformat(),
+        "computed": real_data is not None,
     }
+    if real_data is not None:
+        record.update(real_data)
+
+    record = _sanitize_numpy(record)
     _explanations[explanation_id] = record
     await _persist_explanation(
         explanation_id, str(expl_event.id), "lime", record["timestamp"], record
@@ -2615,11 +2671,104 @@ async def trigger_lime_explanation(req: LimeExplainRequest):
     return record
 
 
+async def _compute_lime(
+    artifact: dict[str, Any], req: LimeExplainRequest, explanation_id: str
+) -> dict[str, Any]:
+    """Run real LIME computation using stored artifact."""
+    import pickle
+    from pathlib import Path
+
+    import numpy as np
+
+    from friendlyface.explainability.lime_explain import generate_lime_explanation
+    from friendlyface.recognition.inference import _preprocess_image
+
+    image_bytes: bytes = artifact["image_bytes"]
+    pca_path = Path(artifact["pca_model_path"])
+    svm_path = Path(artifact["svm_model_path"])
+
+    with open(pca_path, "rb") as f:
+        pca_blob = pickle.load(f)  # noqa: S301
+    with open(svm_path, "rb") as f:
+        svm_blob = pickle.load(f)  # noqa: S301
+
+    pca = pca_blob["pca"]
+    svm = svm_blob["svm"]
+
+    # Build predict_fn for LIME (image batch → probabilities)
+    def predict_fn(images: np.ndarray) -> np.ndarray:
+        n = images.shape[0]
+        probs_list = []
+        for i in range(n):
+            img = images[i]
+            if img.ndim == 3:
+                img = img[:, :, 0]  # grayscale channel
+            flat = img.astype(np.float64).ravel().reshape(1, -1)
+            reduced = pca.transform(flat)
+            classes = svm.classes_
+            if len(classes) == 2:
+                raw = svm.decision_function(reduced).ravel()
+                p = 1.0 / (1.0 + np.exp(-raw))
+                row = np.array([1.0 - p[0], p[0]])
+            else:
+                raw = svm.decision_function(reduced).ravel()
+                exp_s = np.exp(raw - np.max(raw))
+                row = exp_s / exp_s.sum()
+            probs_list.append(row)
+        return np.array(probs_list)
+
+    # Get the predicted label and confidence from original inference
+    features = _preprocess_image(image_bytes)
+    reduced = pca.transform(features)
+    predicted_label = int(svm.predict(reduced)[0])
+    classes = svm.classes_
+    if len(classes) == 2:
+        raw_scores = svm.decision_function(reduced).ravel()
+        p = 1.0 / (1.0 + np.exp(-raw_scores))
+        original_confidence = float(p[0]) if predicted_label == classes[1] else float(1.0 - p[0])
+    else:
+        raw_scores = svm.decision_function(reduced).ravel()
+        exp_s = np.exp(raw_scores - np.max(raw_scores))
+        probs = exp_s / exp_s.sum()
+        label_idx = list(classes).index(predicted_label)
+        original_confidence = float(probs[label_idx])
+
+    lime_result = generate_lime_explanation(
+        image_bytes=image_bytes,
+        predict_fn=predict_fn,
+        inference_event_id=req.event_id,
+        predicted_label=predicted_label,
+        original_confidence=original_confidence,
+        num_superpixels=req.num_superpixels,
+        num_samples=req.num_samples,
+        top_k=req.top_k,
+    )
+
+    return {
+        "predicted_label": lime_result.predicted_label,
+        "original_confidence": lime_result.original_confidence,
+        "artifact_hash": lime_result.artifact_hash,
+        "top_regions": [
+            {
+                "superpixel_id": r.superpixel_id,
+                "importance": r.importance,
+                "bbox": list(r.bbox),
+            }
+            for r in lime_result.top_regions
+        ],
+        "confidence_decomposition": lime_result.confidence_decomposition,
+    }
+
+
 @app.post(
     "/explainability/shap", status_code=201, tags=["Explainability"], summary="SHAP explanation"
 )
 async def trigger_shap_explanation(req: ShapExplainRequest):
-    """Trigger a SHAP explanation for a given inference event."""
+    """Trigger a SHAP explanation for a given inference event.
+
+    If the inference artifact is available, computes real SHAP values.
+    Otherwise returns a stub record.
+    """
     from uuid import uuid4
 
     event = await _db.get_event(req.event_id)
@@ -2627,6 +2776,16 @@ async def trigger_shap_explanation(req: ShapExplainRequest):
         raise HTTPException(status_code=404, detail="Inference event not found")
 
     explanation_id = str(uuid4())
+
+    # Attempt real SHAP computation
+    artifact = await _db.get_inference_artifact(str(req.event_id))
+    real_data: dict[str, Any] | None = None
+    if artifact is not None and artifact.get("pca_model_path") and artifact.get("svm_model_path"):
+        try:
+            real_data = await _compute_shap(artifact, req, explanation_id)
+        except Exception:
+            logger.warning("Real SHAP computation failed, falling back to stub", exc_info=True)
+
     expl_event = await _service.record_event(
         event_type=EventType.EXPLANATION_GENERATED,
         actor="shap_explainer",
@@ -2635,10 +2794,11 @@ async def trigger_shap_explanation(req: ShapExplainRequest):
             "inference_event_id": str(req.event_id),
             "num_samples": req.num_samples,
             "random_state": req.random_state,
+            "computed": real_data is not None,
         },
     )
 
-    record = {
+    record: dict[str, Any] = {
         "explanation_id": explanation_id,
         "method": "shap",
         "event_id": str(expl_event.id),
@@ -2646,12 +2806,110 @@ async def trigger_shap_explanation(req: ShapExplainRequest):
         "num_samples": req.num_samples,
         "random_state": req.random_state,
         "timestamp": expl_event.timestamp.isoformat(),
+        "computed": real_data is not None,
     }
+    if real_data is not None:
+        record.update(real_data)
+
+    record = _sanitize_numpy(record)
     _explanations[explanation_id] = record
     await _persist_explanation(
         explanation_id, str(expl_event.id), "shap", record["timestamp"], record
     )
     return record
+
+
+async def _compute_shap(
+    artifact: dict[str, Any], req: ShapExplainRequest, explanation_id: str
+) -> dict[str, Any]:
+    """Run real SHAP computation using stored artifact."""
+    import pickle
+    from pathlib import Path
+
+    import numpy as np
+
+    from friendlyface.explainability.shap_explain import generate_shap_explanation
+    from friendlyface.recognition.inference import _preprocess_image
+
+    image_bytes: bytes = artifact["image_bytes"]
+    pca_path = Path(artifact["pca_model_path"])
+    svm_path = Path(artifact["svm_model_path"])
+
+    with open(pca_path, "rb") as f:
+        pca_blob = pickle.load(f)  # noqa: S301
+    with open(svm_path, "rb") as f:
+        svm_blob = pickle.load(f)  # noqa: S301
+
+    pca = pca_blob["pca"]
+    svm = svm_blob["svm"]
+
+    # Project image into PCA space
+    features = _preprocess_image(image_bytes)
+    reduced = pca.transform(features).ravel()
+
+    predicted_label = int(svm.predict(reduced.reshape(1, -1))[0])
+    classes = svm.classes_
+
+    if len(classes) == 2:
+        raw_scores = svm.decision_function(reduced.reshape(1, -1)).ravel()
+        p = 1.0 / (1.0 + np.exp(-raw_scores))
+        original_confidence = float(p[0]) if predicted_label == classes[1] else float(1.0 - p[0])
+    else:
+        raw_scores = svm.decision_function(reduced.reshape(1, -1)).ravel()
+        exp_s = np.exp(raw_scores - np.max(raw_scores))
+        probs = exp_s / exp_s.sum()
+        label_idx = list(classes).index(predicted_label)
+        original_confidence = float(probs[label_idx])
+
+    # Build predict_fn for SHAP (feature batch → scores for predicted class)
+    def predict_fn(X: np.ndarray) -> np.ndarray:
+        if X.ndim == 1:
+            X = X.reshape(1, -1)
+        classes_ = svm.classes_
+        if len(classes_) == 2:
+            raw = svm.decision_function(X).ravel()
+            p = 1.0 / (1.0 + np.exp(-raw))
+            label_idx_ = 0 if predicted_label == classes_[0] else 1
+            return np.where(label_idx_ == 1, p, 1.0 - p)
+        else:
+            raw = svm.decision_function(X)
+            exp_s = np.exp(raw - np.max(raw, axis=1, keepdims=True))
+            probs_ = exp_s / exp_s.sum(axis=1, keepdims=True)
+            label_idx_ = list(classes_).index(predicted_label)
+            return probs_[:, label_idx_]
+
+    # Background: generate small random set in PCA space
+    rng = np.random.default_rng(req.random_state)
+    background = rng.standard_normal((min(10, req.num_samples), reduced.shape[0])) * 0.1 + reduced
+
+    shap_result = generate_shap_explanation(
+        feature_vector=reduced,
+        predict_fn=predict_fn,
+        background=background,
+        inference_event_id=req.event_id,
+        predicted_label=predicted_label,
+        original_confidence=original_confidence,
+        num_samples=req.num_samples,
+        random_state=req.random_state,
+    )
+
+    top_k = min(10, len(shap_result.feature_importance_ranking))
+    return {
+        "predicted_label": shap_result.predicted_label,
+        "original_confidence": shap_result.original_confidence,
+        "artifact_hash": shap_result.artifact_hash,
+        "base_value": shap_result.base_value,
+        "top_features": [
+            {
+                "feature_index": int(shap_result.feature_importance_ranking[i]),
+                "shap_value": float(
+                    shap_result.shap_values[shap_result.feature_importance_ranking[i]]
+                ),
+            }
+            for i in range(top_k)
+        ],
+        "num_features": len(shap_result.shap_values),
+    }
 
 
 class SddExplainRequest(BaseModel):
@@ -2669,8 +2927,8 @@ class SddExplainRequest(BaseModel):
 async def trigger_sdd_explanation(req: SddExplainRequest):
     """Trigger an SDD saliency explanation for a given inference event.
 
-    Creates a stub explanation record (the full pixel-level saliency
-    requires the original image and model to be available).
+    If the inference artifact is available, computes real SDD saliency.
+    Otherwise returns a stub record.
     """
     from uuid import uuid4
 
@@ -2679,6 +2937,16 @@ async def trigger_sdd_explanation(req: SddExplainRequest):
         raise HTTPException(status_code=404, detail="Inference event not found")
 
     explanation_id = str(uuid4())
+
+    # Attempt real SDD computation
+    artifact = await _db.get_inference_artifact(str(req.event_id))
+    real_data: dict[str, Any] | None = None
+    if artifact is not None and artifact.get("pca_model_path") and artifact.get("svm_model_path"):
+        try:
+            real_data = await _compute_sdd(artifact, req, explanation_id)
+        except Exception:
+            logger.warning("Real SDD computation failed, falling back to stub", exc_info=True)
+
     expl_event = await _service.record_event(
         event_type=EventType.EXPLANATION_GENERATED,
         actor="sdd_explainer",
@@ -2687,22 +2955,97 @@ async def trigger_sdd_explanation(req: SddExplainRequest):
             "inference_event_id": str(req.event_id),
             "num_regions": 7,
             "explanation_type": "SDD",
+            "computed": real_data is not None,
         },
     )
 
-    record = {
+    record: dict[str, Any] = {
         "explanation_id": explanation_id,
         "method": "sdd",
         "event_id": str(expl_event.id),
         "inference_event_id": str(req.event_id),
         "num_regions": 7,
         "timestamp": expl_event.timestamp.isoformat(),
+        "computed": real_data is not None,
     }
+    if real_data is not None:
+        record.update(real_data)
+
+    record = _sanitize_numpy(record)
     _explanations[explanation_id] = record
     await _persist_explanation(
         explanation_id, str(expl_event.id), "sdd", record["timestamp"], record
     )
     return record
+
+
+async def _compute_sdd(
+    artifact: dict[str, Any], req: SddExplainRequest, explanation_id: str
+) -> dict[str, Any]:
+    """Run real SDD saliency computation using stored artifact."""
+    import pickle
+    from pathlib import Path
+
+    import numpy as np
+
+    from friendlyface.explainability.sdd_explain import generate_sdd_explanation
+    from friendlyface.recognition.inference import _preprocess_image
+
+    image_bytes: bytes = artifact["image_bytes"]
+    pca_path = Path(artifact["pca_model_path"])
+    svm_path = Path(artifact["svm_model_path"])
+
+    with open(pca_path, "rb") as f:
+        pca_blob = pickle.load(f)  # noqa: S301
+    with open(svm_path, "rb") as f:
+        svm_blob = pickle.load(f)  # noqa: S301
+
+    pca = pca_blob["pca"]
+    svm = svm_blob["svm"]
+
+    # Get PCA-reduced feature vector
+    features = _preprocess_image(image_bytes)
+    reduced = pca.transform(features).ravel()
+
+    # Build predict_fn for SDD (flat pixel vector → (label, confidence))
+    def predict_fn(flat_image: np.ndarray) -> tuple[str, float]:
+        flat = flat_image.astype(np.float64).ravel().reshape(1, -1)
+        red = pca.transform(flat)
+        pred = int(svm.predict(red)[0])
+        classes = svm.classes_
+        if len(classes) == 2:
+            raw = svm.decision_function(red).ravel()
+            p = 1.0 / (1.0 + np.exp(-raw))
+            conf = float(p[0]) if pred == classes[1] else float(1.0 - p[0])
+        else:
+            raw = svm.decision_function(red).ravel()
+            exp_s = np.exp(raw - np.max(raw))
+            probs = exp_s / exp_s.sum()
+            conf = float(probs[list(classes).index(pred)])
+        return str(pred), conf
+
+    sdd_result = generate_sdd_explanation(
+        image_bytes=image_bytes,
+        predict_fn=predict_fn,
+        features=reduced,
+        inference_event_id=str(req.event_id),
+    )
+
+    return {
+        "predicted_label": sdd_result.predicted_label,
+        "original_confidence": sdd_result.original_confidence,
+        "artifact_hash": sdd_result.artifact_hash,
+        "dominant_region": sdd_result.dominant_region,
+        "regions": [
+            {
+                "name": r.name,
+                "importance": r.importance,
+                "bbox": list(r.bbox),
+                "pixel_count": r.pixel_count,
+            }
+            for r in sdd_result.regions
+        ],
+    }
 
 
 @app.get(
@@ -3188,6 +3531,7 @@ v1_router.add_api_route("/merkle/proof/{event_id}", get_merkle_proof, methods=["
 # Bundles
 v1_router.add_api_route("/bundles/import", import_bundle, methods=["POST"], status_code=201)
 v1_router.add_api_route("/bundles/{bundle_id}/export", export_bundle, methods=["GET"])
+v1_router.add_api_route("/bundles", list_bundles, methods=["GET"])
 v1_router.add_api_route("/bundles", create_bundle, methods=["POST"], status_code=201)
 v1_router.add_api_route("/bundles/{bundle_id}", get_bundle, methods=["GET"])
 
