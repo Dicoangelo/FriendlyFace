@@ -3,7 +3,7 @@
 [![CI](https://github.com/Dicoangelo/FriendlyFace/actions/workflows/ci.yml/badge.svg)](https://github.com/Dicoangelo/FriendlyFace/actions/workflows/ci.yml)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-1372%20passing-brightgreen.svg)](#testing)
+[![Tests](https://img.shields.io/badge/tests-1375%20passing-brightgreen.svg)](#testing)
 [![Coverage](https://img.shields.io/badge/coverage-93%25-brightgreen.svg)](#testing)
 [![Live Demo](https://img.shields.io/badge/demo-friendlyface.fly.dev-blue.svg)](https://friendlyface.fly.dev)
 
@@ -249,7 +249,7 @@ When `FF_API_KEYS` is unset, auth is disabled (dev mode).
 ## Testing
 
 ```bash
-# Full test suite (1372 tests, 93% coverage)
+# Full test suite (1375 tests, 93% coverage)
 pytest tests/ -v
 
 # Specific layer

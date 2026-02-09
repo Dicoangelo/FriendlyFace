@@ -11,7 +11,7 @@ FriendlyFace is a forensic-friendly AI facial recognition platform implementing 
 source .venv/bin/activate
 python3 -m friendlyface
 
-# Tests (1372 passing, 93% coverage)
+# Tests (1375 passing, 93% coverage)
 pytest tests/ -v
 pytest tests/test_e2e_pipeline.py -v  # Full pipeline test
 pytest --cov=friendlyface tests/      # With coverage (>= 80%)
@@ -108,7 +108,7 @@ friendlyface/
 
 ## Test Structure
 
-40+ test files, 1372 tests (93% coverage). Key test files:
+40+ test files, 1375 tests (93% coverage). Key test files:
 - `test_e2e_pipeline.py` — Full forensic lifecycle
 - `test_auth.py` — API key auth middleware (16 tests)
 - `test_auth_providers.py` — Provider plugins: ApiKey, Supabase JWT, OIDC JWKS (34 tests)
