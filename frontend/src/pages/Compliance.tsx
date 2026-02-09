@@ -23,6 +23,7 @@ export default function Compliance() {
   const { data: report, error: fetchError, retry } = useFetch<ComplianceReport>("/api/v1/governance/compliance");
   const [error, setError] = useState("");
   const [generating, setGenerating] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   const generateReport = () => {
     setError("");
@@ -39,6 +40,30 @@ export default function Compliance() {
       .catch((e) => {
         setError(`Generate error: ${e.message}`);
         setGenerating(false);
+      });
+  };
+
+  const exportOSCAL = () => {
+    setExporting(true);
+    setError("");
+    fetch("/api/v1/governance/compliance/export")
+      .then((r) => {
+        if (!r.ok) throw new Error(`${r.status}`);
+        return r.json();
+      })
+      .then((data) => {
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement("a");
+        a.href = url;
+        a.download = "friendlyface-oscal-export.json";
+        a.click();
+        URL.revokeObjectURL(url);
+        setExporting(false);
+      })
+      .catch((e) => {
+        setError(`Export error: ${e.message}`);
+        setExporting(false);
       });
   };
 
@@ -79,13 +104,22 @@ export default function Compliance() {
               Overall score: {report.overall_score != null && isFinite(report.overall_score) ? `${(report.overall_score * 100).toFixed(1)}%` : "N/A"}
             </p>
           </div>
-          <button
-            onClick={generateReport}
-            disabled={generating}
-            className="btn-primary"
-          >
-            {generating ? "Generating..." : "Regenerate"}
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={generateReport}
+              disabled={generating}
+              className="btn-primary"
+            >
+              {generating ? "Generating..." : "Regenerate"}
+            </button>
+            <button
+              onClick={exportOSCAL}
+              disabled={exporting}
+              className="btn-ghost text-sm"
+            >
+              {exporting ? "Exporting..." : "Export OSCAL"}
+            </button>
+          </div>
         </div>
       </div>
 
