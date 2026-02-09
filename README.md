@@ -5,7 +5,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 [![Tests](https://img.shields.io/badge/tests-1375%20passing-brightgreen.svg)](#testing)
 [![Coverage](https://img.shields.io/badge/coverage-93%25-brightgreen.svg)](#testing)
-[![Live Demo](https://img.shields.io/badge/demo-friendlyface.fly.dev-blue.svg)](https://friendlyface.fly.dev)
+[![Live Demo](https://img.shields.io/badge/demo-friendlyface.metaventionsai.com-blue.svg)](https://friendlyface.metaventionsai.com)
 
 **Forensic-Friendly AI Facial Recognition Platform** implementing Safiia Mohammed's ICDF2C 2024 forensic-friendly schema with 2025-2026 SOTA components.
 
