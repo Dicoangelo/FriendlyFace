@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import EmptyState from "../components/EmptyState";
+import { eventBadgeColor, eventBorderColor } from "../constants/eventColors";
 
 interface SSEEvent {
   id: string;
@@ -8,37 +10,7 @@ interface SSEEvent {
   payload: Record<string, unknown>;
 }
 
-const EVENT_BADGE_COLORS: Record<string, string> = {
-  training_start: "bg-amethyst/10 text-amethyst",
-  training_complete: "bg-amethyst/10 text-amethyst",
-  model_registered: "bg-amethyst/10 text-amethyst",
-  inference_request: "bg-cyan/10 text-cyan",
-  inference_result: "bg-cyan/10 text-cyan",
-  explanation_generated: "bg-teal/10 text-teal",
-  bias_audit: "bg-gold/10 text-gold",
-  consent_recorded: "bg-teal/10 text-teal",
-  consent_update: "bg-teal/10 text-teal",
-  bundle_created: "bg-amethyst/10 text-amethyst",
-  fl_round: "bg-cyan/10 text-cyan",
-  security_alert: "bg-rose-ember/10 text-rose-ember",
-  compliance_report: "bg-gold/10 text-gold",
-};
-
-const EVENT_BORDER_COLORS: Record<string, string> = {
-  training_start: "border-amethyst/30",
-  training_complete: "border-amethyst/30",
-  model_registered: "border-amethyst/30",
-  inference_request: "border-cyan/30",
-  inference_result: "border-cyan/30",
-  explanation_generated: "border-teal/30",
-  bias_audit: "border-gold/30",
-  consent_recorded: "border-teal/30",
-  consent_update: "border-teal/30",
-  bundle_created: "border-amethyst/30",
-  fl_round: "border-cyan/30",
-  security_alert: "border-rose-ember/30",
-  compliance_report: "border-gold/30",
-};
+// Color constants imported from shared eventColors
 
 export default function EventStream() {
   const [events, setEvents] = useState<SSEEvent[]>([]);
@@ -96,7 +68,7 @@ export default function EventStream() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-3">
-          <h2 className="text-xl font-bold text-fg">Live Event Stream</h2>
+          {/* Page title shown in header bar */}
           <span className={`px-2 py-1 rounded-lg text-xs font-medium ${statusColors[status]}`}>
             {status}
           </span>
@@ -144,15 +116,18 @@ export default function EventStream() {
       </div>
 
       {events.length === 0 ? (
-        <div className="glass-card p-12 text-center">
-          <p className="text-fg-faint text-lg mb-1">Waiting for events...</p>
-          <p className="text-fg-faint text-sm">Events will appear here in real-time as they are recorded via the API.</p>
+        <div className="glass-card">
+          <EmptyState
+            title="Waiting for events..."
+            subtitle="Events will appear here in real-time as they are recorded via the API"
+            icon={<div className="w-3 h-3 rounded-full bg-teal animate-pulse" />}
+          />
         </div>
       ) : (
         <div className="space-y-2">
           {events.map((evt, i) => {
-            const badgeCls = EVENT_BADGE_COLORS[evt.event_type] || "bg-fg/5 text-fg-secondary";
-            const borderCls = EVENT_BORDER_COLORS[evt.event_type] || "border-fg-faint/30";
+            const badgeCls = eventBadgeColor(evt.event_type);
+            const borderCls = eventBorderColor(evt.event_type);
             return (
               <div
                 key={`${evt.id}-${i}`}

@@ -13,6 +13,9 @@ import ConsentManagement from "./pages/ConsentManagement";
 import Explainability from "./pages/Explainability";
 import Recognition from "./pages/Recognition";
 import Compliance from "./pages/Compliance";
+import DataErasure from "./pages/DataErasure";
+import RetentionPolicies from "./pages/RetentionPolicies";
+import AdminOps from "./pages/AdminOps";
 
 interface NavItem {
   to: string;
@@ -54,8 +57,16 @@ const NAV_SECTIONS: NavSection[] = [
     items: [
       { to: "/compliance", label: "Compliance", icon: "clipboard" },
       { to: "/consent", label: "Consent", icon: "check" },
+      { to: "/erasure", label: "Data Erasure", icon: "trash" },
+      { to: "/retention", label: "Retention", icon: "clock" },
       { to: "/did", label: "DID / VC", icon: "key" },
       { to: "/zk", label: "ZK Proofs", icon: "shield" },
+    ],
+  },
+  {
+    title: "Admin",
+    items: [
+      { to: "/admin", label: "Operations", icon: "settings" },
     ],
   },
 ];
@@ -71,8 +82,11 @@ const PAGE_TITLES: Record<string, string> = {
   "/bias": "Bias Audits",
   "/compliance": "EU AI Act Compliance",
   "/consent": "Consent Management",
+  "/erasure": "Data Erasure",
+  "/retention": "Retention Policies",
   "/did": "DID / Verifiable Credentials",
   "/zk": "ZK Proofs",
+  "/admin": "Admin Operations",
 };
 
 const PAGE_DESCRIPTIONS: Record<string, string> = {
@@ -86,8 +100,11 @@ const PAGE_DESCRIPTIONS: Record<string, string> = {
   "/bias": "Demographic parity and equalized odds audits across groups",
   "/compliance": "EU AI Act compliance reports and OSCAL export",
   "/consent": "Grant, check, and revoke subject consent with full audit trail",
+  "/erasure": "GDPR Article 17 — cryptographic erasure of subject data",
+  "/retention": "Automated data lifecycle management with retention policies",
   "/did": "Decentralized Identifiers and W3C Verifiable Credentials",
   "/zk": "Schnorr zero-knowledge proofs for privacy-preserving verification",
+  "/admin": "Database backups, migrations, and system operations",
 };
 
 const NAV_ICONS: Record<string, React.ReactNode> = {
@@ -103,6 +120,9 @@ const NAV_ICONS: Record<string, React.ReactNode> = {
   check: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
   eye: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>,
   clipboard: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>,
+  trash: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>,
+  clock: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
+  settings: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M10.325 4.317c.426-1.756 2.924-1.756 3.35 0a1.724 1.724 0 002.573 1.066c1.543-.94 3.31.826 2.37 2.37a1.724 1.724 0 001.066 2.573c1.756.426 1.756 2.924 0 3.35a1.724 1.724 0 00-1.066 2.573c.94 1.543-.826 3.31-2.37 2.37a1.724 1.724 0 00-2.573 1.066c-.426 1.756-2.924 1.756-3.35 0a1.724 1.724 0 00-2.573-1.066c-1.543.94-3.31-.826-2.37-2.37a1.724 1.724 0 00-1.066-2.573c-1.756-.426-1.756-2.924 0-3.35a1.724 1.724 0 001.066-2.573c-.94-1.543.826-3.31 2.37-2.37.996.608 2.296.07 2.572-1.065z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /></svg>,
 };
 
 function NotFound() {
@@ -254,6 +274,9 @@ function AppLayout() {
               <Route path="/explainability" element={<Explainability />} />
               <Route path="/compliance" element={<Compliance />} />
               <Route path="/consent" element={<ConsentManagement />} />
+              <Route path="/erasure" element={<DataErasure />} />
+              <Route path="/retention" element={<RetentionPolicies />} />
+              <Route path="/admin" element={<AdminOps />} />
               <Route path="/index.html" element={<Navigate to="/" replace />} />
               <Route path="*" element={<NotFound />} />
             </Routes>

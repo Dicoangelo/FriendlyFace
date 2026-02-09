@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { SkeletonDashboard } from "../components/Skeleton";
 import EmptyState from "../components/EmptyState";
+import { eventBarColor } from "../constants/eventColors";
 
 interface DashboardData {
   uptime_seconds: number;
@@ -41,21 +42,7 @@ interface RecognitionModel {
   num_classes: number;
 }
 
-const EVENT_TYPE_BAR_COLORS: Record<string, { bg: string; text: string }> = {
-  training_start: { bg: "bg-amethyst/30", text: "text-amethyst" },
-  training_complete: { bg: "bg-amethyst/30", text: "text-amethyst" },
-  model_registered: { bg: "bg-amethyst/30", text: "text-amethyst" },
-  inference_request: { bg: "bg-cyan/30", text: "text-cyan" },
-  inference_result: { bg: "bg-cyan/30", text: "text-cyan" },
-  explanation_generated: { bg: "bg-teal/30", text: "text-teal" },
-  bias_audit: { bg: "bg-gold/30", text: "text-gold" },
-  consent_recorded: { bg: "bg-teal/30", text: "text-teal" },
-  consent_update: { bg: "bg-teal/30", text: "text-teal" },
-  bundle_created: { bg: "bg-amethyst/30", text: "text-amethyst" },
-  fl_round: { bg: "bg-cyan/30", text: "text-cyan" },
-  security_alert: { bg: "bg-rose-ember/30", text: "text-rose-ember" },
-  compliance_report: { bg: "bg-gold/30", text: "text-gold" },
-};
+// Bar chart color constants imported from shared eventColors
 
 export default function Dashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
@@ -172,7 +159,7 @@ export default function Dashboard() {
               .map(([type, count]) => {
                 const maxCount = Math.max(...Object.values(data.events_by_type));
                 const pct = maxCount > 0 ? (count / maxCount) * 100 : 0;
-                const color = EVENT_TYPE_BAR_COLORS[type] || { bg: "bg-fg/10", text: "text-fg-secondary" };
+                const color = eventBarColor(type);
                 return (
                   <div key={type} className="flex items-center gap-3">
                     <span className="text-xs text-fg-muted w-40 truncate">{type.replace(/_/g, " ")}</span>

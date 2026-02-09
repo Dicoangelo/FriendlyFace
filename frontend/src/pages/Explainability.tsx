@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import LoadingButton from "../components/LoadingButton";
+import EmptyState from "../components/EmptyState";
 
 interface ExplanationRecord {
   explanation_id: string;
@@ -296,9 +297,11 @@ export default function Explainability() {
       )}
 
       {explanations && explanations.items.length === 0 && (
-        <div className="glass-card p-8 text-center">
-          <p className="text-fg-faint mb-1">No explanations generated yet</p>
-          <p className="text-fg-faint text-sm">Use the forms below to generate LIME, SHAP, or SDD explanations for inference events.</p>
+        <div className="glass-card">
+          <EmptyState
+            title="No explanations generated yet"
+            subtitle="Use the forms below to generate LIME, SHAP, or SDD explanations for inference events"
+          />
         </div>
       )}
 

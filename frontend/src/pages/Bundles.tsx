@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { SkeletonTable } from "../components/Skeleton";
+import EmptyState from "../components/EmptyState";
 
 interface BundleSummary {
   id: string;
@@ -91,17 +92,15 @@ export default function Bundles() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold text-fg">
-          Forensic Bundles <span className="text-fg-faint font-normal text-base">({total})</span>
-        </h2>
+        <span className="text-sm text-fg-muted font-medium">{total} bundles</span>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
         {/* Bundle list */}
         <div className="lg:col-span-1 space-y-2">
           {bundles.length === 0 ? (
-            <div className="glass-card p-6 text-center text-fg-faint">
-              No bundles created yet
+            <div className="glass-card">
+              <EmptyState title="No bundles created yet" subtitle="Create a forensic bundle via the API to see it here" />
             </div>
           ) : (
             bundles.map((b) => (

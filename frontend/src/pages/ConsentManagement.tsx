@@ -111,7 +111,7 @@ export default function ConsentManagement() {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-xl font-bold text-fg">Consent Management</h2>
+      {/* Page title shown in header bar */}
       {error && (
         <div className="bg-rose-ember/10 border border-rose-ember/20 rounded-lg px-4 py-2 text-rose-ember text-sm">
           {error}
@@ -127,7 +127,12 @@ export default function ConsentManagement() {
           <input type="text" placeholder="Expiry (ISO-8601, optional)" value={expiry} onChange={(e) => setExpiry(e.target.value)} className="ff-input" />
         </div>
         <LoadingButton onClick={grantConsent} loading={grantLoading} loadingText="Granting...">Grant</LoadingButton>
-        {grantResult && <pre className="text-xs bg-teal/10 rounded-lg p-2">{JSON.stringify(grantResult, null, 2)}</pre>}
+        {grantResult && (
+          <div className="flex items-center gap-2 text-teal text-sm bg-teal/10 rounded-lg px-3 py-2">
+            <span className="font-bold">&#10003;</span>
+            <span>Consent granted — ID: <code className="font-mono text-xs">{String(grantResult.id ?? "").slice(0, 12) || "ok"}</code></span>
+          </div>
+        )}
       </div>
 
       {/* Check */}
@@ -178,7 +183,12 @@ export default function ConsentManagement() {
           <input type="text" placeholder="Reason" value={revokeReason} onChange={(e) => setRevokeReason(e.target.value)} className="ff-input" />
         </div>
         <LoadingButton onClick={handleRevokeClick} loading={revokeLoading} className="btn-danger" loadingText="Revoking...">Revoke</LoadingButton>
-        {revokeResult && <pre className="text-xs bg-rose-ember/10 rounded-lg p-2">{JSON.stringify(revokeResult, null, 2)}</pre>}
+        {revokeResult && (
+          <div className="flex items-center gap-2 text-rose-ember text-sm bg-rose-ember/10 rounded-lg px-3 py-2">
+            <span className="font-bold">&#10003;</span>
+            <span>Consent revoked successfully</span>
+          </div>
+        )}
       </div>
 
       {/* Confirmation Dialog for Revoke */}
