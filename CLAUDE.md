@@ -11,7 +11,7 @@ FriendlyFace is a forensic-friendly AI facial recognition platform implementing 
 source .venv/bin/activate
 python3 -m friendlyface
 
-# Tests (1070+ passing)
+# Tests (1345 passing)
 pytest tests/ -v
 pytest tests/test_e2e_pipeline.py -v  # Full pipeline test
 pytest --cov=friendlyface tests/      # With coverage (>= 80%)
@@ -37,7 +37,7 @@ docker run -p 8000:8000 friendlyface
 
 ```
 friendlyface/
-├── api/app.py           # 70+ FastAPI endpoints + /api/v1/ versioned routes + OpenAPI tags
+├── api/app.py           # 84 FastAPI endpoints + /api/v1/ versioned routes + OpenAPI tags
 ├── api/sse.py           # Server-Sent Events broadcaster
 ├── auth.py              # Multi-provider auth (Bearer, X-API-Key, query) + RBAC + audit
 ├── config.py            # Pydantic BaseSettings (all FF_* env vars, validated at startup)
@@ -53,7 +53,7 @@ friendlyface/
 ├── ops/                 # BackupManager with retention policy
 ├── storage/             # SQLite (default) or Supabase + migration runner with rollback
 ├── logging_config.py    # Structured JSON logging (FF_LOG_FORMAT=json)
-└── frontend/            # React 19 + Vite + TailwindCSS dashboard (9 pages)
+└── frontend/            # React 19 + Vite + TailwindCSS dashboard (17 pages)
     └── src/components/  # ErrorBoundary, Toast, ConfirmDialog
 ```
 
@@ -108,7 +108,7 @@ friendlyface/
 
 ## Test Structure
 
-40+ test files, 1070+ tests. Key test files:
+40+ test files, 1345 tests. Key test files:
 - `test_e2e_pipeline.py` — Full forensic lifecycle
 - `test_auth.py` — API key auth middleware (16 tests)
 - `test_auth_providers.py` — Provider plugins: ApiKey, Supabase JWT, OIDC JWKS (34 tests)

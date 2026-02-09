@@ -12,6 +12,9 @@
 | Phase 6 | Auth & API Hardening | ✅ Complete | ~1000 | Auth providers, API versioning, OSCAL export |
 | Phase 7 | Backup & Migrations | ✅ Complete | ~1027 | SQLite backup, migration framework, erasure, auto-audit |
 | Phase 8 | Production Readiness | ✅ Complete | 1070+ | Auth wiring, OIDC fix, RBAC, retention, rollback, CI/CD |
+| Phase 9 | Frontend Polish & Theming | ✅ Complete | ~1100 | Light/dark theme, design system, UX components, nav sections |
+| Phase 10 | Dashboard Elevation | ✅ Complete | ~1200 | Dashboard viz, mobile sidebar, transitions, useFetch, EmptyState |
+| Phase 11 | Forensic Core & Completeness | ✅ Complete | 1345 | Merkle explorer, Provenance DAG, FL sim, restore/rollback UI, OSCAL export |
 
 ---
 
@@ -140,6 +143,83 @@ Phases 4 through 7 delivered the React 19 frontend dashboard, Pydantic configura
 - CI pipeline: pytest-cov (fail_under=80%), bandit security scanning, coverage artifact upload
 - Operational runbook covering startup, monitoring, backup, migration, auth, troubleshooting
 - 1070+ tests across 40+ test files
+
+---
+
+## Phase 9: Frontend Polish & Theming ✅
+
+**Focus:** Design system foundation, light/dark theme, UX component library.
+
+### Deliverables
+
+| Area | What Changed |
+|------|-------------|
+| Theming | Toggleable light/dark theme with CSS custom properties, Metaventions AI design tokens |
+| Branding | Metaventions AI logo replacing Gravatar placeholder |
+| Design system | Tailwind color tokens (`fg-primary`, `fg-secondary`, `surface`, `glass-card`) |
+| Components | LoadingButton, Skeleton loaders, ConfirmDialog, Toast notifications |
+| Navigation | Sectioned nav (Core, Forensic, Governance, System), color-coded event types |
+| Infrastructure | Migrations 008-013, demographics endpoint, gallery API, pipeline fixes |
+| Tests | Calibration, detection, embeddings, gallery, liveness, encryption-at-rest, cache persistence |
+
+### Key Commits
+
+- `57f18a6` — Toggleable light/dark theme with CSS custom properties
+- `a5abf90` — Align light theme with Metaventions AI landing design system
+- `23ec5a3` — RBAC, encryption at rest, DID persistence, retention, ML pipeline modules
+- `43ab86a` — Nav sections, color-coded events, context separation (ThemeContext, ToastContext)
+- `e25484a` — LoadingButton, Skeleton, useCopyToClipboard, page subtitles, footer
+
+---
+
+## Phase 10: Dashboard Elevation ✅
+
+**Focus:** Data visualization, mobile responsiveness, shared design patterns.
+
+### Deliverables
+
+| Area | What Changed |
+|------|-------------|
+| Dashboard | ProgressRing SVG component, StatCards for gallery count + compliance score |
+| Data fetching | `useFetch` custom hook (loading, error, retry) replacing ad-hoc fetch logic |
+| Empty states | `EmptyState` component with icon + message + optional action button |
+| Mobile | Collapsible sidebar with overlay, responsive breakpoints |
+| Transitions | `animate-fade-in` CSS animation on page mount |
+| Polish | Consistent glass-card styling, event color constants, page descriptions |
+
+### Key Commits
+
+- `bc1ad2a` — Demographics endpoint, dashboard StatCards, EmptyState component
+- `42dfccd` — Shared design system, EmptyState integration across all pages, route fix
+- `f2f5dc2` — ProgressRing, useFetch hook, mobile sidebar, transitions
+
+---
+
+## Phase 11: Forensic Core & Completeness ✅
+
+**Focus:** Expose the cryptographic forensic layer through dedicated UI pages and complete admin operations.
+
+### Deliverables
+
+| Area | What Changed |
+|------|-------------|
+| Merkle Explorer | New page — view Merkle tree root, request inclusion proofs for events |
+| Provenance Explorer | New page — trace artifact lineage (dataset → training → model → inference → explanation) |
+| FL Simulations | Enhanced — round-by-round federated learning simulator with accuracy charts |
+| Admin: Restore | Restore database from any backup with one click |
+| Admin: Rollback | Roll back the most recent database migration |
+| Compliance: OSCAL | Export compliance report as OSCAL-format JSON download |
+
+### Key Commits
+
+- `ed2a184` — Merkle/Provenance explorer pages, AdminOps restore/rollback, Compliance OSCAL export
+
+### Phase 11 Achievements
+
+- **17 frontend pages** covering all 6 architectural layers + system operations
+- **84 API endpoints** across recognition, FL, forensic, fairness, explainability, governance, admin
+- **1,345 tests** passing across 40+ test files
+- Full forensic pipeline visible end-to-end in the UI: events → Merkle tree → provenance → bundles → compliance
 
 ---
 
