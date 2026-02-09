@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useFetch } from "../hooks/useFetch";
 import { SkeletonCard } from "../components/Skeleton";
 
 interface ComplianceReport {
@@ -19,19 +20,9 @@ interface ArticleAssessment {
 }
 
 export default function Compliance() {
-  const [report, setReport] = useState<ComplianceReport | null>(null);
+  const { data: report, error: fetchError, retry } = useFetch<ComplianceReport>("/api/v1/governance/compliance");
   const [error, setError] = useState("");
   const [generating, setGenerating] = useState(false);
-
-  useEffect(() => {
-    fetch("/api/v1/governance/compliance")
-      .then((r) => {
-        if (!r.ok) throw new Error(`${r.status}`);
-        return r.json();
-      })
-      .then(setReport)
-      .catch((e) => setError(e.message));
-  }, []);
 
   const generateReport = () => {
     setError("");
@@ -41,8 +32,8 @@ export default function Compliance() {
         if (!r.ok) throw new Error(`${r.status}`);
         return r.json();
       })
-      .then((data) => {
-        setReport(data);
+      .then(() => {
+        retry();
         setGenerating(false);
       })
       .catch((e) => {
@@ -51,8 +42,8 @@ export default function Compliance() {
       });
   };
 
-  if (error && !report)
-    return <div className="text-rose-ember">Error loading compliance: {error}</div>;
+  if ((fetchError || error) && !report)
+    return <div className="text-rose-ember">Error loading compliance: {fetchError || error}</div>;
 
   if (!report)
     return (

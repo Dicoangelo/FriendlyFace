@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useFetch } from "../hooks/useFetch";
 import LoadingButton from "../components/LoadingButton";
 import EmptyState from "../components/EmptyState";
 
@@ -34,7 +35,7 @@ interface CompareResult {
 }
 
 export default function Explainability() {
-  const [explanations, setExplanations] = useState<ExplanationList | null>(null);
+  const { data: explanations, error: fetchError, retry: refreshExplanations } = useFetch<ExplanationList>("/api/v1/explainability/explanations");
   const [selectedDetail, setSelectedDetail] = useState<Record<string, unknown> | null>(null);
   const [comparison, setComparison] = useState<CompareResult | null>(null);
   const [error, setError] = useState("");
@@ -65,19 +66,7 @@ export default function Explainability() {
   const [sddLoading, setSddLoading] = useState(false);
   const [compareLoading, setCompareLoading] = useState(false);
 
-  const fetchExplanations = () => {
-    fetch("/api/v1/explainability/explanations")
-      .then((r) => {
-        if (!r.ok) throw new Error(`${r.status}`);
-        return r.json();
-      })
-      .then(setExplanations)
-      .catch((e) => setError(e.message));
-  };
-
-  useEffect(() => {
-    fetchExplanations();
-  }, []);
+  // fetchError from useFetch is displayed below
 
   const triggerLime = () => {
     setError("");
@@ -103,7 +92,7 @@ export default function Explainability() {
       })
       .then((data) => {
         setLimeResult(data);
-        fetchExplanations();
+        refreshExplanations();
       })
       .catch((e) => setError(`LIME error: ${e.message}`))
       .finally(() => setLimeLoading(false));
@@ -132,7 +121,7 @@ export default function Explainability() {
       })
       .then((data) => {
         setShapResult(data);
-        fetchExplanations();
+        refreshExplanations();
       })
       .catch((e) => setError(`SHAP error: ${e.message}`))
       .finally(() => setShapLoading(false));
@@ -157,7 +146,7 @@ export default function Explainability() {
       })
       .then((data) => {
         setSddResult(data);
-        fetchExplanations();
+        refreshExplanations();
       })
       .catch((e) => setError(`SDD error: ${e.message}`))
       .finally(() => setSddLoading(false));
@@ -200,9 +189,9 @@ export default function Explainability() {
   return (
     <div className="space-y-6">
       {/* Page title shown in header bar */}
-      {error && (
+      {(error || fetchError) && (
         <div className="bg-rose-ember/10 border border-rose-ember/20 rounded-lg px-4 py-2 text-rose-ember text-sm">
-          {error}
+          {error || fetchError}
         </div>
       )}
 
@@ -279,7 +268,7 @@ export default function Explainability() {
 
       {/* Detail view */}
       {selectedDetail && (
-        <div className="glass-card p-4">
+        <div className="glass-card p-4 animate-fade-in">
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
               <h3 className="font-semibold text-fg-secondary">Explanation Detail</h3>
@@ -454,7 +443,7 @@ export default function Explainability() {
 
       {/* Comparison results */}
       {comparison && (
-        <div className="glass-card p-4">
+        <div className="glass-card p-4 animate-fade-in">
           <h3 className="font-semibold text-fg-secondary mb-3">
             Comparison for{" "}
             <span className="font-mono text-xs">{comparison.inference_event_id.slice(0, 12)}...</span>

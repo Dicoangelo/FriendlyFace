@@ -128,7 +128,7 @@ export default function ConsentManagement() {
         </div>
         <LoadingButton onClick={grantConsent} loading={grantLoading} loadingText="Granting...">Grant</LoadingButton>
         {grantResult && (
-          <div className="flex items-center gap-2 text-teal text-sm bg-teal/10 rounded-lg px-3 py-2">
+          <div className="flex items-center gap-2 text-teal text-sm bg-teal/10 rounded-lg px-3 py-2 animate-fade-in">
             <span className="font-bold">&#10003;</span>
             <span>Consent granted — ID: <code className="font-mono text-xs">{String(grantResult.id ?? "").slice(0, 12) || "ok"}</code></span>
           </div>
@@ -144,7 +144,7 @@ export default function ConsentManagement() {
           <button onClick={checkConsent} className="btn-success">Check</button>
         </div>
         {checkResult && (
-          <div className={`rounded p-2 text-sm ${checkResult.allowed ? "bg-teal/10 text-teal" : "bg-rose-ember/10 text-rose-ember"}`}>
+          <div className={`rounded p-2 text-sm animate-fade-in ${checkResult.allowed ? "bg-teal/10 text-teal" : "bg-rose-ember/10 text-rose-ember"}`}>
             {checkResult.allowed ? "Allowed" : "Denied"} — Active: {String(checkResult.active)}
           </div>
         )}
@@ -184,7 +184,7 @@ export default function ConsentManagement() {
         </div>
         <LoadingButton onClick={handleRevokeClick} loading={revokeLoading} className="btn-danger" loadingText="Revoking...">Revoke</LoadingButton>
         {revokeResult && (
-          <div className="flex items-center gap-2 text-rose-ember text-sm bg-rose-ember/10 rounded-lg px-3 py-2">
+          <div className="flex items-center gap-2 text-rose-ember text-sm bg-rose-ember/10 rounded-lg px-3 py-2 animate-fade-in">
             <span className="font-bold">&#10003;</span>
             <span>Consent revoked successfully</span>
           </div>

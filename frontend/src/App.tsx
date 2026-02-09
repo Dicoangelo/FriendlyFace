@@ -16,6 +16,8 @@ import Compliance from "./pages/Compliance";
 import DataErasure from "./pages/DataErasure";
 import RetentionPolicies from "./pages/RetentionPolicies";
 import AdminOps from "./pages/AdminOps";
+import MerkleExplorer from "./pages/MerkleExplorer";
+import ProvenanceExplorer from "./pages/ProvenanceExplorer";
 
 interface NavItem {
   to: string;
@@ -41,6 +43,8 @@ const NAV_SECTIONS: NavSection[] = [
       { to: "/events/live", label: "Live Events", icon: "zap" },
       { to: "/events", label: "Events Table", icon: "list" },
       { to: "/bundles", label: "Bundles", icon: "package" },
+      { to: "/merkle", label: "Merkle Tree", icon: "hash" },
+      { to: "/provenance", label: "Provenance", icon: "gitbranch" },
     ],
   },
   {
@@ -87,6 +91,8 @@ const PAGE_TITLES: Record<string, string> = {
   "/did": "DID / Verifiable Credentials",
   "/zk": "ZK Proofs",
   "/admin": "Admin Operations",
+  "/merkle": "Merkle Tree",
+  "/provenance": "Provenance Explorer",
 };
 
 const PAGE_DESCRIPTIONS: Record<string, string> = {
@@ -105,6 +111,8 @@ const PAGE_DESCRIPTIONS: Record<string, string> = {
   "/did": "Decentralized Identifiers and W3C Verifiable Credentials",
   "/zk": "Schnorr zero-knowledge proofs for privacy-preserving verification",
   "/admin": "Database backups, migrations, and system operations",
+  "/merkle": "Append-only Merkle tree root and cryptographic inclusion proofs",
+  "/provenance": "Trace artifact lineage: dataset → training → model → inference → explanation",
 };
 
 const NAV_ICONS: Record<string, React.ReactNode> = {
@@ -170,20 +178,36 @@ export default function App() {
 
 function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const location = useLocation();
   const pageTitle = PAGE_TITLES[location.pathname] || "FriendlyFace";
   const pageDescription = PAGE_DESCRIPTIONS[location.pathname];
 
+  // Close mobile menu on route change
+  useEffect(() => {
+    setMobileMenuOpen(false);
+  }, [location.pathname]);
+
   return (
       <div className="flex h-screen bg-page grid-bg">
+        {/* Mobile backdrop */}
+        {mobileMenuOpen && (
+          <div
+            className="fixed inset-0 bg-black/50 z-30 md:hidden"
+            onClick={() => setMobileMenuOpen(false)}
+          />
+        )}
+
         {/* Sidebar */}
         <aside
           className={`${
             sidebarOpen ? "w-56" : "w-14"
-          } bg-sidebar border-r border-border-theme flex flex-col transition-all duration-200 flex-shrink-0`}
+          } bg-sidebar border-r border-border-theme flex flex-col transition-all duration-200 flex-shrink-0
+          ${mobileMenuOpen ? "fixed inset-y-0 left-0 z-40 w-56 shadow-2xl animate-slide-in-left" : "hidden md:flex"}
+          `}
         >
           <div className="flex items-center justify-between px-3 py-4 border-b border-border-theme">
-            {sidebarOpen && (
+            {(sidebarOpen || mobileMenuOpen) && (
               <div className="flex items-center gap-2">
                 <img
                   src="/logo.png"
@@ -194,11 +218,15 @@ function AppLayout() {
               </div>
             )}
             <button
-              onClick={() => setSidebarOpen(!sidebarOpen)}
+              onClick={() => {
+                if (mobileMenuOpen) setMobileMenuOpen(false);
+                else setSidebarOpen(!sidebarOpen);
+              }}
               className="text-fg-faint hover:text-fg-secondary p-1 transition-colors"
               title={sidebarOpen ? "Collapse" : "Expand"}
+              aria-label="Toggle sidebar"
             >
-              {sidebarOpen ? (
+              {sidebarOpen || mobileMenuOpen ? (
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" /></svg>
               ) : (
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" /></svg>
@@ -246,14 +274,26 @@ function AppLayout() {
         {/* Main content */}
         <div className="flex-1 flex flex-col min-w-0">
           {/* Top bar */}
-          <header className="bg-sidebar/50 backdrop-blur-sm border-b border-border-theme px-6 py-3 flex items-center justify-between flex-shrink-0">
-            <div>
-              <h1 className="text-lg font-semibold text-fg">{pageTitle}</h1>
-              {pageDescription && (
-                <p className="text-xs text-fg-faint mt-0.5">{pageDescription}</p>
-              )}
-            </div>
+          <header className="bg-sidebar/50 backdrop-blur-sm border-b border-border-theme px-4 md:px-6 py-3 flex items-center justify-between flex-shrink-0">
             <div className="flex items-center gap-3">
+              {/* Mobile hamburger */}
+              <button
+                onClick={() => setMobileMenuOpen(true)}
+                className="md:hidden text-fg-muted hover:text-fg p-1 -ml-1"
+                aria-label="Open menu"
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              </button>
+              <div>
+                <h1 className="text-lg font-semibold text-fg">{pageTitle}</h1>
+              {pageDescription && (
+                <p className="text-xs text-fg-faint mt-0.5 hidden sm:block">{pageDescription}</p>
+              )}
+              </div>
+            </div>
+            <div className="flex items-center gap-2 sm:gap-3">
               <ThemeToggle />
               <HealthBadge />
             </div>
@@ -283,11 +323,11 @@ function AppLayout() {
           </main>
 
           {/* Footer status bar */}
-          <footer className="bg-sidebar/50 backdrop-blur-sm border-t border-border-theme px-6 py-2 flex items-center justify-between text-xs text-fg-faint flex-shrink-0">
-            <span>FriendlyFace v0.1.0 — ICDF2C 2024 Forensic Schema</span>
-            <div className="flex items-center gap-4">
-              <span>Hash-chained events</span>
-              <span>Merkle-verified bundles</span>
+          <footer className="bg-sidebar/50 backdrop-blur-sm border-t border-border-theme px-4 md:px-6 py-2 flex items-center justify-between text-xs text-fg-faint flex-shrink-0">
+            <span className="truncate">FriendlyFace v0.1.0</span>
+            <div className="flex items-center gap-3 sm:gap-4 flex-shrink-0">
+              <span className="hidden sm:inline">Hash-chained</span>
+              <span className="hidden sm:inline">Merkle-verified</span>
               <HealthBadge />
             </div>
           </footer>

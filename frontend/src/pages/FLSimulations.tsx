@@ -37,6 +37,10 @@ export default function FLSimulations() {
   const [error, setError] = useState("");
   const [tab, setTab] = useState<"standard" | "dp">("standard");
 
+  // Round inspector
+  const [roundDetail, setRoundDetail] = useState<Record<string, unknown> | null>(null);
+  const [roundSecurity, setRoundSecurity] = useState<Record<string, unknown> | null>(null);
+
   const startSimulation = () => {
     setLoading(true);
     setError("");
@@ -65,6 +69,19 @@ export default function FLSimulations() {
 
   const fetchStatus = () => {
     fetch("/api/v1/fl/status").then((r) => r.json()).then(setStatus);
+  };
+
+  const inspectRound = (simId: string, roundNum: number) => {
+    setRoundDetail(null);
+    setRoundSecurity(null);
+    fetch(`/api/v1/fl/rounds/${simId}/${roundNum}`)
+      .then((r) => r.json())
+      .then(setRoundDetail)
+      .catch((e) => setError(`Round detail error: ${e.message}`));
+    fetch(`/api/v1/fl/rounds/${simId}/${roundNum}/security`)
+      .then((r) => r.json())
+      .then(setRoundSecurity)
+      .catch(() => {});
   };
 
   return (
@@ -144,20 +161,84 @@ export default function FLSimulations() {
               Total privacy budget spent: epsilon = {dpResult.total_epsilon.toFixed(4)}
             </div>
           )}
-          {((tab === "standard" ? result : dpResult)!.rounds).map((r) => (
-            <div key={r.round} className="border-b border-border-theme last:border-0 py-2">
-              <div className="flex items-center justify-between">
-                <span className="font-medium text-sm text-fg-secondary">Round {r.round}</span>
-                <code className="text-xs text-fg-faint">{r.global_model_hash.slice(0, 16)}...</code>
+          {((tab === "standard" ? result : dpResult)!.rounds).map((r) => {
+            const simId = (tab === "standard" ? result : dpResult)!.simulation_id;
+            return (
+              <div key={r.round} className="border-b border-border-theme last:border-0 py-2">
+                <div className="flex items-center justify-between">
+                  <span className="font-medium text-sm text-fg-secondary">Round {r.round}</span>
+                  <div className="flex items-center gap-2">
+                    <code className="text-xs text-fg-faint">{r.global_model_hash.slice(0, 16)}...</code>
+                    <button
+                      onClick={() => inspectRound(simId, r.round)}
+                      className="text-xs text-cyan hover:text-cyan/80 px-2 py-0.5 rounded hover:bg-cyan/10 transition-colors"
+                    >
+                      Inspect
+                    </button>
+                  </div>
+                </div>
+                {r.poisoning && r.poisoning.n_flagged > 0 && (
+                  <p className="text-xs text-rose-ember mt-1">Flagged: {r.poisoning.flagged_client_ids.join(", ")}</p>
+                )}
+                {r.noise_scale !== undefined && (
+                  <p className="text-xs text-fg-muted mt-1">Noise: {r.noise_scale.toFixed(4)} | Clipped: {r.n_clipped} | Privacy: ε={r.privacy_spent?.toFixed(4)}</p>
+                )}
               </div>
-              {r.poisoning && r.poisoning.n_flagged > 0 && (
-                <p className="text-xs text-rose-ember mt-1">Flagged: {r.poisoning.flagged_client_ids.join(", ")}</p>
-              )}
-              {r.noise_scale !== undefined && (
-                <p className="text-xs text-fg-muted mt-1">Noise: {r.noise_scale.toFixed(4)} | Clipped: {r.n_clipped} | Privacy: ε={r.privacy_spent?.toFixed(4)}</p>
-              )}
+            );
+          })}
+        </div>
+      )}
+
+      {/* Round Inspector */}
+      {roundDetail && (
+        <div className="glass-card p-4 space-y-3">
+          <div className="flex items-center justify-between">
+            <h3 className="font-semibold text-fg-secondary">Round Detail</h3>
+            <button onClick={() => { setRoundDetail(null); setRoundSecurity(null); }} className="text-fg-faint hover:text-fg-secondary text-sm">Close</button>
+          </div>
+          {Array.isArray((roundDetail as Record<string, unknown>).client_contributions) && (
+            <div>
+              <p className="text-xs font-semibold text-fg-muted mb-2">Client Contributions</p>
+              <div className="space-y-1">
+                {((roundDetail as Record<string, unknown>).client_contributions as Array<{ client_id: string; n_samples: number; local_loss: number }>).map((c) => (
+                  <div key={c.client_id} className="flex items-center justify-between bg-surface rounded-lg px-3 py-2">
+                    <span className="text-sm text-fg-secondary font-mono">{c.client_id}</span>
+                    <div className="flex items-center gap-4 text-xs text-fg-muted">
+                      <span>{c.n_samples} samples</span>
+                      <span className={c.local_loss > 1 ? "text-rose-ember" : "text-teal"}>
+                        loss: {c.local_loss.toFixed(4)}
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
             </div>
-          ))}
+          )}
+          <details className="text-xs">
+            <summary className="text-fg-faint cursor-pointer">Raw JSON</summary>
+            <pre className="bg-surface rounded-lg p-2 overflow-x-auto mt-1">{JSON.stringify(roundDetail, null, 2)}</pre>
+          </details>
+        </div>
+      )}
+
+      {roundSecurity && (
+        <div className="glass-card p-4 space-y-3">
+          <h3 className="font-semibold text-fg-secondary">Security Analysis</h3>
+          {(roundSecurity as Record<string, unknown>).poisoning_detection_enabled === false ? (
+            <p className="text-sm text-fg-muted">Poisoning detection was not enabled for this simulation.</p>
+          ) : (
+            <div>
+              <div className="flex items-center gap-2 mb-2">
+                <span className={`px-2 py-0.5 rounded text-xs font-medium ${(roundSecurity as Record<string, unknown>).has_poisoning ? "bg-rose-ember/10 text-rose-ember" : "bg-teal/10 text-teal"}`}>
+                  {(roundSecurity as Record<string, unknown>).has_poisoning ? "Poisoning Detected" : "Clean"}
+                </span>
+              </div>
+              <details className="text-xs">
+                <summary className="text-fg-faint cursor-pointer">Full report</summary>
+                <pre className="bg-surface rounded-lg p-2 overflow-x-auto mt-1">{JSON.stringify(roundSecurity, null, 2)}</pre>
+              </details>
+            </div>
+          )}
         </div>
       )}
 

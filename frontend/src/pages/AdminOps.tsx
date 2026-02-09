@@ -142,7 +142,7 @@ export default function AdminOps() {
           </button>
         </div>
         {backupResult && (
-          <div className="bg-teal/10 border border-teal/20 rounded-lg px-3 py-2 text-teal text-sm">
+          <div className="bg-teal/10 border border-teal/20 rounded-lg px-3 py-2 text-teal text-sm animate-fade-in">
             Backup created: {String(backupResult.filename || "ok")}
           </div>
         )}
@@ -150,7 +150,7 @@ export default function AdminOps() {
 
       {/* Verify result */}
       {verifyResult && (
-        <div className="glass-card p-4">
+        <div className="glass-card p-4 animate-fade-in">
           <h3 className="font-semibold text-fg-secondary mb-2">Verification Result</h3>
           <pre className="text-xs bg-surface rounded-lg p-2 overflow-x-auto">
             {JSON.stringify(verifyResult, null, 2)}

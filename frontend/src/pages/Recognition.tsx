@@ -79,11 +79,13 @@ export default function Recognition() {
         ))}
       </div>
 
-      {activeTab === "predict" && <PredictTab />}
-      {activeTab === "train" && <TrainTab />}
-      {activeTab === "gallery" && <GalleryTab />}
-      {activeTab === "models" && <ModelsTab />}
-      {activeTab === "voice" && <VoiceTab />}
+      <div key={activeTab} className="animate-fade-in">
+        {activeTab === "predict" && <PredictTab />}
+        {activeTab === "train" && <TrainTab />}
+        {activeTab === "gallery" && <GalleryTab />}
+        {activeTab === "models" && <ModelsTab />}
+        {activeTab === "voice" && <VoiceTab />}
+      </div>
     </div>
   );
 }
@@ -192,7 +194,7 @@ function PredictTab() {
       )}
 
       {result && (
-        <div className="glass-card p-4 space-y-3">
+        <div className="glass-card p-4 space-y-3 animate-fade-in">
           <h3 className="font-semibold text-fg-secondary">Prediction Result</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div>
@@ -354,7 +356,7 @@ function TrainTab() {
       )}
 
       {result && (
-        <div className="glass-card p-4">
+        <div className="glass-card p-4 animate-fade-in">
           <h3 className="font-semibold text-fg-secondary mb-3">Training Result</h3>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
             <div>
@@ -537,7 +539,7 @@ function GalleryTab() {
           {enrolling ? "Enrolling..." : "Enroll"}
         </button>
         {enrollResult && (
-          <div className="flex items-center gap-2 text-teal text-sm bg-teal/10 rounded-lg px-3 py-2">
+          <div className="flex items-center gap-2 text-teal text-sm bg-teal/10 rounded-lg px-3 py-2 animate-fade-in">
             <span className="font-bold">&#10003;</span>
             <span>Voice enrolled — {String(enrollResult.subject_id || "success")}</span>
           </div>

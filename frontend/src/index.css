@@ -142,6 +142,7 @@
     color: white;
   }
   .btn-primary:hover { box-shadow: 0 4px 15px rgba(123, 44, 255, 0.3); }
+  .btn-primary:focus-visible { outline: 2px solid #7B2CFF; outline-offset: 2px; }
 
   .btn-accent {
     @apply px-4 py-2 text-sm font-medium rounded-lg transition-all active:scale-[0.97];
@@ -149,6 +150,7 @@
     color: white;
   }
   .btn-accent:hover { box-shadow: 0 4px 15px rgba(123, 44, 255, 0.3); }
+  .btn-accent:focus-visible { outline: 2px solid #FF3DF2; outline-offset: 2px; }
 
   .btn-success {
     @apply px-4 py-2 text-sm font-medium rounded-lg transition-all active:scale-[0.97];
@@ -156,6 +158,7 @@
     color: #0B1020;
   }
   .btn-success:hover { box-shadow: 0 4px 15px rgba(0, 255, 198, 0.3); }
+  .btn-success:focus-visible { outline: 2px solid #00FFC6; outline-offset: 2px; }
 
   .btn-danger {
     @apply px-4 py-2 text-sm font-medium rounded-lg transition-all active:scale-[0.97];
@@ -163,6 +166,7 @@
     color: white;
   }
   .btn-danger:hover { box-shadow: 0 4px 15px rgba(255, 107, 138, 0.3); }
+  .btn-danger:focus-visible { outline: 2px solid #FF6B8A; outline-offset: 2px; }
 
   .btn-ghost {
     @apply px-4 py-2 text-sm font-medium rounded-lg transition-all active:scale-[0.97];
@@ -173,6 +177,7 @@
     background: rgb(var(--color-surface));
     color: rgb(var(--color-fg));
   }
+  .btn-ghost:focus-visible { outline: 2px solid var(--input-focus-border); outline-offset: 2px; }
 
   /* ── Glass variants (from Metaventions landing) ───── */
   .glass-slab-floating {

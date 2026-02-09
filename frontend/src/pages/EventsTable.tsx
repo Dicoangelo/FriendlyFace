@@ -185,7 +185,7 @@ export default function EventsTable() {
                   </td>
                 </tr>
                 {expandedId === e.id && (
-                  <tr>
+                  <tr className="animate-fade-in">
                     <td colSpan={5} className="px-4 py-3 bg-surface">
                       <pre className="text-xs overflow-x-auto whitespace-pre-wrap text-fg-muted font-mono">
                         {JSON.stringify(e.payload, null, 2)}
