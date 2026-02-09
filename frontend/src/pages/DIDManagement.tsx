@@ -94,11 +94,16 @@ export default function DIDManagement() {
   return (
     <div className="space-y-6">
       <h2 className="text-xl font-bold text-fg">DID / Verifiable Credentials</h2>
-      {error && <div className="text-rose-ember text-sm">{error}</div>}
+      {error && (
+        <div className="bg-rose-ember/10 border border-rose-ember/20 rounded-lg px-4 py-2 text-rose-ember text-sm">
+          {error}
+        </div>
+      )}
 
       {/* Create DID */}
-      <div className="glass-card p-4">
-        <h3 className="font-semibold text-fg-secondary mb-2">Create DID</h3>
+      <div className="glass-card p-4 space-y-2">
+        <h3 className="font-semibold text-fg-secondary">Create DID</h3>
+        <p className="text-xs text-fg-faint">Generate an Ed25519 DID:key identity. Optionally provide a hex seed for deterministic keys.</p>
         <div className="flex gap-2">
           <input type="text" placeholder="Optional hex seed (64 chars)" value={seed} onChange={(e) => setSeed(e.target.value)} className="flex-1 ff-input font-mono" />
           <button onClick={createDID} className="btn-primary">Create</button>
@@ -133,6 +138,7 @@ export default function DIDManagement() {
       {/* Issue VC */}
       <div className="glass-card p-4 space-y-2">
         <h3 className="font-semibold text-fg-secondary">Issue Credential</h3>
+        <p className="text-xs text-fg-faint">Issue a W3C Verifiable Credential signed by an existing DID.</p>
         <input type="text" placeholder="Issuer DID" value={issuerDid} onChange={(e) => setIssuerDid(e.target.value)} className="w-full ff-input font-mono" />
         <input type="text" placeholder="Subject DID (optional)" value={subjectDid} onChange={(e) => setSubjectDid(e.target.value)} className="w-full ff-input font-mono" />
         <textarea placeholder='Claims JSON: {"name": "test"}' value={claims} onChange={(e) => setClaims(e.target.value)} className="w-full ff-textarea font-mono h-20" />

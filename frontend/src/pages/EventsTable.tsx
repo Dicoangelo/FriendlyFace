@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { Fragment, useEffect, useState } from "react";
 
 interface ForensicEvent {
   id: string;
@@ -117,9 +117,8 @@ export default function EventsTable() {
           </thead>
           <tbody>
             {filtered.map((e) => (
-              <>
+              <Fragment key={e.id}>
                 <tr
-                  key={e.id}
                   onClick={() => setExpandedId(expandedId === e.id ? null : e.id)}
                   className="border-b border-border-theme hover:bg-fg/[0.02] cursor-pointer"
                 >
@@ -146,7 +145,7 @@ export default function EventsTable() {
                   </td>
                 </tr>
                 {expandedId === e.id && (
-                  <tr key={`${e.id}-detail`}>
+                  <tr>
                     <td colSpan={5} className="px-4 py-3 bg-surface">
                       <pre className="text-xs overflow-x-auto whitespace-pre-wrap text-fg-muted font-mono">
                         {JSON.stringify(e.payload, null, 2)}
@@ -154,7 +153,7 @@ export default function EventsTable() {
                     </td>
                   </tr>
                 )}
-              </>
+              </Fragment>
             ))}
           </tbody>
         </table>

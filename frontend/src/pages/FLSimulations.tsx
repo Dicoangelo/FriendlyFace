@@ -72,7 +72,11 @@ export default function FLSimulations() {
         <h2 className="text-xl font-bold text-fg">Federated Learning</h2>
         <button onClick={fetchStatus} className="btn-ghost">Refresh Status</button>
       </div>
-      {error && <div className="text-rose-ember text-sm">{error}</div>}
+      {error && (
+        <div className="bg-rose-ember/10 border border-rose-ember/20 rounded-lg px-4 py-2 text-rose-ember text-sm">
+          {error}
+        </div>
+      )}
 
       {/* Tabs */}
       <div className="flex gap-2">
@@ -124,7 +128,17 @@ export default function FLSimulations() {
       {/* Results */}
       {(tab === "standard" ? result : dpResult) && (
         <div className="glass-card p-4">
-          <h3 className="font-semibold text-fg-secondary mb-2">Simulation Results</h3>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-semibold text-fg-secondary">Simulation Results</h3>
+            <span className="text-xs text-fg-faint font-mono">
+              {(tab === "standard" ? result : dpResult)!.simulation_id.slice(0, 12)}...
+            </span>
+          </div>
+          {(tab === "dp" && dpResult?.total_epsilon !== undefined) && (
+            <div className="mb-3 bg-gold/10 border border-gold/20 rounded-lg px-3 py-2 text-sm text-gold">
+              Total privacy budget spent: epsilon = {dpResult.total_epsilon.toFixed(4)}
+            </div>
+          )}
           {((tab === "standard" ? result : dpResult)!.rounds).map((r) => (
             <div key={r.round} className="border-b border-border-theme last:border-0 py-2">
               <div className="flex items-center justify-between">

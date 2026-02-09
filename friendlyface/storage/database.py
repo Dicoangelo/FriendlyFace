@@ -266,6 +266,23 @@ CREATE TABLE IF NOT EXISTS inference_artifacts (
     svm_model_path TEXT,
     created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS recognition_results (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    event_id TEXT NOT NULL,
+    demographic_group TEXT NOT NULL,
+    true_label INTEGER,
+    predicted_label INTEGER NOT NULL,
+    confidence REAL NOT NULL,
+    correct INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_recognition_results_group
+    ON recognition_results (demographic_group);
+
+CREATE INDEX IF NOT EXISTS idx_recognition_results_created
+    ON recognition_results (created_at DESC);
 """
 
 
@@ -1187,3 +1204,85 @@ class Database:
         """Delete an inference artifact."""
         await self.db.execute("DELETE FROM inference_artifacts WHERE event_id = ?", (event_id,))
         await self.db.commit()
+
+    # ------------------------------------------------------------------
+    # Recognition results (US-095–096)
+    # ------------------------------------------------------------------
+
+    async def record_recognition_result(
+        self,
+        event_id: str,
+        demographic_group: str,
+        predicted_label: int,
+        confidence: float,
+        true_label: int | None = None,
+    ) -> None:
+        """Record a recognition result for demographic auditing."""
+        correct = 1 if true_label is not None and true_label == predicted_label else 0
+        await self.db.execute(
+            "INSERT INTO recognition_results "
+            "(event_id, demographic_group, true_label, predicted_label, confidence, correct) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (event_id, demographic_group, true_label, predicted_label, confidence, correct),
+        )
+        await self.db.commit()
+
+    async def get_demographic_stats(self) -> list[dict[str, Any]]:
+        """Get aggregated recognition stats per demographic group.
+
+        Returns a list of dicts with group_name, total, correct, incorrect,
+        true_positives, false_positives (approximated from results).
+        """
+        cursor = await self.db.execute(
+            "SELECT demographic_group, "
+            "COUNT(*) as total, "
+            "SUM(correct) as correct, "
+            "COUNT(*) - SUM(correct) as incorrect "
+            "FROM recognition_results "
+            "WHERE true_label IS NOT NULL "
+            "GROUP BY demographic_group"
+        )
+        rows = await cursor.fetchall()
+        return [
+            {
+                "group_name": r[0],
+                "total": r[1],
+                "correct": r[2],
+                "incorrect": r[3],
+            }
+            for r in rows
+        ]
+
+    async def get_demographic_confusion(self, group: str) -> dict[str, int]:
+        """Get confusion-matrix-style counts for a single demographic group.
+
+        Uses correct/incorrect as proxy for TP/FP/TN/FN:
+        - true_positives = correct predictions (predicted == true_label)
+        - false_negatives = incorrect predictions (predicted != true_label)
+        - true_negatives and false_positives approximated as half of other-group correct/incorrect
+        """
+        cursor = await self.db.execute(
+            "SELECT SUM(correct), COUNT(*) - SUM(correct) "
+            "FROM recognition_results "
+            "WHERE demographic_group = ? AND true_label IS NOT NULL",
+            (group,),
+        )
+        row = await cursor.fetchone()
+        tp = int(row[0] or 0)
+        fn = int(row[1] or 0)
+        # Approximate TN/FP from total results of other groups
+        cursor2 = await self.db.execute(
+            "SELECT SUM(correct), COUNT(*) - SUM(correct) "
+            "FROM recognition_results "
+            "WHERE demographic_group != ? AND true_label IS NOT NULL",
+            (group,),
+        )
+        row2 = await cursor2.fetchone()
+        tn = int(row2[0] or 0)
+        fp = int(row2[1] or 0)
+        return {
+            "true_positives": tp,
+            "false_negatives": fn,
+            "true_negatives": tn,
+            "false_positives": fp,
+        }

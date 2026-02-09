@@ -1,5 +1,5 @@
 import { useState, useCallback } from "react";
-import { useToast } from "../components/Toast";
+import { useToast } from "../hooks/useToast";
 import ConfirmDialog from "../components/ConfirmDialog";
 
 export default function ConsentManagement() {
@@ -105,7 +105,11 @@ export default function ConsentManagement() {
   return (
     <div className="space-y-6">
       <h2 className="text-xl font-bold text-fg">Consent Management</h2>
-      {error && <div className="text-rose-ember text-sm">{error}</div>}
+      {error && (
+        <div className="bg-rose-ember/10 border border-rose-ember/20 rounded-lg px-4 py-2 text-rose-ember text-sm">
+          {error}
+        </div>
+      )}
 
       {/* Grant */}
       <div className="glass-card p-4 space-y-2">
