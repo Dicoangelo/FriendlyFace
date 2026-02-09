@@ -14,3 +14,9 @@ venv/
 .mypy_cache/
 .ralph-tui/
 .vercel
+
+# Ephemeral
+.coverage
+*.lock
+tsconfig.tsbuildinfo
+frontend/tsconfig.tsbuildinfo
