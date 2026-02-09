@@ -32,8 +32,14 @@ export default function AdminOps() {
   const [creatingBackup, setCreatingBackup] = useState(false);
   const [backupResult, setBackupResult] = useState<Record<string, unknown> | null>(null);
 
-  // Verify
+  // Verify & Restore
   const [verifyResult, setVerifyResult] = useState<Record<string, unknown> | null>(null);
+  const [restoring, setRestoring] = useState<string | null>(null);
+  const [restoreResult, setRestoreResult] = useState<Record<string, unknown> | null>(null);
+
+  // Rollback
+  const [rollingBack, setRollingBack] = useState(false);
+  const [rollbackResult, setRollbackResult] = useState<Record<string, unknown> | null>(null);
 
   const fetchAll = () => {
     fetch("/api/v1/admin/backups")
@@ -85,6 +91,44 @@ export default function AdminOps() {
       .then((r) => r.json())
       .then(setVerifyResult)
       .catch((e) => setError(`Verify error: ${e.message}`));
+  };
+
+  const restoreBackup = (filename: string) => {
+    setRestoring(filename);
+    setRestoreResult(null);
+    fetch(`/api/v1/admin/backup/restore?filename=${encodeURIComponent(filename)}`, { method: "POST" })
+      .then((r) => {
+        if (!r.ok) throw new Error(`${r.status}`);
+        return r.json();
+      })
+      .then((data) => {
+        setRestoreResult(data);
+        setRestoring(null);
+        fetchAll();
+      })
+      .catch((e) => {
+        setError(`Restore error: ${e.message}`);
+        setRestoring(null);
+      });
+  };
+
+  const rollbackMigration = () => {
+    setRollingBack(true);
+    setRollbackResult(null);
+    fetch("/api/v1/admin/migrations/rollback", { method: "POST" })
+      .then((r) => {
+        if (!r.ok) throw new Error(`${r.status}`);
+        return r.json();
+      })
+      .then((data) => {
+        setRollbackResult(data);
+        setRollingBack(false);
+        fetchAll();
+      })
+      .catch((e) => {
+        setError(`Rollback error: ${e.message}`);
+        setRollingBack(false);
+      });
   };
 
   const cleanupBackups = () => {
@@ -158,6 +202,19 @@ export default function AdminOps() {
         </div>
       )}
 
+      {/* Restore result */}
+      {restoreResult && (
+        <div className="glass-card p-4 animate-fade-in">
+          <h3 className="font-semibold text-fg-secondary mb-2">Restore Result</h3>
+          <div className="bg-gold/10 border border-gold/20 rounded-lg px-3 py-2 text-gold text-sm">
+            Database restored successfully
+          </div>
+          <pre className="text-xs bg-surface rounded-lg p-2 overflow-x-auto mt-2">
+            {JSON.stringify(restoreResult, null, 2)}
+          </pre>
+        </div>
+      )}
+
       {/* Backups list */}
       <div className="glass-card p-4">
         <h3 className="font-semibold text-fg-secondary mb-3">Backups</h3>
@@ -181,6 +238,13 @@ export default function AdminOps() {
                   >
                     Verify
                   </button>
+                  <button
+                    onClick={() => restoreBackup(b.filename)}
+                    disabled={restoring === b.filename}
+                    className="text-xs text-gold hover:text-gold/80 px-2 py-1 rounded hover:bg-gold/10 transition-colors"
+                  >
+                    {restoring === b.filename ? "Restoring..." : "Restore"}
+                  </button>
                   <span className="text-xs text-fg-faint">{new Date(b.created_at).toLocaleString()}</span>
                 </div>
               </div>
@@ -191,7 +255,16 @@ export default function AdminOps() {
 
       {/* Migrations */}
       <div className="glass-card p-4">
-        <h3 className="font-semibold text-fg-secondary mb-3">Database Migrations</h3>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-semibold text-fg-secondary">Database Migrations</h3>
+          <button
+            onClick={rollbackMigration}
+            disabled={rollingBack || !migrations || migrations.applied.length === 0}
+            className="text-xs text-gold hover:text-gold/80 px-3 py-1 rounded border border-gold/20 hover:bg-gold/10 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+          >
+            {rollingBack ? "Rolling back..." : "Rollback Last"}
+          </button>
+        </div>
         {!migrations ? (
           <p className="text-fg-faint text-sm">Loading...</p>
         ) : (
@@ -226,6 +299,15 @@ export default function AdminOps() {
           </div>
         )}
       </div>
+      {/* Rollback result */}
+      {rollbackResult && (
+        <div className="glass-card p-4 animate-fade-in">
+          <h3 className="font-semibold text-fg-secondary mb-2">Rollback Result</h3>
+          <pre className="text-xs bg-surface rounded-lg p-2 overflow-x-auto">
+            {JSON.stringify(rollbackResult, null, 2)}
+          </pre>
+        </div>
+      )}
     </div>
   );
 }
