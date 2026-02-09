@@ -1,6 +1,6 @@
-import { BrowserRouter, Routes, Route, NavLink, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route, NavLink, Navigate, useLocation } from "react-router-dom";
 import { useState, useEffect } from "react";
-import { useTheme } from "./components/ThemeProvider";
+import { useTheme } from "./hooks/useTheme";
 import Dashboard from "./pages/Dashboard";
 import EventStream from "./pages/EventStream";
 import EventsTable from "./pages/EventsTable";
@@ -12,18 +12,62 @@ import BiasAudits from "./pages/BiasAudits";
 import ConsentManagement from "./pages/ConsentManagement";
 import Explainability from "./pages/Explainability";
 
-const NAV_ITEMS = [
-  { to: "/", label: "Dashboard", icon: "grid" },
-  { to: "/events/live", label: "Live Events", icon: "zap" },
-  { to: "/events", label: "Events Table", icon: "list" },
-  { to: "/bundles", label: "Bundles", icon: "package" },
-  { to: "/did", label: "DID / VC", icon: "key" },
-  { to: "/zk", label: "ZK Proofs", icon: "shield" },
-  { to: "/fl", label: "FL Simulations", icon: "cpu" },
-  { to: "/bias", label: "Bias Audits", icon: "scale" },
-  { to: "/explainability", label: "Explainability", icon: "search" },
-  { to: "/consent", label: "Consent", icon: "check" },
+interface NavItem {
+  to: string;
+  label: string;
+  icon: string;
+}
+
+interface NavSection {
+  title: string;
+  items: NavItem[];
+}
+
+const NAV_SECTIONS: NavSection[] = [
+  {
+    title: "Overview",
+    items: [
+      { to: "/", label: "Dashboard", icon: "grid" },
+    ],
+  },
+  {
+    title: "Forensic",
+    items: [
+      { to: "/events/live", label: "Live Events", icon: "zap" },
+      { to: "/events", label: "Events Table", icon: "list" },
+      { to: "/bundles", label: "Bundles", icon: "package" },
+    ],
+  },
+  {
+    title: "AI / ML",
+    items: [
+      { to: "/fl", label: "FL Simulations", icon: "cpu" },
+      { to: "/explainability", label: "Explainability", icon: "search" },
+      { to: "/bias", label: "Bias Audits", icon: "scale" },
+    ],
+  },
+  {
+    title: "Governance",
+    items: [
+      { to: "/consent", label: "Consent", icon: "check" },
+      { to: "/did", label: "DID / VC", icon: "key" },
+      { to: "/zk", label: "ZK Proofs", icon: "shield" },
+    ],
+  },
 ];
+
+const PAGE_TITLES: Record<string, string> = {
+  "/": "Dashboard",
+  "/events/live": "Live Event Stream",
+  "/events": "Forensic Events",
+  "/bundles": "Forensic Bundles",
+  "/fl": "Federated Learning",
+  "/explainability": "Explainability",
+  "/bias": "Bias Audits",
+  "/consent": "Consent Management",
+  "/did": "DID / Verifiable Credentials",
+  "/zk": "ZK Proofs",
+};
 
 const NAV_ICONS: Record<string, React.ReactNode> = {
   grid: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zm10 0a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" /></svg>,
@@ -74,10 +118,19 @@ function ThemeToggle() {
 }
 
 export default function App() {
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-
   return (
     <BrowserRouter>
+      <AppLayout />
+    </BrowserRouter>
+  );
+}
+
+function AppLayout() {
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const location = useLocation();
+  const pageTitle = PAGE_TITLES[location.pathname] || "FriendlyFace";
+
+  return (
       <div className="flex h-screen bg-page grid-bg">
         {/* Sidebar */}
         <aside
@@ -109,22 +162,34 @@ export default function App() {
             </button>
           </div>
           <nav className="flex-1 py-2 overflow-y-auto">
-            {NAV_ITEMS.map((item) => (
-              <NavLink
-                key={item.to}
-                to={item.to}
-                end={item.to === "/"}
-                className={({ isActive }) =>
-                  `flex items-center gap-3 px-3 py-2 mx-1 rounded-lg text-sm transition-all ${
-                    isActive
-                      ? "bg-cyan/10 text-cyan border border-cyan/20"
-                      : "text-fg-muted hover:bg-fg/5 hover:text-fg border border-transparent"
-                  }`
-                }
-              >
-                <span className="flex-shrink-0">{NAV_ICONS[item.icon]}</span>
-                {sidebarOpen && <span>{item.label}</span>}
-              </NavLink>
+            {NAV_SECTIONS.map((section) => (
+              <div key={section.title} className="mb-1">
+                {sidebarOpen && (
+                  <p className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-fg-faint">
+                    {section.title}
+                  </p>
+                )}
+                {!sidebarOpen && section.title !== "Overview" && (
+                  <div className="mx-3 my-1 border-t border-border-theme" />
+                )}
+                {section.items.map((item) => (
+                  <NavLink
+                    key={item.to}
+                    to={item.to}
+                    end={item.to === "/"}
+                    className={({ isActive }) =>
+                      `flex items-center gap-3 px-3 py-2 mx-1 rounded-lg text-sm transition-all ${
+                        isActive
+                          ? "bg-cyan/10 text-cyan border border-cyan/20"
+                          : "text-fg-muted hover:bg-fg/5 hover:text-fg border border-transparent"
+                      }`
+                    }
+                  >
+                    <span className="flex-shrink-0">{NAV_ICONS[item.icon]}</span>
+                    {sidebarOpen && <span>{item.label}</span>}
+                  </NavLink>
+                ))}
+              </div>
             ))}
           </nav>
           {sidebarOpen && (
@@ -138,7 +203,7 @@ export default function App() {
         <div className="flex-1 flex flex-col min-w-0">
           {/* Top bar */}
           <header className="bg-sidebar/50 backdrop-blur-sm border-b border-border-theme px-6 py-3 flex items-center justify-between flex-shrink-0">
-            <h1 className="text-lg font-semibold text-fg">FriendlyFace Dashboard</h1>
+            <h1 className="text-lg font-semibold text-fg">{pageTitle}</h1>
             <div className="flex items-center gap-3">
               <ThemeToggle />
               <HealthBadge />
@@ -164,7 +229,6 @@ export default function App() {
           </main>
         </div>
       </div>
-    </BrowserRouter>
   );
 }
 

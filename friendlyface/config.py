@@ -107,6 +107,12 @@ class Settings(BaseSettings):
         ),
     )
 
+    # Inference artifacts for explainability
+    store_inference_artifacts: bool = Field(
+        default=True,
+        description="Store image bytes + features after inference for LIME/SHAP/SDD computation",
+    )
+
     # Supabase
     supabase_url: str | None = Field(default=None, description="Supabase project URL")
     supabase_key: str | None = Field(default=None, description="Supabase service role key")

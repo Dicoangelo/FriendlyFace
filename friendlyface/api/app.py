@@ -1380,9 +1380,19 @@ async def _do_predict_fallback(image_bytes: bytes, top_k: int = 5) -> dict[str, 
 @app.post(
     "/recognition/predict", status_code=200, tags=["Recognition"], summary="Predict face identity"
 )
-async def predict(image: UploadFile, top_k: int = 5):
+async def predict(
+    image: UploadFile,
+    top_k: int = 5,
+    demographic_group: str | None = Query(
+        default=None, description="Demographic group for auditing"
+    ),
+    true_label: int | None = Query(default=None, description="Ground-truth label for auditing"),
+):
     """Upload a face image and get prediction matches with forensic event logging."""
-    return await _do_predict(image, top_k)
+    result = await _do_predict(image, top_k)
+    if demographic_group is not None:
+        await _record_demographic_result(result, demographic_group, true_label)
+    return result
 
 
 @app.post(
@@ -1395,6 +1405,30 @@ async def predict(image: UploadFile, top_k: int = 5):
 async def recognize(image: UploadFile, top_k: int = 5):
     """Legacy endpoint — use POST /recognition/predict instead."""
     return await _do_predict(image, top_k)
+
+
+async def _record_demographic_result(
+    result: dict[str, Any], demographic_group: str, true_label: int | None
+) -> None:
+    """Record a recognition result for demographic auditing."""
+    try:
+        matches = result.get("matches", [])
+        if matches:
+            top = matches[0]
+            predicted_label = top.get("label", 0)
+            confidence = top.get("confidence", 0.0)
+        else:
+            predicted_label = -1
+            confidence = 0.0
+        await _db.record_recognition_result(
+            event_id=result.get("event_id", ""),
+            demographic_group=demographic_group,
+            predicted_label=int(predicted_label),
+            confidence=float(confidence),
+            true_label=true_label,
+        )
+    except Exception:
+        logger.warning("Failed to record demographic result", exc_info=True)
 
 
 @app.get("/recognition/models", tags=["Recognition"], summary="List trained models")
@@ -2544,8 +2578,9 @@ async def get_auto_audit_config():
 async def _maybe_auto_audit():
     """Check if auto-audit should be triggered and run it if so.
 
-    Called after each recognition event. Uses synthetic balanced groups
-    as a baseline check when no explicit group data is available.
+    Called after each recognition event. Uses real demographic data from
+    `recognition_results` table when at least 2 groups have labeled data.
+    Falls back to synthetic balanced groups otherwise.
     """
     global _recognition_event_count
     _recognition_event_count += 1
@@ -2556,33 +2591,62 @@ async def _maybe_auto_audit():
         from friendlyface.fairness.auditor import (
             BiasAuditor,
             FairnessThresholds,
-            GroupResult,
         )
 
-        # Use synthetic balanced groups as baseline auto-audit.
-        # In production, this would pull real demographic performance data.
-        groups = [
-            GroupResult(
-                "auto_group_a",
-                true_positives=80,
-                false_positives=10,
-                true_negatives=90,
-                false_negatives=20,
-            ),
-            GroupResult(
-                "auto_group_b",
-                true_positives=80,
-                false_positives=10,
-                true_negatives=90,
-                false_negatives=20,
-            ),
-        ]
+        # Try real demographic data first
+        groups = await _build_audit_groups()
+
         auditor = BiasAuditor(
             _service,
             thresholds=FairnessThresholds(),
             actor="auto_bias_auditor",
         )
-        await auditor.audit(groups, metadata={"trigger": "auto", "interval": _auto_audit_interval})
+        source = "real" if len(groups) >= 2 else "synthetic"
+        await auditor.audit(
+            groups, metadata={"trigger": "auto", "interval": _auto_audit_interval, "source": source}
+        )
+
+
+async def _build_audit_groups():
+    """Build GroupResult list from real data, falling back to synthetic."""
+    from friendlyface.fairness.auditor import GroupResult
+
+    try:
+        stats = await _db.get_demographic_stats()
+        if len(stats) >= 2:
+            groups = []
+            for s in stats:
+                confusion = await _db.get_demographic_confusion(s["group_name"])
+                groups.append(
+                    GroupResult(
+                        s["group_name"],
+                        true_positives=confusion["true_positives"],
+                        false_positives=confusion["false_positives"],
+                        true_negatives=confusion["true_negatives"],
+                        false_negatives=confusion["false_negatives"],
+                    )
+                )
+            return groups
+    except Exception:
+        logger.debug("Could not load demographic stats, using synthetic", exc_info=True)
+
+    # Fallback: synthetic balanced groups
+    return [
+        GroupResult(
+            "auto_group_a",
+            true_positives=80,
+            false_positives=10,
+            true_negatives=90,
+            false_negatives=20,
+        ),
+        GroupResult(
+            "auto_group_b",
+            true_positives=80,
+            false_positives=10,
+            true_negatives=90,
+            false_negatives=20,
+        ),
+    ]
 
 
 # ---------------------------------------------------------------------------

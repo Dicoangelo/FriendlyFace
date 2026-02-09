@@ -39,6 +39,22 @@ interface RecognitionModel {
   num_classes: number;
 }
 
+const EVENT_TYPE_BAR_COLORS: Record<string, { bg: string; text: string }> = {
+  training_start: { bg: "bg-amethyst/30", text: "text-amethyst" },
+  training_complete: { bg: "bg-amethyst/30", text: "text-amethyst" },
+  model_registered: { bg: "bg-amethyst/30", text: "text-amethyst" },
+  inference_request: { bg: "bg-cyan/30", text: "text-cyan" },
+  inference_result: { bg: "bg-cyan/30", text: "text-cyan" },
+  explanation_generated: { bg: "bg-teal/30", text: "text-teal" },
+  bias_audit: { bg: "bg-gold/30", text: "text-gold" },
+  consent_recorded: { bg: "bg-teal/30", text: "text-teal" },
+  consent_update: { bg: "bg-teal/30", text: "text-teal" },
+  bundle_created: { bg: "bg-amethyst/30", text: "text-amethyst" },
+  fl_round: { bg: "bg-cyan/30", text: "text-cyan" },
+  security_alert: { bg: "bg-rose-ember/30", text: "text-rose-ember" },
+  compliance_report: { bg: "bg-gold/30", text: "text-gold" },
+};
+
 export default function Dashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [flRounds, setFlRounds] = useState<FLRound[]>([]);
@@ -132,13 +148,28 @@ export default function Dashboard() {
         {Object.keys(data.events_by_type).length === 0 ? (
           <p className="text-fg-faint text-sm">No events recorded yet</p>
         ) : (
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
-            {Object.entries(data.events_by_type).map(([type, count]) => (
-              <div key={type} className="bg-surface rounded-lg p-2">
-                <p className="text-xs text-fg-muted truncate">{type}</p>
-                <p className="text-lg font-semibold text-fg">{count}</p>
-              </div>
-            ))}
+          <div className="space-y-2">
+            {Object.entries(data.events_by_type)
+              .sort(([, a], [, b]) => b - a)
+              .map(([type, count]) => {
+                const maxCount = Math.max(...Object.values(data.events_by_type));
+                const pct = maxCount > 0 ? (count / maxCount) * 100 : 0;
+                const color = EVENT_TYPE_BAR_COLORS[type] || { bg: "bg-fg/10", text: "text-fg-secondary" };
+                return (
+                  <div key={type} className="flex items-center gap-3">
+                    <span className="text-xs text-fg-muted w-40 truncate">{type.replace(/_/g, " ")}</span>
+                    <div className="flex-1 h-6 bg-surface rounded-md overflow-hidden relative">
+                      <div
+                        className={`h-full rounded-md ${color.bg} transition-all duration-500`}
+                        style={{ width: `${pct}%` }}
+                      />
+                      <span className={`absolute inset-y-0 right-2 flex items-center text-xs font-semibold ${color.text}`}>
+                        {count}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
           </div>
         )}
       </div>

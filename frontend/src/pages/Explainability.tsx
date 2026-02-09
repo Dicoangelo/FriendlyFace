@@ -156,11 +156,15 @@ export default function Explainability() {
   return (
     <div className="space-y-6">
       <h2 className="text-xl font-bold text-fg">Explainability</h2>
-      {error && <div className="text-rose-ember text-sm">{error}</div>}
+      {error && (
+        <div className="bg-rose-ember/10 border border-rose-ember/20 rounded-lg px-4 py-2 text-rose-ember text-sm">
+          {error}
+        </div>
+      )}
 
       {/* Stats cards */}
       {explanations && (
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
           <div className="glass-card p-4">
             <p className="text-sm text-fg-muted">Total Explanations</p>
             <p className="text-2xl font-bold text-fg mt-1">{explanations.total}</p>
@@ -175,6 +179,12 @@ export default function Explainability() {
             <p className="text-sm text-fg-muted">SHAP</p>
             <p className="text-2xl font-bold text-amethyst mt-1">
               {explanations.items.filter((e) => e.method === "shap").length}
+            </p>
+          </div>
+          <div className="glass-card p-4">
+            <p className="text-sm text-fg-muted">SDD</p>
+            <p className="text-2xl font-bold text-cyan mt-1">
+              {explanations.items.filter((e) => e.method === "sdd").length}
             </p>
           </div>
         </div>
@@ -234,6 +244,13 @@ export default function Explainability() {
           <pre className="text-xs bg-surface rounded-lg p-2 overflow-x-auto">
             {JSON.stringify(selectedDetail, null, 2)}
           </pre>
+        </div>
+      )}
+
+      {explanations && explanations.items.length === 0 && (
+        <div className="glass-card p-8 text-center">
+          <p className="text-fg-faint mb-1">No explanations generated yet</p>
+          <p className="text-fg-faint text-sm">Use the forms below to generate LIME, SHAP, or SDD explanations for inference events.</p>
         </div>
       )}
 

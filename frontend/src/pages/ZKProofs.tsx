@@ -55,15 +55,20 @@ export default function ZKProofs() {
   return (
     <div className="space-y-6">
       <h2 className="text-xl font-bold text-fg">ZK Proof Viewer</h2>
-      {error && <div className="text-rose-ember text-sm">{error}</div>}
+      {error && (
+        <div className="bg-rose-ember/10 border border-rose-ember/20 rounded-lg px-4 py-2 text-rose-ember text-sm">
+          {error}
+        </div>
+      )}
 
       {/* Generate */}
-      <div className="glass-card p-4 space-y-2">
+      <div className="glass-card p-4 space-y-3">
         <h3 className="font-semibold text-fg-secondary">Generate Proof</h3>
+        <p className="text-xs text-fg-faint">Enter a forensic bundle ID to generate a Schnorr ZK proof for chain verification.</p>
         <div className="flex gap-2">
-          <input type="text" placeholder="Bundle ID" value={bundleId} onChange={(e) => setBundleId(e.target.value)} className="flex-1 ff-input font-mono" />
-          <button onClick={generateProof} className="btn-primary">Prove</button>
-          <button onClick={getStoredProof} className="btn-ghost">Get Stored</button>
+          <input type="text" placeholder="Bundle ID (UUID)" value={bundleId} onChange={(e) => setBundleId(e.target.value)} className="flex-1 ff-input font-mono" />
+          <button onClick={generateProof} disabled={!bundleId.trim()} className="btn-primary disabled:opacity-40">Prove</button>
+          <button onClick={getStoredProof} disabled={!bundleId.trim()} className="btn-ghost disabled:opacity-40">Get Stored</button>
         </div>
         {proof && (
           <div className="relative">
@@ -80,10 +85,11 @@ export default function ZKProofs() {
       </div>
 
       {/* Verify */}
-      <div className="glass-card p-4 space-y-2">
+      <div className="glass-card p-4 space-y-3">
         <h3 className="font-semibold text-fg-secondary">Verify Proof</h3>
+        <p className="text-xs text-fg-faint">Paste a proof JSON to verify its cryptographic validity.</p>
         <textarea placeholder="Paste proof JSON" value={verifyInput} onChange={(e) => setVerifyInput(e.target.value)} className="w-full ff-textarea font-mono h-24" />
-        <button onClick={verifyProof} className="btn-success">Verify</button>
+        <button onClick={verifyProof} disabled={!verifyInput.trim()} className="btn-success disabled:opacity-40">Verify</button>
         {verifyResult && (
           <div className={`rounded p-2 text-sm ${verifyResult.valid ? "bg-teal/10 text-teal" : "bg-rose-ember/10 text-rose-ember"}`}>
             {verifyResult.valid ? "\u2713 Valid" : "\u2717 Invalid"} — Scheme: {verifyResult.scheme}
