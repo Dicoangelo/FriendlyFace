@@ -54,7 +54,17 @@ from contextlib import asynccontextmanager
 from typing import Any
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, FastAPI, File, HTTPException, Query, Request, Response, UploadFile
+from fastapi import (
+    APIRouter,
+    Depends,
+    FastAPI,
+    File,
+    HTTPException,
+    Query,
+    Request,
+    Response,
+    UploadFile,
+)
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
@@ -447,6 +457,7 @@ async def spa_content_negotiation(request: Request, call_next):
         index = os.path.join(_FRONTEND_DIST_PATH, "index.html")
         if os.path.isfile(index):
             from starlette.responses import FileResponse
+
             return FileResponse(index, media_type="text/html")
 
     return await call_next(request)
@@ -3643,42 +3654,59 @@ async def seed_demo_data():
 
     # Layer 1: Recognition — training + inference events
     await _service.record_event(
-        EventType.TRAINING_START, actors[0],
+        EventType.TRAINING_START,
+        actors[0],
         {"dataset": "lfw-demo", "n_classes": 5, "n_samples": 250},
     )
     created += 1
 
     await _service.record_event(
-        EventType.TRAINING_COMPLETE, actors[0],
-        {"model_id": "demo-pca-svm-001", "accuracy": 0.923, "training_time_ms": 1847, "n_classes": 5},
+        EventType.TRAINING_COMPLETE,
+        actors[0],
+        {
+            "model_id": "demo-pca-svm-001",
+            "accuracy": 0.923,
+            "training_time_ms": 1847,
+            "n_classes": 5,
+        },
     )
     created += 1
 
     await _service.record_event(
-        EventType.MODEL_REGISTERED, actors[3],
+        EventType.MODEL_REGISTERED,
+        actors[3],
         {"model_id": "demo-pca-svm-001", "model_type": "pca_svm", "accuracy": 0.923},
     )
     created += 1
 
     for i in range(5):
         await _service.record_event(
-            EventType.INFERENCE_REQUEST, actors[1],
+            EventType.INFERENCE_REQUEST,
+            actors[1],
             {"model_id": "demo-pca-svm-001", "image_hash": f"sha256:demo{i:04d}", "top_k": 3},
         )
         created += 1
         await _service.record_event(
-            EventType.INFERENCE_RESULT, actors[3],
-            {"model_id": "demo-pca-svm-001", "predicted_label": i % 5, "confidence": 0.85 + i * 0.02},
+            EventType.INFERENCE_RESULT,
+            actors[3],
+            {
+                "model_id": "demo-pca-svm-001",
+                "predicted_label": i % 5,
+                "confidence": 0.85 + i * 0.02,
+            },
         )
         created += 1
 
     # Layer 2: Federated Learning
     for rnd in range(3):
         await _service.record_event(
-            EventType.FL_ROUND, actors[3],
+            EventType.FL_ROUND,
+            actors[3],
             {
-                "simulation_id": "demo-fl-001", "round": rnd + 1,
-                "global_accuracy": 0.72 + rnd * 0.08, "num_clients": 4,
+                "simulation_id": "demo-fl-001",
+                "round": rnd + 1,
+                "global_accuracy": 0.72 + rnd * 0.08,
+                "num_clients": 4,
                 "dp_enabled": rnd > 0,
             },
         )
@@ -3686,43 +3714,51 @@ async def seed_demo_data():
 
     # Layer 3: Forensic — bundle + provenance
     await _service.record_event(
-        EventType.BUNDLE_CREATED, actors[3],
+        EventType.BUNDLE_CREATED,
+        actors[3],
         {"bundle_id": "demo-bundle-001", "event_count": 5, "signed": True},
     )
     created += 1
 
     # Layer 4: Fairness
     await _service.record_event(
-        EventType.BIAS_AUDIT, actors[2],
+        EventType.BIAS_AUDIT,
+        actors[2],
         {
-            "demographic_parity_diff": 0.04, "equalized_odds_diff": 0.06,
-            "groups_audited": ["group_a", "group_b"], "result": "pass",
+            "demographic_parity_diff": 0.04,
+            "equalized_odds_diff": 0.06,
+            "groups_audited": ["group_a", "group_b"],
+            "result": "pass",
         },
     )
     created += 1
 
     # Layer 5: Explainability
     await _service.record_event(
-        EventType.EXPLANATION_GENERATED, actors[3],
+        EventType.EXPLANATION_GENERATED,
+        actors[3],
         {"method": "LIME", "inference_id": "demo-inf-001", "top_features": 10},
     )
     created += 1
 
     # Layer 6: Governance
     await _service.record_event(
-        EventType.CONSENT_RECORDED, actors[1],
+        EventType.CONSENT_RECORDED,
+        actors[1],
         {"subject_id": "demo-subject-001", "purpose": "recognition", "granted": True},
     )
     created += 1
 
     await _service.record_event(
-        EventType.COMPLIANCE_REPORT, actors[2],
+        EventType.COMPLIANCE_REPORT,
+        actors[2],
         {"compliant": True, "overall_score": 0.87, "framework": "EU AI Act"},
     )
     created += 1
 
     await _service.record_event(
-        EventType.SECURITY_ALERT, actors[3],
+        EventType.SECURITY_ALERT,
+        actors[3],
         {"alert_type": "poisoning_attempt", "severity": "medium", "round": 2, "client": "client_3"},
     )
     created += 1

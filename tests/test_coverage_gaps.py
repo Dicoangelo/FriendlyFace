@@ -12,7 +12,7 @@ Covers:
 from __future__ import annotations
 
 import io
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 import numpy as np
 import pytest
@@ -205,7 +205,9 @@ class TestEmbeddingExtractorONNX:
         mock_input.name = "input"
         mock_session.get_inputs.return_value = [mock_input]
         # Return a fake 512-d output
-        mock_session.run.return_value = [np.random.default_rng(1).random((1, EMBEDDING_DIM)).astype(np.float32)]
+        mock_session.run.return_value = [
+            np.random.default_rng(1).random((1, EMBEDDING_DIM)).astype(np.float32)
+        ]
 
         ext = EmbeddingExtractor()
         ext._session = mock_session
@@ -226,7 +228,9 @@ class TestEmbeddingExtractorONNX:
         mock_input = MagicMock()
         mock_input.name = "input"
         mock_session.get_inputs.return_value = [mock_input]
-        mock_session.run.return_value = [np.random.default_rng(3).random((1, EMBEDDING_DIM)).astype(np.float32)]
+        mock_session.run.return_value = [
+            np.random.default_rng(3).random((1, EMBEDDING_DIM)).astype(np.float32)
+        ]
 
         ext = EmbeddingExtractor()
         ext._session = mock_session
