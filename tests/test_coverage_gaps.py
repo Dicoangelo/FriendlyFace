@@ -326,6 +326,36 @@ class TestLivenessAPI:
 # ── Provenance edge cases ────────────────────────────────────────────────
 
 
+@pytest.mark.asyncio
+class TestDemoSeedAPI:
+    async def test_seed_creates_events(self, api_client):
+        """POST /api/v1/demo/seed should populate data."""
+        resp = await api_client.post("/api/v1/demo/seed")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["seeded"] is True
+        assert data["events"] > 10
+        assert data["provenance_nodes"] == 4
+
+    async def test_seed_idempotent(self, api_client):
+        """Second call should skip since data exists."""
+        await api_client.post("/api/v1/demo/seed")
+        resp = await api_client.post("/api/v1/demo/seed")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["seeded"] is False
+
+    async def test_dashboard_after_seed(self, api_client):
+        """Dashboard should show real data after seeding."""
+        await api_client.post("/api/v1/demo/seed")
+        resp = await api_client.get("/api/v1/dashboard")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["total_events"] > 0
+        assert len(data["events_by_type"]) > 0
+        assert data["total_provenance_nodes"] >= 4
+
+
 class TestProvenanceEdgeCases:
     def test_node_fields(self):
         from friendlyface.core.models import ProvenanceNode

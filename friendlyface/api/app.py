@@ -3620,6 +3620,158 @@ async def rollback_migration(dry_run: bool = False):
 
 
 # ---------------------------------------------------------------------------
+# Demo seed (populate dashboard with realistic data)
+# ---------------------------------------------------------------------------
+
+
+@app.post("/demo/seed", tags=["Demo"], summary="Seed database with demo data")
+async def seed_demo_data():
+    """Populate the database with realistic forensic events across all 6 layers.
+
+    Generates: training events, inference events, FL rounds, bias audits,
+    consent records, compliance report, provenance nodes, and bundles.
+    Idempotent: skips if events already exist.
+    """
+    from friendlyface.core.models import EventType
+
+    count = await _db.get_event_count()
+    if count > 0:
+        return {"seeded": False, "message": "Database already has data", "events": count}
+
+    actors = ["demo-trainer", "demo-user", "demo-auditor", "demo-system"]
+    created = 0
+
+    # Layer 1: Recognition — training + inference events
+    await _service.record_event(
+        EventType.TRAINING_START, actors[0],
+        {"dataset": "lfw-demo", "n_classes": 5, "n_samples": 250},
+    )
+    created += 1
+
+    await _service.record_event(
+        EventType.TRAINING_COMPLETE, actors[0],
+        {"model_id": "demo-pca-svm-001", "accuracy": 0.923, "training_time_ms": 1847, "n_classes": 5},
+    )
+    created += 1
+
+    await _service.record_event(
+        EventType.MODEL_REGISTERED, actors[3],
+        {"model_id": "demo-pca-svm-001", "model_type": "pca_svm", "accuracy": 0.923},
+    )
+    created += 1
+
+    for i in range(5):
+        await _service.record_event(
+            EventType.INFERENCE_REQUEST, actors[1],
+            {"model_id": "demo-pca-svm-001", "image_hash": f"sha256:demo{i:04d}", "top_k": 3},
+        )
+        created += 1
+        await _service.record_event(
+            EventType.INFERENCE_RESULT, actors[3],
+            {"model_id": "demo-pca-svm-001", "predicted_label": i % 5, "confidence": 0.85 + i * 0.02},
+        )
+        created += 1
+
+    # Layer 2: Federated Learning
+    for rnd in range(3):
+        await _service.record_event(
+            EventType.FL_ROUND, actors[3],
+            {
+                "simulation_id": "demo-fl-001", "round": rnd + 1,
+                "global_accuracy": 0.72 + rnd * 0.08, "num_clients": 4,
+                "dp_enabled": rnd > 0,
+            },
+        )
+        created += 1
+
+    # Layer 3: Forensic — bundle + provenance
+    await _service.record_event(
+        EventType.BUNDLE_CREATED, actors[3],
+        {"bundle_id": "demo-bundle-001", "event_count": 5, "signed": True},
+    )
+    created += 1
+
+    # Layer 4: Fairness
+    await _service.record_event(
+        EventType.BIAS_AUDIT, actors[2],
+        {
+            "demographic_parity_diff": 0.04, "equalized_odds_diff": 0.06,
+            "groups_audited": ["group_a", "group_b"], "result": "pass",
+        },
+    )
+    created += 1
+
+    # Layer 5: Explainability
+    await _service.record_event(
+        EventType.EXPLANATION_GENERATED, actors[3],
+        {"method": "LIME", "inference_id": "demo-inf-001", "top_features": 10},
+    )
+    created += 1
+
+    # Layer 6: Governance
+    await _service.record_event(
+        EventType.CONSENT_RECORDED, actors[1],
+        {"subject_id": "demo-subject-001", "purpose": "recognition", "granted": True},
+    )
+    created += 1
+
+    await _service.record_event(
+        EventType.COMPLIANCE_REPORT, actors[2],
+        {"compliant": True, "overall_score": 0.87, "framework": "EU AI Act"},
+    )
+    created += 1
+
+    await _service.record_event(
+        EventType.SECURITY_ALERT, actors[3],
+        {"alert_type": "poisoning_attempt", "severity": "medium", "round": 2, "client": "client_3"},
+    )
+    created += 1
+
+    # Provenance nodes
+    from friendlyface.core.models import ProvenanceRelation
+
+    dataset_node = _service.provenance.add_node("dataset", "lfw-demo", metadata={"samples": 250})
+    training_node = _service.provenance.add_node(
+        "training",
+        "demo-pca-svm-001",
+        parents=[dataset_node.id],
+        relations=[ProvenanceRelation.DERIVED_FROM],
+        metadata={"accuracy": 0.923},
+    )
+    model_node = _service.provenance.add_node(
+        "model",
+        "demo-pca-svm-001",
+        parents=[training_node.id],
+        relations=[ProvenanceRelation.GENERATED_BY],
+        metadata={"type": "pca_svm"},
+    )
+    inference_node = _service.provenance.add_node(
+        "inference",
+        "demo-inf-001",
+        parents=[model_node.id],
+        relations=[ProvenanceRelation.USED],
+        metadata={"confidence": 0.91},
+    )
+
+    # Persist provenance nodes to database
+    for node in (dataset_node, training_node, model_node, inference_node):
+        await _db.insert_provenance_node(node)
+
+    # Generate compliance report
+    try:
+        from friendlyface.governance.compliance import ComplianceChecker
+
+        checker = ComplianceChecker(_db)
+        report = await checker.generate_report()
+        global _latest_compliance_report
+        _latest_compliance_report = report
+    except Exception:
+        pass
+
+    return {"seeded": True, "events": created, "provenance_nodes": 4}
+
+
+# ---------------------------------------------------------------------------
 # OSCAL / JSON-LD compliance export (US-052)
 # ---------------------------------------------------------------------------
 
@@ -3790,6 +3942,9 @@ v1_router.add_api_route(
     "/retention/policies/{policy_id}", delete_retention_policy, methods=["DELETE"]
 )
 v1_router.add_api_route("/retention/evaluate", evaluate_retention, methods=["POST"])
+
+# Demo
+v1_router.add_api_route("/demo/seed", seed_demo_data, methods=["POST"])
 
 # Admin — Backup
 v1_router.add_api_route("/admin/backup", create_backup, methods=["POST"], status_code=201)
