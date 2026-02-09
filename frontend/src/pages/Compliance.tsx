@@ -69,7 +69,7 @@ export default function Compliance() {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-xl font-bold text-fg">EU AI Act Compliance</h2>
+      {/* Page title shown in header bar */}
 
       {error && (
         <div className="bg-rose-ember/10 border border-rose-ember/20 rounded-lg px-4 py-2 text-rose-ember text-sm">
@@ -85,7 +85,7 @@ export default function Compliance() {
               {report.compliant ? "Compliant" : "Non-Compliant"}
             </p>
             <p className="text-sm">
-              Overall score: {(report.overall_score * 100).toFixed(1)}%
+              Overall score: {report.overall_score != null && isFinite(report.overall_score) ? `${(report.overall_score * 100).toFixed(1)}%` : "N/A"}
             </p>
           </div>
           <button
@@ -144,13 +144,14 @@ export default function Compliance() {
   );
 }
 
-function MetricCard({ label, value }: { label: string; value: number }) {
-  const pct = (value * 100).toFixed(1);
-  const color = value >= 0.8 ? "teal" : value >= 0.5 ? "gold" : "rose-ember";
+function MetricCard({ label, value }: { label: string; value: number | null | undefined }) {
+  const hasValue = value != null && isFinite(value);
+  const pct = hasValue ? (value * 100).toFixed(1) : "—";
+  const color = !hasValue ? "fg-faint" : value >= 0.8 ? "teal" : value >= 0.5 ? "gold" : "rose-ember";
   return (
     <div className={`glass-card p-4 border-l-2 border-${color}/20`}>
       <p className="text-sm text-fg-muted">{label}</p>
-      <p className={`text-2xl font-bold mt-1 text-${color}`}>{pct}%</p>
+      <p className={`text-2xl font-bold mt-1 text-${color}`}>{pct}{hasValue ? "%" : ""}</p>
     </div>
   );
 }

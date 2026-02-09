@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { SkeletonDashboard } from "../components/Skeleton";
+import EmptyState from "../components/EmptyState";
 
 interface DashboardData {
   uptime_seconds: number;
@@ -60,8 +61,8 @@ export default function Dashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [flRounds, setFlRounds] = useState<FLRound[]>([]);
   const [models, setModels] = useState<RecognitionModel[]>([]);
-  const [, setGalleryCount] = useState<number | null>(null);
-  const [, setCompliance] = useState<{ compliant: boolean; overall_score: number } | null>(null);
+  const [galleryCount, setGalleryCount] = useState<number | null>(null);
+  const [compliance, setCompliance] = useState<{ compliant: boolean; overall_score: number } | null>(null);
   const [error, setError] = useState("");
 
   const fetchData = () => {
@@ -108,7 +109,7 @@ export default function Dashboard() {
   return (
     <div className="space-y-6">
       {/* Stats cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         <StatCard label="Total Events" value={data.total_events} color="cyan" />
         <StatCard label="Total Bundles" value={data.total_bundles} color="amethyst" />
         <StatCard label="Provenance Nodes" value={data.total_provenance_nodes} color="teal" />
@@ -117,6 +118,17 @@ export default function Dashboard() {
           value={`${Math.floor(data.uptime_seconds / 60)}m ${Math.floor(data.uptime_seconds % 60)}s`}
           color="gold"
         />
+        {galleryCount !== null && (
+          <StatCard label="Gallery Subjects" value={galleryCount} color="cyan" />
+        )}
+        {compliance && (
+          <StatCard
+            label="Compliance"
+            value={`${(compliance.overall_score * 100).toFixed(0)}%`}
+            color={compliance.compliant ? "teal" : "rose-ember"}
+            badge={compliance.compliant ? "Compliant" : "Non-Compliant"}
+          />
+        )}
       </div>
 
       {/* Chain integrity + Crypto status */}
@@ -152,7 +164,7 @@ export default function Dashboard() {
       <div className="glass-card p-4">
         <h3 className="font-semibold text-fg-secondary mb-3">Events by Type</h3>
         {Object.keys(data.events_by_type).length === 0 ? (
-          <p className="text-fg-faint text-sm">No events recorded yet</p>
+          <EmptyState title="No events recorded yet" subtitle="Record forensic events via the API to see type distribution here" />
         ) : (
           <div className="space-y-2">
             {Object.entries(data.events_by_type)
@@ -186,7 +198,7 @@ export default function Dashboard() {
         <div className="glass-card p-4">
           <h3 className="font-semibold text-fg-secondary mb-3">FL Simulation History</h3>
           {flRounds.length === 0 ? (
-            <p className="text-fg-faint text-sm">No FL rounds completed yet</p>
+            <EmptyState title="No FL rounds yet" subtitle="Run a federated learning simulation to see results" />
           ) : (
             <div className="space-y-2">
               {flRounds.slice(0, 5).map((r, i) => (
@@ -218,7 +230,7 @@ export default function Dashboard() {
         <div className="glass-card p-4">
           <h3 className="font-semibold text-fg-secondary mb-3">Recognition Models</h3>
           {models.length === 0 ? (
-            <p className="text-fg-faint text-sm">No models trained yet</p>
+            <EmptyState title="No models trained yet" subtitle="Train a PCA+SVM model to see it listed here" />
           ) : (
             <div className="space-y-2">
               {models.slice(0, 5).map((m) => (
@@ -248,7 +260,7 @@ export default function Dashboard() {
       <div className="glass-card p-4">
         <h3 className="font-semibold text-fg-secondary mb-3">Recent Events</h3>
         {data.recent_events.length === 0 ? (
-          <p className="text-fg-faint text-sm">No events yet</p>
+          <EmptyState title="No events yet" subtitle="Events will appear here as they are recorded" />
         ) : (
           <table className="w-full text-sm">
             <thead>
@@ -281,13 +293,21 @@ const STAT_COLORS: Record<string, string> = {
   amethyst: "border-amethyst/20 text-amethyst",
   teal: "border-teal/20 text-teal",
   gold: "border-gold/20 text-gold",
+  "rose-ember": "border-rose-ember/20 text-rose-ember",
 };
 
-function StatCard({ label, value, color = "cyan" }: { label: string; value: string | number; color?: string }) {
+function StatCard({ label, value, color = "cyan", badge }: { label: string; value: string | number; color?: string; badge?: string }) {
   return (
     <div className={`glass-card p-4 border-l-2 ${STAT_COLORS[color] || STAT_COLORS.cyan}`}>
       <p className="text-sm text-fg-muted">{label}</p>
-      <p className={`text-2xl font-bold mt-1 ${STAT_COLORS[color]?.split(" ")[1] || "text-cyan"}`}>{value}</p>
+      <div className="flex items-center gap-2 mt-1">
+        <p className={`text-2xl font-bold ${STAT_COLORS[color]?.split(" ")[1] || "text-cyan"}`}>{value}</p>
+        {badge && (
+          <span className={`px-2 py-0.5 rounded text-xs font-medium ${STAT_COLORS[color]?.split(" ")[1] || "text-cyan"} bg-surface`}>
+            {badge}
+          </span>
+        )}
+      </div>
     </div>
   );
 }

@@ -79,7 +79,7 @@ export default function BiasAudits() {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-xl font-bold text-fg">Bias Audits</h2>
+      {/* Page title shown in header bar */}
       {error && (
         <div className="bg-rose-ember/10 border border-rose-ember/20 rounded-lg px-4 py-2 text-rose-ember text-sm">
           {error}

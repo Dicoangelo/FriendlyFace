@@ -70,7 +70,7 @@ export default function FLSimulations() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold text-fg">Federated Learning</h2>
+        {/* Page title shown in header bar */}
         <button onClick={fetchStatus} className="btn-ghost">Refresh Status</button>
       </div>
       {error && (

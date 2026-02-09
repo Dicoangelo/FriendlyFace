@@ -240,7 +240,7 @@ function AppLayout() {
           </header>
 
           {/* Page content */}
-          <main className="flex-1 overflow-auto p-6">
+          <main className="flex-1 overflow-auto p-6 max-w-screen-2xl mx-auto w-full">
             <Routes>
               <Route path="/" element={<Dashboard />} />
               <Route path="/events/live" element={<EventStream />} />

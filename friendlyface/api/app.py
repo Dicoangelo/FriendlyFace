@@ -418,6 +418,41 @@ app.state.limiter = limiter
 
 
 # ---------------------------------------------------------------------------
+# SPA content-negotiation middleware
+# ---------------------------------------------------------------------------
+# Frontend routes that collide with API endpoints (/events, /bundles, etc.).
+# When a browser navigates (Accept: text/html), serve the SPA index.html
+# instead of the API JSON response.  API clients (Accept: application/json
+# or */*) still hit the FastAPI routes.
+
+_SPA_ROUTE_PREFIXES = ("/events", "/bundles")
+_FRONTEND_DIST_PATH = os.path.join(os.path.dirname(__file__), "..", "..", "frontend", "dist")
+
+
+@app.middleware("http")
+async def spa_content_negotiation(request: Request, call_next):
+    path = request.url.path
+    accept = request.headers.get("accept", "")
+
+    # Only intercept GET requests with text/html accept header
+    if request.method != "GET" or "text/html" not in accept:
+        return await call_next(request)
+
+    # Skip API, docs, metrics, health, and asset paths
+    if path.startswith(("/api/", "/assets/", "/docs", "/redoc", "/openapi", "/metrics", "/health")):
+        return await call_next(request)
+
+    # For SPA-conflicting paths, serve index.html directly
+    if any(path == prefix or path.startswith(prefix + "/") for prefix in _SPA_ROUTE_PREFIXES):
+        index = os.path.join(_FRONTEND_DIST_PATH, "index.html")
+        if os.path.isfile(index):
+            from starlette.responses import FileResponse
+            return FileResponse(index, media_type="text/html")
+
+    return await call_next(request)
+
+
+# ---------------------------------------------------------------------------
 # Error handlers
 # ---------------------------------------------------------------------------
 @app.exception_handler(FriendlyFaceError)

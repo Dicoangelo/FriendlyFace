@@ -58,7 +58,7 @@ export default function Recognition() {
 
   return (
     <div className="space-y-6">
-      <h2 className="text-xl font-bold text-fg">Face Recognition</h2>
+      {/* Page title shown in header bar */}
 
       {/* Tab bar */}
       <div className="flex gap-1 bg-surface rounded-lg p-1">
