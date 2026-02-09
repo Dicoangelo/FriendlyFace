@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import EmptyState from "../components/EmptyState";
 
 interface MatchResult {
   subject_id: string;
@@ -44,7 +45,7 @@ interface ModelDetail {
   provenance_chain?: Array<Record<string, unknown>>;
 }
 
-type TabId = "predict" | "train" | "gallery" | "models";
+type TabId = "predict" | "train" | "gallery" | "models" | "voice";
 
 export default function Recognition() {
   const [activeTab, setActiveTab] = useState<TabId>("predict");
@@ -54,6 +55,7 @@ export default function Recognition() {
     { id: "train", label: "Train" },
     { id: "gallery", label: "Gallery" },
     { id: "models", label: "Models" },
+    { id: "voice", label: "Voice" },
   ];
 
   return (
@@ -81,6 +83,7 @@ export default function Recognition() {
       {activeTab === "train" && <TrainTab />}
       {activeTab === "gallery" && <GalleryTab />}
       {activeTab === "models" && <ModelsTab />}
+      {activeTab === "voice" && <VoiceTab />}
     </div>
   );
 }
@@ -534,9 +537,10 @@ function GalleryTab() {
           {enrolling ? "Enrolling..." : "Enroll"}
         </button>
         {enrollResult && (
-          <pre className="text-xs bg-surface rounded-lg p-2 overflow-x-auto">
-            {JSON.stringify(enrollResult, null, 2)}
-          </pre>
+          <div className="flex items-center gap-2 text-teal text-sm bg-teal/10 rounded-lg px-3 py-2">
+            <span className="font-bold">&#10003;</span>
+            <span>Voice enrolled — {String(enrollResult.subject_id || "success")}</span>
+          </div>
         )}
       </div>
 
@@ -592,7 +596,7 @@ function GalleryTab() {
       <div className="glass-card p-4">
         <h3 className="font-semibold text-fg-secondary mb-3">Enrolled Subjects</h3>
         {subjects.length === 0 ? (
-          <p className="text-sm text-fg-faint">No subjects enrolled yet</p>
+          <EmptyState title="No subjects enrolled yet" subtitle="Enroll voice biometrics via the API" />
         ) : (
           <div className="space-y-2">
             {subjects.map((s) => (
@@ -612,6 +616,309 @@ function GalleryTab() {
                 </button>
               </div>
             ))}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function VoiceTab() {
+  const [error, setError] = useState("");
+
+  // Enroll state
+  const [enrollFile, setEnrollFile] = useState<File | null>(null);
+  const [enrollSubjectId, setEnrollSubjectId] = useState("");
+  const [enrollResult, setEnrollResult] = useState<Record<string, unknown> | null>(null);
+  const [enrolling, setEnrolling] = useState(false);
+
+  // Verify state
+  const [verifyFile, setVerifyFile] = useState<File | null>(null);
+  const [verifyTopK, setVerifyTopK] = useState(3);
+  const [verifyResult, setVerifyResult] = useState<Record<string, unknown> | null>(null);
+  const [verifying, setVerifying] = useState(false);
+
+  // Fusion state
+  const [faceLabel, setFaceLabel] = useState("");
+  const [faceConf, setFaceConf] = useState(0.8);
+  const [voiceConf, setVoiceConf] = useState(0.7);
+  const [faceWeight, setFaceWeight] = useState(0.6);
+  const [fusionResult, setFusionResult] = useState<Record<string, unknown> | null>(null);
+  const [fusing, setFusing] = useState(false);
+
+  const handleEnroll = () => {
+    if (!enrollFile || !enrollSubjectId.trim()) {
+      setError("Audio file and subject ID are required");
+      return;
+    }
+    setError("");
+    setEnrollResult(null);
+    setEnrolling(true);
+
+    const formData = new FormData();
+    formData.append("audio", enrollFile);
+
+    fetch(`/api/v1/recognition/voice/enroll?subject_id=${encodeURIComponent(enrollSubjectId.trim())}`, {
+      method: "POST",
+      body: formData,
+    })
+      .then((r) => {
+        if (!r.ok) throw new Error(`${r.status}`);
+        return r.json();
+      })
+      .then((data) => {
+        setEnrollResult(data);
+        setEnrolling(false);
+      })
+      .catch((e) => {
+        setError(`Enroll error: ${e.message}`);
+        setEnrolling(false);
+      });
+  };
+
+  const handleVerify = () => {
+    if (!verifyFile) {
+      setError("Please select an audio file to verify");
+      return;
+    }
+    setError("");
+    setVerifyResult(null);
+    setVerifying(true);
+
+    const formData = new FormData();
+    formData.append("audio", verifyFile);
+
+    fetch(`/api/v1/recognition/voice/verify?top_k=${verifyTopK}`, {
+      method: "POST",
+      body: formData,
+    })
+      .then((r) => {
+        if (!r.ok) throw new Error(`${r.status}`);
+        return r.json();
+      })
+      .then((data) => {
+        setVerifyResult(data);
+        setVerifying(false);
+      })
+      .catch((e) => {
+        setError(`Verify error: ${e.message}`);
+        setVerifying(false);
+      });
+  };
+
+  const handleFusion = () => {
+    if (!faceLabel.trim()) {
+      setError("Face label is required for fusion");
+      return;
+    }
+    setError("");
+    setFusionResult(null);
+    setFusing(true);
+
+    fetch("/api/v1/recognition/multimodal", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        face_label: faceLabel.trim(),
+        face_confidence: faceConf,
+        voice_confidence: voiceConf,
+        face_weight: faceWeight,
+        voice_weight: +(1 - faceWeight).toFixed(2),
+      }),
+    })
+      .then((r) => {
+        if (!r.ok) throw new Error(`${r.status}`);
+        return r.json();
+      })
+      .then((data) => {
+        setFusionResult(data);
+        setFusing(false);
+      })
+      .catch((e) => {
+        setError(`Fusion error: ${e.message}`);
+        setFusing(false);
+      });
+  };
+
+  return (
+    <div className="space-y-4">
+      {error && (
+        <div className="bg-rose-ember/10 border border-rose-ember/20 rounded-lg px-4 py-2 text-rose-ember text-sm">
+          {error}
+        </div>
+      )}
+
+      {/* Voice Enroll */}
+      <div className="glass-card p-4 space-y-3">
+        <h3 className="font-semibold text-fg-secondary">Enroll Voice</h3>
+        <p className="text-xs text-fg-muted">Upload PCM/WAV audio to enroll a voice biometric for a subject.</p>
+        <div className="flex flex-wrap gap-4 items-end">
+          <label className="text-sm text-fg-secondary">
+            Audio File
+            <input
+              type="file"
+              accept="audio/*,.wav,.pcm,.raw"
+              onChange={(e) => setEnrollFile(e.target.files?.[0] || null)}
+              className="ff-input block mt-1"
+            />
+          </label>
+          <label className="text-sm text-fg-secondary">
+            Subject ID
+            <input
+              type="text"
+              value={enrollSubjectId}
+              onChange={(e) => setEnrollSubjectId(e.target.value)}
+              className="ff-input w-48 block mt-1"
+              placeholder="e.g. speaker_001"
+            />
+          </label>
+        </div>
+        <button onClick={handleEnroll} disabled={enrolling || !enrollFile} className="btn-success">
+          {enrolling ? "Enrolling..." : "Enroll Voice"}
+        </button>
+        {enrollResult && (
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mt-2">
+            <div>
+              <p className="text-xs text-fg-muted">Subject</p>
+              <p className="text-sm font-mono text-fg-secondary">{String(enrollResult.subject_id)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-fg-muted">Embedding Dim</p>
+              <p className="text-lg font-bold text-cyan">{String(enrollResult.embedding_dim)}</p>
+            </div>
+            <div>
+              <p className="text-xs text-fg-muted">Duration</p>
+              <p className="text-lg font-bold text-gold">{Number(enrollResult.duration_seconds).toFixed(2)}s</p>
+            </div>
+            <div>
+              <p className="text-xs text-fg-muted">Total Enrolled</p>
+              <p className="text-lg font-bold text-teal">{String(enrollResult.total_enrolled)}</p>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* Voice Verify */}
+      <div className="glass-card p-4 space-y-3">
+        <h3 className="font-semibold text-fg-secondary">Verify Voice</h3>
+        <p className="text-xs text-fg-muted">Upload audio to identify against enrolled voices using MFCC embeddings.</p>
+        <div className="flex flex-wrap gap-4 items-end">
+          <label className="text-sm text-fg-secondary">
+            Audio File
+            <input
+              type="file"
+              accept="audio/*,.wav,.pcm,.raw"
+              onChange={(e) => setVerifyFile(e.target.files?.[0] || null)}
+              className="ff-input block mt-1"
+            />
+          </label>
+          <label className="text-sm text-fg-secondary">
+            Top K
+            <input
+              type="number"
+              value={verifyTopK}
+              onChange={(e) => setVerifyTopK(+e.target.value)}
+              className="ff-input w-20 block mt-1"
+              min={1}
+            />
+          </label>
+        </div>
+        <button onClick={handleVerify} disabled={verifying || !verifyFile} className="btn-primary">
+          {verifying ? "Verifying..." : "Verify"}
+        </button>
+        {verifyResult && (
+          <div className="mt-2">
+            <p className="text-xs text-fg-muted mb-2">Input hash: <span className="font-mono">{String(verifyResult.input_hash).slice(0, 16)}...</span></p>
+            {Array.isArray(verifyResult.matches) && verifyResult.matches.length > 0 ? (
+              <div className="space-y-1">
+                {(verifyResult.matches as Array<{ label: string; confidence: number }>).map((m, i) => (
+                  <div key={i} className="flex items-center justify-between bg-surface rounded-lg px-3 py-2">
+                    <span className="text-sm text-fg-secondary font-mono">{m.label}</span>
+                    <span className={`text-sm font-semibold ${m.confidence >= 0.8 ? "text-teal" : m.confidence >= 0.5 ? "text-gold" : "text-rose-ember"}`}>
+                      {(m.confidence * 100).toFixed(1)}%
+                    </span>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <p className="text-sm text-fg-faint">No matches found</p>
+            )}
+          </div>
+        )}
+      </div>
+
+      {/* Multi-modal Fusion */}
+      <div className="glass-card p-4 space-y-3">
+        <h3 className="font-semibold text-fg-secondary">Multi-Modal Fusion</h3>
+        <p className="text-xs text-fg-muted">Fuse face and voice confidence scores into a unified decision.</p>
+        <div className="flex flex-wrap gap-4 items-end">
+          <label className="text-sm text-fg-secondary">
+            Face Label
+            <input
+              type="text"
+              value={faceLabel}
+              onChange={(e) => setFaceLabel(e.target.value)}
+              className="ff-input w-40 block mt-1"
+              placeholder="e.g. person_001"
+            />
+          </label>
+          <label className="text-sm text-fg-secondary">
+            Face Confidence
+            <input
+              type="number"
+              value={faceConf}
+              onChange={(e) => setFaceConf(+e.target.value)}
+              className="ff-input w-24 block mt-1"
+              min={0} max={1} step={0.05}
+            />
+          </label>
+          <label className="text-sm text-fg-secondary">
+            Voice Confidence
+            <input
+              type="number"
+              value={voiceConf}
+              onChange={(e) => setVoiceConf(+e.target.value)}
+              className="ff-input w-24 block mt-1"
+              min={0} max={1} step={0.05}
+            />
+          </label>
+          <label className="text-sm text-fg-secondary">
+            Face Weight
+            <input
+              type="number"
+              value={faceWeight}
+              onChange={(e) => setFaceWeight(+e.target.value)}
+              className="ff-input w-24 block mt-1"
+              min={0.01} max={0.99} step={0.05}
+            />
+          </label>
+        </div>
+        <button onClick={handleFusion} disabled={fusing} className="btn-accent">
+          {fusing ? "Fusing..." : "Run Fusion"}
+        </button>
+        {fusionResult && (
+          <div className="mt-2">
+            <p className="text-xs text-fg-muted mb-2">
+              Method: <span className="text-fg-secondary">{String(fusionResult.fusion_method)}</span>
+              {" | "}Face weight: <span className="text-fg-secondary">{String(fusionResult.face_weight)}</span>
+              {" | "}Voice weight: <span className="text-fg-secondary">{String(fusionResult.voice_weight)}</span>
+            </p>
+            {Array.isArray(fusionResult.fused_matches) && (
+              <div className="space-y-1">
+                {(fusionResult.fused_matches as Array<{ label: string; fused_confidence: number; face_confidence: number; voice_confidence: number }>).map((m, i) => (
+                  <div key={i} className="flex items-center justify-between bg-surface rounded-lg px-3 py-2">
+                    <span className="text-sm text-fg-secondary font-mono">{m.label}</span>
+                    <div className="flex items-center gap-4 text-xs">
+                      <span className="text-fg-muted">Face: {(m.face_confidence * 100).toFixed(0)}%</span>
+                      <span className="text-fg-muted">Voice: {(m.voice_confidence * 100).toFixed(0)}%</span>
+                      <span className={`text-sm font-semibold ${m.fused_confidence >= 0.8 ? "text-teal" : m.fused_confidence >= 0.5 ? "text-gold" : "text-rose-ember"}`}>
+                        Fused: {(m.fused_confidence * 100).toFixed(1)}%
+                      </span>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </div>
@@ -652,7 +959,7 @@ function ModelsTab() {
       <div className="glass-card p-4">
         <h3 className="font-semibold text-fg-secondary mb-3">Model Registry</h3>
         {models.length === 0 ? (
-          <p className="text-sm text-fg-faint">No models trained yet</p>
+          <EmptyState title="No models trained yet" subtitle="Train a PCA+SVM model from the Train tab" />
         ) : (
           <div className="space-y-2">
             {models.map((m) => (

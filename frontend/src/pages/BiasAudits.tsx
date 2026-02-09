@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import LoadingButton from "../components/LoadingButton";
+import { statusColor } from "../constants/eventColors";
 
 interface AuditSummary {
   audit_id: string;
@@ -70,12 +71,7 @@ export default function BiasAudits() {
     fetch(`/api/v1/fairness/audits/${auditId}`).then((r) => r.json()).then(setAuditDetail);
   };
 
-  const statusColors: Record<string, string> = {
-    pass: "bg-teal/10 text-teal border-teal/20",
-    warning: "bg-gold/10 text-gold border-gold/20",
-    fail: "bg-rose-ember/10 text-rose-ember border-rose-ember/20",
-    unknown: "bg-fg/5 text-fg-muted border-border-theme",
-  };
+  // Status colors imported from shared constants
 
   return (
     <div className="space-y-6">
@@ -88,7 +84,7 @@ export default function BiasAudits() {
 
       {/* Status banner */}
       {fairness && (
-        <div className={`rounded-lg border-2 p-4 ${statusColors[fairness.status] || statusColors.unknown}`}>
+        <div className={`rounded-lg border-2 p-4 ${statusColor(fairness.status)}`}>
           <div className="flex items-center justify-between">
             <div>
               <p className="text-lg font-bold uppercase">{fairness.status}</p>
@@ -183,7 +179,12 @@ export default function BiasAudits() {
           <label className="text-sm text-fg-secondary">EO Threshold <input type="number" value={eoThreshold} onChange={(e) => setEoThreshold(+e.target.value)} className="ff-input w-20 ml-1" step={0.01} /></label>
         </div>
         <LoadingButton onClick={runAudit} loading={auditLoading} loadingText="Auditing...">Run Audit</LoadingButton>
-        {auditResult && <pre className="text-xs bg-surface rounded-lg p-2 overflow-x-auto">{JSON.stringify(auditResult, null, 2)}</pre>}
+        {auditResult && (
+          <div className={`rounded-lg px-3 py-2 text-sm flex items-center gap-2 ${statusColor(String(auditResult.status || "unknown"))}`}>
+            <span className="font-bold">{auditResult.status === "pass" ? "\u2713" : auditResult.status === "fail" ? "\u2717" : "!"}</span>
+            <span>Audit complete — {String(auditResult.status ?? "DONE").toUpperCase()}{auditResult.fairness_score != null ? ` (score: ${(Number(auditResult.fairness_score) * 100).toFixed(1)}%)` : ""}</span>
+          </div>
+        )}
       </div>
 
       {/* Config */}

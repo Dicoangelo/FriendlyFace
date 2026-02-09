@@ -1,6 +1,7 @@
 import { Fragment, useEffect, useState } from "react";
 import { SkeletonTable } from "../components/Skeleton";
 import { useCopyToClipboard } from "../hooks/useCopyToClipboard";
+import { eventTypeColor } from "../constants/eventColors";
 
 interface ForensicEvent {
   id: string;
@@ -11,41 +12,42 @@ interface ForensicEvent {
   payload: Record<string, unknown>;
 }
 
-const EVENT_TYPE_COLORS: Record<string, string> = {
-  training_start: "bg-amethyst/10 text-amethyst border-amethyst/20",
-  training_complete: "bg-amethyst/10 text-amethyst border-amethyst/20",
-  model_registered: "bg-amethyst/10 text-amethyst border-amethyst/20",
-  inference_request: "bg-cyan/10 text-cyan border-cyan/20",
-  inference_result: "bg-cyan/10 text-cyan border-cyan/20",
-  explanation_generated: "bg-teal/10 text-teal border-teal/20",
-  bias_audit: "bg-gold/10 text-gold border-gold/20",
-  consent_recorded: "bg-teal/10 text-teal border-teal/20",
-  consent_update: "bg-teal/10 text-teal border-teal/20",
-  bundle_created: "bg-amethyst/10 text-amethyst border-amethyst/20",
-  fl_round: "bg-cyan/10 text-cyan border-cyan/20",
-  security_alert: "bg-rose-ember/10 text-rose-ember border-rose-ember/20",
-  compliance_report: "bg-gold/10 text-gold border-gold/20",
-};
+const PAGE_SIZE = 25;
 
 export default function EventsTable() {
   const copy = useCopyToClipboard();
   const [events, setEvents] = useState<ForensicEvent[]>([]);
+  const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
   const [activeType, setActiveType] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [page, setPage] = useState(0);
+  const [dateFrom, setDateFrom] = useState("");
+  const [dateTo, setDateTo] = useState("");
 
-  useEffect(() => {
-    fetch("/api/v1/events")
+  const fetchEvents = (offset: number) => {
+    setLoading(true);
+    const params = new URLSearchParams();
+    params.set("limit", String(PAGE_SIZE));
+    params.set("offset", String(offset));
+
+    fetch(`/api/v1/events?${params.toString()}`)
       .then((r) => r.json())
       .then((data) => {
-        setEvents(data.items || data);
+        const items: ForensicEvent[] = data.items || data;
+        setEvents(items);
+        setTotal(data.total ?? items.length);
         setLoading(false);
       })
       .catch(() => setLoading(false));
-  }, []);
+  };
 
-  // Count events by type
+  useEffect(() => {
+    fetchEvents(page * PAGE_SIZE);
+  }, [page]);
+
+  // Count events by type (local)
   const typeCounts: Record<string, number> = {};
   for (const e of events) {
     typeCounts[e.event_type] = (typeCounts[e.event_type] || 0) + 1;
@@ -59,22 +61,58 @@ export default function EventsTable() {
       e.event_type.includes(search) ||
       e.actor.includes(search) ||
       e.id.includes(search);
-    return matchesType && matchesSearch;
+    const ts = new Date(e.timestamp).getTime();
+    const matchesFrom = !dateFrom || ts >= new Date(dateFrom).getTime();
+    const matchesTo = !dateTo || ts <= new Date(dateTo + "T23:59:59").getTime();
+    return matchesType && matchesSearch && matchesFrom && matchesTo;
   });
 
-  if (loading) return <SkeletonTable rows={8} />;
+  const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+
+  if (loading && events.length === 0) return <SkeletonTable rows={8} />;
 
   return (
     <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <h2 className="text-xl font-bold text-fg">Forensic Events ({events.length})</h2>
-        <input
-          type="text"
-          placeholder="Search by type, actor, or ID..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="ff-input w-64"
-        />
+      {/* Controls row */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <span className="text-sm text-fg-muted font-medium">
+          {total} events{filtered.length !== events.length ? ` (${filtered.length} shown)` : ""}
+        </span>
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="text-xs text-fg-muted">
+            From
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={(e) => setDateFrom(e.target.value)}
+              className="ff-input text-xs ml-1 w-36"
+            />
+          </label>
+          <label className="text-xs text-fg-muted">
+            To
+            <input
+              type="date"
+              value={dateTo}
+              onChange={(e) => setDateTo(e.target.value)}
+              className="ff-input text-xs ml-1 w-36"
+            />
+          </label>
+          {(dateFrom || dateTo) && (
+            <button
+              onClick={() => { setDateFrom(""); setDateTo(""); }}
+              className="text-xs text-fg-faint hover:text-fg-secondary"
+            >
+              Clear dates
+            </button>
+          )}
+          <input
+            type="text"
+            placeholder="Search by type, actor, or ID..."
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="ff-input w-64"
+          />
+        </div>
       </div>
 
       {/* Type filter chips */}
@@ -90,7 +128,7 @@ export default function EventsTable() {
           All ({events.length})
         </button>
         {sortedTypes.map(([type, count]) => {
-          const colors = EVENT_TYPE_COLORS[type] || "bg-fg/5 text-fg-secondary border-fg-faint/20";
+          const colors = eventTypeColor(type);
           const isActive = activeType === type;
           return (
             <button
@@ -163,11 +201,36 @@ export default function EventsTable() {
           <p className="text-center py-8 text-fg-faint">No events match your filters</p>
         )}
       </div>
+
+      {/* Pagination */}
+      {totalPages > 1 && (
+        <div className="flex items-center justify-between">
+          <span className="text-xs text-fg-muted">
+            Page {page + 1} of {totalPages}
+          </span>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setPage(Math.max(0, page - 1))}
+              disabled={page === 0}
+              className="btn-ghost text-xs disabled:opacity-30"
+            >
+              Previous
+            </button>
+            <button
+              onClick={() => setPage(Math.min(totalPages - 1, page + 1))}
+              disabled={page >= totalPages - 1}
+              className="btn-ghost text-xs disabled:opacity-30"
+            >
+              Next
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
 
 function EventBadge({ type }: { type: string }) {
-  const colors = EVENT_TYPE_COLORS[type] || "bg-fg/5 text-fg-secondary border-transparent";
+  const colors = eventTypeColor(type);
   return <span className={`px-2 py-0.5 rounded text-xs font-medium ${colors.split(" ").slice(0, 2).join(" ")}`}>{type}</span>;
 }
