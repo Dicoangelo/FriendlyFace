@@ -45,7 +45,15 @@ interface ModelDetail {
   provenance_chain?: Array<Record<string, unknown>>;
 }
 
-type TabId = "predict" | "train" | "gallery" | "models" | "voice";
+interface LivenessResult {
+  is_live: boolean;
+  score: number;
+  checks: Record<string, number>;
+  details: string;
+  threshold: number;
+}
+
+type TabId = "predict" | "train" | "gallery" | "models" | "voice" | "liveness";
 
 export default function Recognition() {
   const [activeTab, setActiveTab] = useState<TabId>("predict");
@@ -56,6 +64,7 @@ export default function Recognition() {
     { id: "gallery", label: "Gallery" },
     { id: "models", label: "Models" },
     { id: "voice", label: "Voice" },
+    { id: "liveness", label: "Liveness" },
   ];
 
   return (
@@ -85,6 +94,7 @@ export default function Recognition() {
         {activeTab === "gallery" && <GalleryTab />}
         {activeTab === "models" && <ModelsTab />}
         {activeTab === "voice" && <VoiceTab />}
+        {activeTab === "liveness" && <LivenessTab />}
       </div>
     </div>
   );
@@ -924,6 +934,139 @@ function VoiceTab() {
           </div>
         )}
       </div>
+    </div>
+  );
+}
+
+function LivenessTab() {
+  const [file, setFile] = useState<File | null>(null);
+  const [threshold, setThreshold] = useState(0.5);
+  const [result, setResult] = useState<LivenessResult | null>(null);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const handleCheck = () => {
+    if (!file) {
+      setError("Please select a face image");
+      return;
+    }
+    setError("");
+    setResult(null);
+    setLoading(true);
+
+    const formData = new FormData();
+    formData.append("image", file);
+
+    fetch(`/api/v1/recognition/liveness?threshold=${threshold}`, {
+      method: "POST",
+      body: formData,
+    })
+      .then((r) => {
+        if (!r.ok) throw new Error(`${r.status}`);
+        return r.json();
+      })
+      .then((data) => {
+        setResult(data);
+        setLoading(false);
+      })
+      .catch((e) => {
+        setError(`Liveness check error: ${e.message}`);
+        setLoading(false);
+      });
+  };
+
+  return (
+    <div className="space-y-4">
+      <div className="glass-card p-4 space-y-3">
+        <h3 className="font-semibold text-fg-secondary">Passive Liveness Detection</h3>
+        <p className="text-xs text-fg-muted">
+          Anti-spoofing analysis: moire pattern, frequency spectrum, and color distribution checks.
+        </p>
+
+        <div className="flex flex-wrap gap-4 items-end">
+          <label className="text-sm text-fg-secondary">
+            Face Image
+            <input
+              type="file"
+              accept="image/*"
+              onChange={(e) => setFile(e.target.files?.[0] || null)}
+              className="ff-input block mt-1"
+            />
+          </label>
+          <label className="text-sm text-fg-secondary">
+            Threshold
+            <input
+              type="number"
+              value={threshold}
+              onChange={(e) => setThreshold(+e.target.value)}
+              className="ff-input w-24 block mt-1"
+              min={0}
+              max={1}
+              step={0.05}
+            />
+          </label>
+        </div>
+
+        <button onClick={handleCheck} disabled={loading || !file} className="btn-primary">
+          {loading ? "Checking..." : "Check Liveness"}
+        </button>
+      </div>
+
+      {error && (
+        <div className="bg-rose-ember/10 border border-rose-ember/20 rounded-lg px-4 py-2 text-rose-ember text-sm">
+          {error}
+        </div>
+      )}
+
+      {result && (
+        <div className="glass-card p-4 space-y-3 animate-fade-in">
+          <div className="flex items-center gap-3">
+            <div
+              className={`w-10 h-10 rounded-full flex items-center justify-center text-lg font-bold ${
+                result.is_live
+                  ? "bg-teal/20 text-teal"
+                  : "bg-rose-ember/20 text-rose-ember"
+              }`}
+            >
+              {result.is_live ? "\u2713" : "\u2717"}
+            </div>
+            <div>
+              <p className={`text-lg font-bold ${result.is_live ? "text-teal" : "text-rose-ember"}`}>
+                {result.is_live ? "Live" : "Spoof Detected"}
+              </p>
+              <p className="text-xs text-fg-muted">
+                Score: {result.score.toFixed(3)} | Threshold: {result.threshold}
+              </p>
+            </div>
+          </div>
+
+          <div>
+            <h4 className="text-sm font-semibold text-fg-muted mb-2">Check Scores</h4>
+            <div className="space-y-2">
+              {Object.entries(result.checks).map(([name, score]) => (
+                <div key={name} className="flex items-center gap-3">
+                  <span className="text-xs text-fg-secondary w-28 truncate">{name}</span>
+                  <div className="flex-1 bg-surface rounded-full h-2 overflow-hidden">
+                    <div
+                      className={`h-full rounded-full transition-all ${
+                        score >= 0.5 ? "bg-teal" : "bg-rose-ember"
+                      }`}
+                      style={{ width: `${Math.min(score * 100, 100)}%` }}
+                    />
+                  </div>
+                  <span className="text-xs text-fg-muted w-12 text-right">
+                    {(score * 100).toFixed(0)}%
+                  </span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {result.details && (
+            <p className="text-xs text-fg-faint">{result.details}</p>
+          )}
+        </div>
+      )}
     </div>
   );
 }

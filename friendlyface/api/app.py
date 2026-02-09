@@ -54,7 +54,7 @@ from contextlib import asynccontextmanager
 from typing import Any
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, Depends, FastAPI, HTTPException, Query, Request, Response, UploadFile
+from fastapi import APIRouter, Depends, FastAPI, File, HTTPException, Query, Request, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.responses import JSONResponse
@@ -1464,6 +1464,38 @@ async def _record_demographic_result(
         )
     except Exception:
         logger.warning("Failed to record demographic result", exc_info=True)
+
+
+@app.post(
+    "/recognition/liveness",
+    tags=["Recognition"],
+    summary="Run passive liveness detection on a face image",
+)
+async def check_liveness_endpoint(image: UploadFile = File(...), threshold: float = 0.5):
+    """Run anti-spoofing liveness detection (moiré, frequency, color analysis)."""
+    import io
+
+    import numpy as np
+    from PIL import Image as PILImage
+
+    from friendlyface.recognition.liveness import check_liveness
+
+    image_bytes = await image.read()
+    if not image_bytes:
+        raise HTTPException(status_code=400, detail="Empty image upload")
+
+    pil_img = PILImage.open(io.BytesIO(image_bytes)).convert("RGB")
+    img_array = np.asarray(pil_img, dtype=np.uint8)
+
+    result = check_liveness(img_array, threshold=threshold)
+
+    return {
+        "is_live": result.is_live,
+        "score": result.score,
+        "checks": result.checks,
+        "details": result.details,
+        "threshold": threshold,
+    }
 
 
 @app.get("/recognition/models", tags=["Recognition"], summary="List trained models")
@@ -3656,6 +3688,7 @@ v1_router.add_api_route("/provenance/{node_id}", get_provenance_chain, methods=[
 v1_router.add_api_route("/recognition/train", train_model, methods=["POST"], status_code=201)
 v1_router.add_api_route("/recognition/predict", predict, methods=["POST"])
 v1_router.add_api_route("/recognize", recognize, methods=["POST"])
+v1_router.add_api_route("/recognition/liveness", check_liveness_endpoint, methods=["POST"])
 v1_router.add_api_route("/recognition/models", list_models, methods=["GET"])
 v1_router.add_api_route("/recognition/models/{model_id}", get_model, methods=["GET"])
 
