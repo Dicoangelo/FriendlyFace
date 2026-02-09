@@ -107,7 +107,7 @@ export default function Bundles() {
               <button
                 key={b.id}
                 onClick={() => selectBundle(b.id)}
-                className={`w-full text-left glass-card p-3 transition-all ${
+                className={`w-full text-left glass-card p-3 transition-all hover:scale-[1.01] ${
                   selectedId === b.id
                     ? "border-cyan/40 bg-cyan/5"
                     : "hover:border-fg-faint/30"
@@ -143,7 +143,7 @@ export default function Bundles() {
           )}
 
           {detail && selectedId && (
-            <div className="space-y-4">
+            <div className="space-y-4 animate-fade-in">
               <div className="glass-card p-4 space-y-3">
                 <div className="flex items-center justify-between">
                   <h3 className="font-semibold text-fg-secondary">

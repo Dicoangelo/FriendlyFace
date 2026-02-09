@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { SkeletonDashboard } from "../components/Skeleton";
 import EmptyState from "../components/EmptyState";
-import { eventBarColor } from "../constants/eventColors";
+import ProgressRing from "../components/ProgressRing";
+import { eventBarColor, eventBadgeColor } from "../constants/eventColors";
 
 interface DashboardData {
   uptime_seconds: number;
@@ -109,12 +110,21 @@ export default function Dashboard() {
           <StatCard label="Gallery Subjects" value={galleryCount} color="cyan" />
         )}
         {compliance && (
-          <StatCard
-            label="Compliance"
-            value={`${(compliance.overall_score * 100).toFixed(0)}%`}
-            color={compliance.compliant ? "teal" : "rose-ember"}
-            badge={compliance.compliant ? "Compliant" : "Non-Compliant"}
-          />
+          <div className={`glass-card p-4 border-l-2 ${compliance.compliant ? "border-teal/20" : "border-rose-ember/20"}`}>
+            <p className="text-sm text-fg-muted">Compliance</p>
+            <div className="flex items-center gap-3 mt-2">
+              <ProgressRing
+                value={compliance.overall_score}
+                size={48}
+                strokeWidth={4}
+                color={compliance.compliant ? "text-teal" : "text-rose-ember"}
+                label={`${(compliance.overall_score * 100).toFixed(0)}%`}
+              />
+              <span className={`text-xs font-medium px-2 py-0.5 rounded ${compliance.compliant ? "bg-teal/10 text-teal" : "bg-rose-ember/10 text-rose-ember"}`}>
+                {compliance.compliant ? "Compliant" : "Non-Compliant"}
+              </span>
+            </div>
+          </div>
         )}
       </div>
 
@@ -198,11 +208,16 @@ export default function Dashboard() {
                       {r.num_clients} client{r.num_clients !== 1 ? "s" : ""}{r.dp_enabled ? " + DP" : ""}
                     </p>
                   </div>
-                  <div className="text-right">
-                    <p className={`text-sm font-semibold ${r.global_accuracy >= 0.8 ? "text-teal" : r.global_accuracy >= 0.5 ? "text-gold" : "text-rose-ember"}`}>
+                  <div className="flex items-center gap-2">
+                    <div className="w-16 h-1.5 bg-surface-light rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-500 ${r.global_accuracy >= 0.8 ? "bg-teal" : r.global_accuracy >= 0.5 ? "bg-gold" : "bg-rose-ember"}`}
+                        style={{ width: `${r.global_accuracy * 100}%` }}
+                      />
+                    </div>
+                    <span className={`text-sm font-semibold tabular-nums ${r.global_accuracy >= 0.8 ? "text-teal" : r.global_accuracy >= 0.5 ? "text-gold" : "text-rose-ember"}`}>
                       {(r.global_accuracy * 100).toFixed(1)}%
-                    </p>
-                    <p className="text-xs text-fg-faint">accuracy</p>
+                    </span>
                   </div>
                 </div>
               ))}
@@ -228,13 +243,16 @@ export default function Dashboard() {
                       {m.model_type} — {m.num_classes} classes
                     </p>
                   </div>
-                  <div className="text-right">
-                    <p className={`text-sm font-semibold ${m.accuracy >= 0.9 ? "text-teal" : m.accuracy >= 0.7 ? "text-gold" : "text-rose-ember"}`}>
+                  <div className="flex items-center gap-2">
+                    <div className="w-16 h-1.5 bg-surface-light rounded-full overflow-hidden">
+                      <div
+                        className={`h-full rounded-full transition-all duration-500 ${m.accuracy >= 0.9 ? "bg-teal" : m.accuracy >= 0.7 ? "bg-gold" : "bg-rose-ember"}`}
+                        style={{ width: `${m.accuracy * 100}%` }}
+                      />
+                    </div>
+                    <span className={`text-sm font-semibold tabular-nums ${m.accuracy >= 0.9 ? "text-teal" : m.accuracy >= 0.7 ? "text-gold" : "text-rose-ember"}`}>
                       {(m.accuracy * 100).toFixed(1)}%
-                    </p>
-                    <p className="text-xs text-fg-faint">
-                      {new Date(m.trained_at).toLocaleDateString()}
-                    </p>
+                    </span>
                   </div>
                 </div>
               ))}
@@ -285,7 +303,7 @@ const STAT_COLORS: Record<string, string> = {
 
 function StatCard({ label, value, color = "cyan", badge }: { label: string; value: string | number; color?: string; badge?: string }) {
   return (
-    <div className={`glass-card p-4 border-l-2 ${STAT_COLORS[color] || STAT_COLORS.cyan}`}>
+    <div className={`glass-card p-4 border-l-2 transition-transform duration-200 hover:scale-[1.02] ${STAT_COLORS[color] || STAT_COLORS.cyan}`}>
       <p className="text-sm text-fg-muted">{label}</p>
       <div className="flex items-center gap-2 mt-1">
         <p className={`text-2xl font-bold ${STAT_COLORS[color]?.split(" ")[1] || "text-cyan"}`}>{value}</p>
@@ -300,21 +318,5 @@ function StatCard({ label, value, color = "cyan", badge }: { label: string; valu
 }
 
 function EventBadge({ type }: { type: string }) {
-  const colors: Record<string, string> = {
-    training_start: "bg-amethyst/10 text-amethyst",
-    training_complete: "bg-amethyst/10 text-amethyst",
-    model_registered: "bg-amethyst/10 text-amethyst",
-    inference_request: "bg-cyan/10 text-cyan",
-    inference_result: "bg-cyan/10 text-cyan",
-    explanation_generated: "bg-teal/10 text-teal",
-    bias_audit: "bg-gold/10 text-gold",
-    consent_recorded: "bg-teal/10 text-teal",
-    consent_update: "bg-teal/10 text-teal",
-    bundle_created: "bg-amethyst/10 text-amethyst",
-    fl_round: "bg-cyan/10 text-cyan",
-    security_alert: "bg-rose-ember/10 text-rose-ember",
-    compliance_report: "bg-gold/10 text-gold",
-  };
-  const cls = colors[type] || "bg-fg/5 text-fg-secondary";
-  return <span className={`px-2 py-0.5 rounded text-xs font-medium ${cls}`}>{type}</span>;
+  return <span className={`px-2 py-0.5 rounded text-xs font-medium ${eventBadgeColor(type)}`}>{type}</span>;
 }
