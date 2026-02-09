@@ -1,6 +1,7 @@
 import { useState, useCallback } from "react";
 import { useToast } from "../hooks/useToast";
 import ConfirmDialog from "../components/ConfirmDialog";
+import LoadingButton from "../components/LoadingButton";
 
 export default function ConsentManagement() {
   const toast = useToast();
@@ -30,10 +31,13 @@ export default function ConsentManagement() {
   const [confirmOpen, setConfirmOpen] = useState(false);
 
   const [error, setError] = useState("");
+  const [grantLoading, setGrantLoading] = useState(false);
+  const [revokeLoading, setRevokeLoading] = useState(false);
 
   const grantConsent = () => {
     setError("");
     setGrantResult(null);
+    setGrantLoading(true);
     fetch("/api/v1/consent/grant", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -47,7 +51,8 @@ export default function ConsentManagement() {
       .catch((e) => {
         setError(e.message);
         toast.error(`Failed to grant consent: ${e.message}`);
-      });
+      })
+      .finally(() => setGrantLoading(false));
   };
 
   const checkConsent = () => {
@@ -82,6 +87,7 @@ export default function ConsentManagement() {
     setConfirmOpen(false);
     setError("");
     setRevokeResult(null);
+    setRevokeLoading(true);
     fetch("/api/v1/consent/revoke", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -95,7 +101,8 @@ export default function ConsentManagement() {
       .catch((e) => {
         setError(e.message);
         toast.error(`Failed to revoke consent: ${e.message}`);
-      });
+      })
+      .finally(() => setRevokeLoading(false));
   }, [revokeSubject, revokePurpose, revokeReason, toast]);
 
   const handleRevokeClick = () => {
@@ -119,7 +126,7 @@ export default function ConsentManagement() {
           <input type="text" placeholder="Purpose" value={purpose} onChange={(e) => setPurpose(e.target.value)} className="ff-input" />
           <input type="text" placeholder="Expiry (ISO-8601, optional)" value={expiry} onChange={(e) => setExpiry(e.target.value)} className="ff-input" />
         </div>
-        <button onClick={grantConsent} className="btn-primary">Grant</button>
+        <LoadingButton onClick={grantConsent} loading={grantLoading} loadingText="Granting...">Grant</LoadingButton>
         {grantResult && <pre className="text-xs bg-teal/10 rounded-lg p-2">{JSON.stringify(grantResult, null, 2)}</pre>}
       </div>
 
@@ -170,7 +177,7 @@ export default function ConsentManagement() {
           <input type="text" placeholder="Purpose" value={revokePurpose} onChange={(e) => setRevokePurpose(e.target.value)} className="ff-input" />
           <input type="text" placeholder="Reason" value={revokeReason} onChange={(e) => setRevokeReason(e.target.value)} className="ff-input" />
         </div>
-        <button onClick={handleRevokeClick} className="btn-danger">Revoke</button>
+        <LoadingButton onClick={handleRevokeClick} loading={revokeLoading} className="btn-danger" loadingText="Revoking...">Revoke</LoadingButton>
         {revokeResult && <pre className="text-xs bg-rose-ember/10 rounded-lg p-2">{JSON.stringify(revokeResult, null, 2)}</pre>}
       </div>
 

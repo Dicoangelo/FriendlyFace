@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { SkeletonDashboard } from "../components/Skeleton";
 
 interface DashboardData {
   uptime_seconds: number;
@@ -59,6 +60,8 @@ export default function Dashboard() {
   const [data, setData] = useState<DashboardData | null>(null);
   const [flRounds, setFlRounds] = useState<FLRound[]>([]);
   const [models, setModels] = useState<RecognitionModel[]>([]);
+  const [, setGalleryCount] = useState<number | null>(null);
+  const [, setCompliance] = useState<{ compliant: boolean; overall_score: number } | null>(null);
   const [error, setError] = useState("");
 
   const fetchData = () => {
@@ -85,19 +88,22 @@ export default function Dashboard() {
       .then((data) => setModels(Array.isArray(data) ? data : []))
       .catch(() => {});
 
+    fetch("/api/v1/gallery/count")
+      .then((r) => r.json())
+      .then((data) => setGalleryCount(data.total ?? data.count ?? 0))
+      .catch(() => {});
+
+    fetch("/api/v1/governance/compliance")
+      .then((r) => r.json())
+      .then(setCompliance)
+      .catch(() => {});
+
     return () => clearInterval(id);
   }, []);
 
   if (error) return <div className="text-rose-ember">Error loading dashboard: {error}</div>;
 
-  if (!data)
-    return (
-      <div className="space-y-4">
-        {[...Array(4)].map((_, i) => (
-          <div key={i} className="h-24 bg-surface rounded-lg animate-pulse" />
-        ))}
-      </div>
-    );
+  if (!data) return <SkeletonDashboard />;
 
   return (
     <div className="space-y-6">

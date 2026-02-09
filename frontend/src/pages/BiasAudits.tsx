@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import LoadingButton from "../components/LoadingButton";
 
 interface AuditSummary {
   audit_id: string;
@@ -16,6 +17,12 @@ interface FairnessStatus {
   compliant_audits?: number;
 }
 
+interface DemographicGroup {
+  group_name: string;
+  total_results: number;
+  accuracy?: number;
+}
+
 export default function BiasAudits() {
   const [fairness, setFairness] = useState<FairnessStatus | null>(null);
   const [audits, setAudits] = useState<AuditSummary[]>([]);
@@ -27,14 +34,19 @@ export default function BiasAudits() {
   const [eoThreshold, setEoThreshold] = useState(0.1);
   const [auditResult, setAuditResult] = useState<Record<string, unknown> | null>(null);
   const [error, setError] = useState("");
+  const [auditLoading, setAuditLoading] = useState(false);
 
   // Config
   const [config, setConfig] = useState<Record<string, unknown> | null>(null);
+
+  // Demographics
+  const [demographics, setDemographics] = useState<DemographicGroup[]>([]);
 
   useEffect(() => {
     fetch("/api/v1/fairness/status").then((r) => r.json()).then(setFairness);
     fetch("/api/v1/fairness/audits").then((r) => r.json()).then((d) => setAudits(d.items || []));
     fetch("/api/v1/fairness/config").then((r) => r.json()).then(setConfig);
+    fetch("/api/v1/fairness/demographics").then((r) => r.json()).then((d) => setDemographics(d.groups || [])).catch(() => {});
   }, []);
 
   const runAudit = () => {
@@ -42,6 +54,7 @@ export default function BiasAudits() {
     setAuditResult(null);
     let parsedGroups;
     try { parsedGroups = JSON.parse(groups); } catch { setError("Invalid JSON groups"); return; }
+    setAuditLoading(true);
     fetch("/api/v1/fairness/audit", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -49,7 +62,8 @@ export default function BiasAudits() {
     })
       .then((r) => { if (!r.ok) throw new Error(`${r.status}`); return r.json(); })
       .then(setAuditResult)
-      .catch((e) => setError(e.message));
+      .catch((e) => setError(e.message))
+      .finally(() => setAuditLoading(false));
   };
 
   const viewDetail = (auditId: string) => {
@@ -90,6 +104,35 @@ export default function BiasAudits() {
         </div>
       )}
 
+      {/* Demographic stats */}
+      {demographics.length > 0 && (
+        <div className="glass-card p-4">
+          <h3 className="font-semibold text-fg-secondary mb-3">Demographic Accuracy</h3>
+          <div className="space-y-2">
+            {demographics.map((g) => {
+              const acc = g.accuracy ?? 0;
+              const pct = Math.min(acc * 100, 100);
+              const color = acc >= 0.8 ? "teal" : acc >= 0.5 ? "gold" : "rose-ember";
+              return (
+                <div key={g.group_name} className="flex items-center gap-3">
+                  <span className="text-xs text-fg-muted w-32 truncate">{g.group_name}</span>
+                  <div className="flex-1 h-6 bg-surface rounded-md overflow-hidden relative">
+                    <div
+                      className={`h-full rounded-md bg-${color}/30 transition-all duration-500`}
+                      style={{ width: `${pct}%` }}
+                    />
+                    <span className={`absolute inset-y-0 right-2 flex items-center text-xs font-semibold text-${color}`}>
+                      {(acc * 100).toFixed(1)}%
+                    </span>
+                  </div>
+                  <span className="text-xs text-fg-faint w-16 text-right">{g.total_results} results</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* Audit list */}
       {audits.length > 0 && (
         <div className="glass-card p-4">
@@ -123,7 +166,10 @@ export default function BiasAudits() {
 
       {auditDetail && (
         <div className="glass-card p-4">
-          <h3 className="font-semibold text-fg-secondary mb-2">Audit Detail</h3>
+          <div className="flex items-center gap-2 mb-2">
+            <h3 className="font-semibold text-fg-secondary">Audit Detail</h3>
+            <AuditSourceBadge detail={auditDetail} />
+          </div>
           <pre className="text-xs bg-surface rounded-lg p-2 overflow-x-auto">{JSON.stringify(auditDetail, null, 2)}</pre>
         </div>
       )}
@@ -136,7 +182,7 @@ export default function BiasAudits() {
           <label className="text-sm text-fg-secondary">DP Threshold <input type="number" value={dpThreshold} onChange={(e) => setDpThreshold(+e.target.value)} className="ff-input w-20 ml-1" step={0.01} /></label>
           <label className="text-sm text-fg-secondary">EO Threshold <input type="number" value={eoThreshold} onChange={(e) => setEoThreshold(+e.target.value)} className="ff-input w-20 ml-1" step={0.01} /></label>
         </div>
-        <button onClick={runAudit} className="btn-primary">Run Audit</button>
+        <LoadingButton onClick={runAudit} loading={auditLoading} loadingText="Auditing...">Run Audit</LoadingButton>
         {auditResult && <pre className="text-xs bg-surface rounded-lg p-2 overflow-x-auto">{JSON.stringify(auditResult, null, 2)}</pre>}
       </div>
 
@@ -148,5 +194,22 @@ export default function BiasAudits() {
         </div>
       )}
     </div>
+  );
+}
+
+function AuditSourceBadge({ detail }: { detail: Record<string, unknown> }) {
+  const metadata = detail.metadata as Record<string, unknown> | undefined;
+  const source = metadata?.source as string | undefined;
+  if (source === "real") {
+    return (
+      <span className="px-2 py-0.5 rounded text-xs font-medium bg-teal/10 text-teal border border-teal/20">
+        Real Data
+      </span>
+    );
+  }
+  return (
+    <span className="px-2 py-0.5 rounded text-xs font-medium bg-gold/10 text-gold border border-gold/20">
+      Synthetic Data
+    </span>
   );
 }

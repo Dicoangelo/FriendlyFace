@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { SkeletonTable } from "../components/Skeleton";
 
 interface BundleSummary {
   id: string;
@@ -85,8 +86,7 @@ export default function Bundles() {
       .catch((e) => setError(e.message));
   };
 
-  if (loading)
-    return <div className="h-48 bg-surface rounded-lg animate-pulse" />;
+  if (loading) return <SkeletonTable rows={6} />;
 
   return (
     <div className="space-y-4">

@@ -1,4 +1,6 @@
 import { Fragment, useEffect, useState } from "react";
+import { SkeletonTable } from "../components/Skeleton";
+import { useCopyToClipboard } from "../hooks/useCopyToClipboard";
 
 interface ForensicEvent {
   id: string;
@@ -26,6 +28,7 @@ const EVENT_TYPE_COLORS: Record<string, string> = {
 };
 
 export default function EventsTable() {
+  const copy = useCopyToClipboard();
   const [events, setEvents] = useState<ForensicEvent[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
@@ -59,8 +62,7 @@ export default function EventsTable() {
     return matchesType && matchesSearch;
   });
 
-  if (loading)
-    return <div className="h-48 bg-surface rounded-lg animate-pulse" />;
+  if (loading) return <SkeletonTable rows={8} />;
 
   return (
     <div className="space-y-4">
@@ -127,7 +129,7 @@ export default function EventsTable() {
                     <button
                       onClick={(ev) => {
                         ev.stopPropagation();
-                        navigator.clipboard.writeText(e.id);
+                        copy(e.id, "Event ID copied");
                       }}
                       className="ml-1 text-fg-faint hover:text-cyan"
                       title="Copy ID"

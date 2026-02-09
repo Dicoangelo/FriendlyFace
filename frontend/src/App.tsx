@@ -11,6 +11,8 @@ import FLSimulations from "./pages/FLSimulations";
 import BiasAudits from "./pages/BiasAudits";
 import ConsentManagement from "./pages/ConsentManagement";
 import Explainability from "./pages/Explainability";
+import Recognition from "./pages/Recognition";
+import Compliance from "./pages/Compliance";
 
 interface NavItem {
   to: string;
@@ -41,6 +43,7 @@ const NAV_SECTIONS: NavSection[] = [
   {
     title: "AI / ML",
     items: [
+      { to: "/recognition", label: "Recognition", icon: "eye" },
       { to: "/fl", label: "FL Simulations", icon: "cpu" },
       { to: "/explainability", label: "Explainability", icon: "search" },
       { to: "/bias", label: "Bias Audits", icon: "scale" },
@@ -49,6 +52,7 @@ const NAV_SECTIONS: NavSection[] = [
   {
     title: "Governance",
     items: [
+      { to: "/compliance", label: "Compliance", icon: "clipboard" },
       { to: "/consent", label: "Consent", icon: "check" },
       { to: "/did", label: "DID / VC", icon: "key" },
       { to: "/zk", label: "ZK Proofs", icon: "shield" },
@@ -61,12 +65,29 @@ const PAGE_TITLES: Record<string, string> = {
   "/events/live": "Live Event Stream",
   "/events": "Forensic Events",
   "/bundles": "Forensic Bundles",
+  "/recognition": "Face Recognition",
   "/fl": "Federated Learning",
   "/explainability": "Explainability",
   "/bias": "Bias Audits",
+  "/compliance": "EU AI Act Compliance",
   "/consent": "Consent Management",
   "/did": "DID / Verifiable Credentials",
   "/zk": "ZK Proofs",
+};
+
+const PAGE_DESCRIPTIONS: Record<string, string> = {
+  "/": "System health, model status, and forensic chain overview",
+  "/events/live": "Real-time Server-Sent Events from the forensic pipeline",
+  "/events": "Browse, filter, and inspect all forensic events",
+  "/bundles": "Cryptographically signed evidence bundles with Merkle verification",
+  "/recognition": "PCA + SVM facial recognition with voice biometrics",
+  "/fl": "Federated learning simulations with poisoning detection and DP-FedAvg",
+  "/explainability": "LIME, SHAP, and SDD saliency maps for model interpretability",
+  "/bias": "Demographic parity and equalized odds audits across groups",
+  "/compliance": "EU AI Act compliance reports and OSCAL export",
+  "/consent": "Grant, check, and revoke subject consent with full audit trail",
+  "/did": "Decentralized Identifiers and W3C Verifiable Credentials",
+  "/zk": "Schnorr zero-knowledge proofs for privacy-preserving verification",
 };
 
 const NAV_ICONS: Record<string, React.ReactNode> = {
@@ -80,6 +101,8 @@ const NAV_ICONS: Record<string, React.ReactNode> = {
   scale: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M3 6l3 1m0 0l-3 9a5.002 5.002 0 006.001 0M6 7l3 9M6 7l6-2m6 2l3-1m-3 1l-3 9a5.002 5.002 0 006.001 0M18 7l3 9m-3-9l-6-2m0-2v2m0 16V5m0 16H9m3 0h3" /></svg>,
   search: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>,
   check: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>,
+  eye: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" /><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" /></svg>,
+  clipboard: <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" /></svg>,
 };
 
 function NotFound() {
@@ -129,6 +152,7 @@ function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const location = useLocation();
   const pageTitle = PAGE_TITLES[location.pathname] || "FriendlyFace";
+  const pageDescription = PAGE_DESCRIPTIONS[location.pathname];
 
   return (
       <div className="flex h-screen bg-page grid-bg">
@@ -203,7 +227,12 @@ function AppLayout() {
         <div className="flex-1 flex flex-col min-w-0">
           {/* Top bar */}
           <header className="bg-sidebar/50 backdrop-blur-sm border-b border-border-theme px-6 py-3 flex items-center justify-between flex-shrink-0">
-            <h1 className="text-lg font-semibold text-fg">{pageTitle}</h1>
+            <div>
+              <h1 className="text-lg font-semibold text-fg">{pageTitle}</h1>
+              {pageDescription && (
+                <p className="text-xs text-fg-faint mt-0.5">{pageDescription}</p>
+              )}
+            </div>
             <div className="flex items-center gap-3">
               <ThemeToggle />
               <HealthBadge />
@@ -219,14 +248,26 @@ function AppLayout() {
               <Route path="/bundles" element={<Bundles />} />
               <Route path="/did" element={<DIDManagement />} />
               <Route path="/zk" element={<ZKProofs />} />
+              <Route path="/recognition" element={<Recognition />} />
               <Route path="/fl" element={<FLSimulations />} />
               <Route path="/bias" element={<BiasAudits />} />
               <Route path="/explainability" element={<Explainability />} />
+              <Route path="/compliance" element={<Compliance />} />
               <Route path="/consent" element={<ConsentManagement />} />
               <Route path="/index.html" element={<Navigate to="/" replace />} />
               <Route path="*" element={<NotFound />} />
             </Routes>
           </main>
+
+          {/* Footer status bar */}
+          <footer className="bg-sidebar/50 backdrop-blur-sm border-t border-border-theme px-6 py-2 flex items-center justify-between text-xs text-fg-faint flex-shrink-0">
+            <span>FriendlyFace v0.1.0 — ICDF2C 2024 Forensic Schema</span>
+            <div className="flex items-center gap-4">
+              <span>Hash-chained events</span>
+              <span>Merkle-verified bundles</span>
+              <HealthBadge />
+            </div>
+          </footer>
         </div>
       </div>
   );

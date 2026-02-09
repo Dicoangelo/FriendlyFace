@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import LoadingButton from "../components/LoadingButton";
 
 interface ExplanationRecord {
   explanation_id: string;
@@ -11,6 +12,7 @@ interface ExplanationRecord {
   top_k?: number;
   random_state?: number;
   num_regions?: number;
+  computed?: boolean;
 }
 
 interface ExplanationList {
@@ -49,8 +51,18 @@ export default function Explainability() {
   const [shapRandomState, setShapRandomState] = useState(42);
   const [shapResult, setShapResult] = useState<Record<string, unknown> | null>(null);
 
+  // SDD form state
+  const [sddEventId, setSddEventId] = useState("");
+  const [sddResult, setSddResult] = useState<Record<string, unknown> | null>(null);
+
   // Compare form state
   const [compareEventId, setCompareEventId] = useState("");
+
+  // Loading states
+  const [limeLoading, setLimeLoading] = useState(false);
+  const [shapLoading, setShapLoading] = useState(false);
+  const [sddLoading, setSddLoading] = useState(false);
+  const [compareLoading, setCompareLoading] = useState(false);
 
   const fetchExplanations = () => {
     fetch("/api/v1/explainability/explanations")
@@ -73,6 +85,7 @@ export default function Explainability() {
       setError("LIME: event_id is required");
       return;
     }
+    setLimeLoading(true);
     fetch("/api/v1/explainability/lime", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -91,7 +104,8 @@ export default function Explainability() {
         setLimeResult(data);
         fetchExplanations();
       })
-      .catch((e) => setError(`LIME error: ${e.message}`));
+      .catch((e) => setError(`LIME error: ${e.message}`))
+      .finally(() => setLimeLoading(false));
   };
 
   const triggerShap = () => {
@@ -101,6 +115,7 @@ export default function Explainability() {
       setError("SHAP: event_id is required");
       return;
     }
+    setShapLoading(true);
     fetch("/api/v1/explainability/shap", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -118,7 +133,33 @@ export default function Explainability() {
         setShapResult(data);
         fetchExplanations();
       })
-      .catch((e) => setError(`SHAP error: ${e.message}`));
+      .catch((e) => setError(`SHAP error: ${e.message}`))
+      .finally(() => setShapLoading(false));
+  };
+
+  const triggerSdd = () => {
+    setError("");
+    setSddResult(null);
+    if (!sddEventId.trim()) {
+      setError("SDD: event_id is required");
+      return;
+    }
+    setSddLoading(true);
+    fetch("/api/v1/explainability/sdd", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ event_id: sddEventId.trim() }),
+    })
+      .then((r) => {
+        if (!r.ok) throw new Error(`${r.status}`);
+        return r.json();
+      })
+      .then((data) => {
+        setSddResult(data);
+        fetchExplanations();
+      })
+      .catch((e) => setError(`SDD error: ${e.message}`))
+      .finally(() => setSddLoading(false));
   };
 
   const loadComparison = () => {
@@ -128,13 +169,15 @@ export default function Explainability() {
       setError("Compare: event_id is required");
       return;
     }
+    setCompareLoading(true);
     fetch(`/api/v1/explainability/compare/${compareEventId.trim()}`)
       .then((r) => {
         if (!r.ok) throw new Error(`${r.status}`);
         return r.json();
       })
       .then(setComparison)
-      .catch((e) => setError(`Compare error: ${e.message}`));
+      .catch((e) => setError(`Compare error: ${e.message}`))
+      .finally(() => setCompareLoading(false));
   };
 
   const viewDetail = (explanationId: string) => {
@@ -199,6 +242,7 @@ export default function Explainability() {
               <tr>
                 <th className="pb-2">ID</th>
                 <th className="pb-2">Method</th>
+                <th className="pb-2">Status</th>
                 <th className="pb-2">Inference Event</th>
                 <th className="pb-2">Timestamp</th>
               </tr>
@@ -218,6 +262,9 @@ export default function Explainability() {
                       {e.method.toUpperCase()}
                     </span>
                   </td>
+                  <td className="py-2">
+                    <ComputedBadge computed={e.computed} />
+                  </td>
                   <td className="py-2 font-mono text-xs text-fg-muted">
                     {e.inference_event_id.slice(0, 8)}...
                   </td>
@@ -233,7 +280,10 @@ export default function Explainability() {
       {selectedDetail && (
         <div className="glass-card p-4">
           <div className="flex items-center justify-between mb-2">
-            <h3 className="font-semibold text-fg-secondary">Explanation Detail</h3>
+            <div className="flex items-center gap-2">
+              <h3 className="font-semibold text-fg-secondary">Explanation Detail</h3>
+              <ComputedBadge computed={(selectedDetail as Record<string, unknown>).computed as boolean | undefined} />
+            </div>
             <button
               onClick={() => setSelectedDetail(null)}
               className="text-fg-faint hover:text-fg-secondary text-sm"
@@ -241,9 +291,7 @@ export default function Explainability() {
               Close
             </button>
           </div>
-          <pre className="text-xs bg-surface rounded-lg p-2 overflow-x-auto">
-            {JSON.stringify(selectedDetail, null, 2)}
-          </pre>
+          <RichDetailView detail={selectedDetail} />
         </div>
       )}
 
@@ -299,9 +347,9 @@ export default function Explainability() {
             />
           </label>
         </div>
-        <button onClick={triggerLime} className="btn-success">
+        <LoadingButton onClick={triggerLime} loading={limeLoading} className="btn-success" loadingText="Running...">
           Run LIME
-        </button>
+        </LoadingButton>
         {limeResult && (
           <pre className="text-xs bg-surface rounded-lg p-2 overflow-x-auto">
             {JSON.stringify(limeResult, null, 2)}
@@ -343,12 +391,37 @@ export default function Explainability() {
             />
           </label>
         </div>
-        <button onClick={triggerShap} className="btn-accent">
+        <LoadingButton onClick={triggerShap} loading={shapLoading} className="btn-accent" loadingText="Running...">
           Run SHAP
-        </button>
+        </LoadingButton>
         {shapResult && (
           <pre className="text-xs bg-surface rounded-lg p-2 overflow-x-auto">
             {JSON.stringify(shapResult, null, 2)}
+          </pre>
+        )}
+      </div>
+
+      {/* Trigger SDD */}
+      <div className="glass-card p-4 space-y-2">
+        <h3 className="font-semibold text-fg-secondary">Generate SDD Explanation</h3>
+        <div className="flex gap-4 items-end">
+          <label className="text-sm text-fg-secondary">
+            Event ID
+            <input
+              type="text"
+              value={sddEventId}
+              onChange={(e) => setSddEventId(e.target.value)}
+              className="ff-input font-mono text-xs w-72 block mt-1"
+              placeholder="Inference event UUID"
+            />
+          </label>
+        </div>
+        <LoadingButton onClick={triggerSdd} loading={sddLoading} loadingText="Running...">
+          Run SDD
+        </LoadingButton>
+        {sddResult && (
+          <pre className="text-xs bg-surface rounded-lg p-2 overflow-x-auto">
+            {JSON.stringify(sddResult, null, 2)}
           </pre>
         )}
       </div>
@@ -370,12 +443,9 @@ export default function Explainability() {
               placeholder="Inference event UUID"
             />
           </label>
-          <button
-            onClick={loadComparison}
-            className="btn-primary"
-          >
+          <LoadingButton onClick={loadComparison} loading={compareLoading} loadingText="Comparing...">
             Compare
-          </button>
+          </LoadingButton>
         </div>
       </div>
 
@@ -409,6 +479,157 @@ export default function Explainability() {
         </div>
       )}
     </div>
+  );
+}
+
+function ComputedBadge({ computed }: { computed?: boolean }) {
+  if (computed === true) {
+    return (
+      <span className="px-2 py-0.5 rounded text-xs font-medium bg-teal/10 text-teal border border-teal/20">
+        Computed
+      </span>
+    );
+  }
+  return (
+    <span className="px-2 py-0.5 rounded text-xs font-medium bg-fg/5 text-fg-faint border border-fg-faint/20">
+      Stub
+    </span>
+  );
+}
+
+function RichDetailView({ detail }: { detail: Record<string, unknown> }) {
+  const computed = detail.computed === true;
+  const method = (detail.method as string) || "";
+
+  if (!computed) {
+    return (
+      <pre className="text-xs bg-surface rounded-lg p-2 overflow-x-auto">
+        {JSON.stringify(detail, null, 2)}
+      </pre>
+    );
+  }
+
+  // LIME rich view
+  if (method === "lime" && detail.top_regions) {
+    const regions = detail.top_regions as Array<{ region: number; weight: number }>;
+    return (
+      <div className="space-y-3">
+        <h4 className="text-sm font-semibold text-teal">LIME Top Regions</h4>
+        <div className="space-y-1">
+          {regions.map((r, i) => {
+            const maxWeight = Math.max(...regions.map((x) => Math.abs(x.weight)));
+            const pct = maxWeight > 0 ? (Math.abs(r.weight) / maxWeight) * 100 : 0;
+            return (
+              <div key={i} className="flex items-center gap-3">
+                <span className="text-xs text-fg-muted w-24">Region {r.region}</span>
+                <div className="flex-1 h-5 bg-surface rounded-md overflow-hidden relative">
+                  <div
+                    className={`h-full rounded-md ${r.weight >= 0 ? "bg-teal/30" : "bg-rose-ember/30"} transition-all`}
+                    style={{ width: `${pct}%` }}
+                  />
+                  <span className={`absolute inset-y-0 right-2 flex items-center text-xs font-semibold ${r.weight >= 0 ? "text-teal" : "text-rose-ember"}`}>
+                    {r.weight.toFixed(4)}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <details className="text-xs">
+          <summary className="text-fg-faint cursor-pointer">Raw JSON</summary>
+          <pre className="bg-surface rounded-lg p-2 overflow-x-auto mt-1">
+            {JSON.stringify(detail, null, 2)}
+          </pre>
+        </details>
+      </div>
+    );
+  }
+
+  // SHAP rich view
+  if (method === "shap" && detail.top_features) {
+    const features = detail.top_features as Array<{ feature: string; value: number }>;
+    const baseValue = detail.base_value as number | undefined;
+    return (
+      <div className="space-y-3">
+        <h4 className="text-sm font-semibold text-amethyst">SHAP Feature Attributions</h4>
+        {baseValue !== undefined && (
+          <p className="text-xs text-fg-muted">Base value: <span className="font-mono text-fg-secondary">{baseValue.toFixed(4)}</span></p>
+        )}
+        <div className="space-y-1">
+          {features.map((f, i) => {
+            const maxVal = Math.max(...features.map((x) => Math.abs(x.value)));
+            const pct = maxVal > 0 ? (Math.abs(f.value) / maxVal) * 100 : 0;
+            return (
+              <div key={i} className="flex items-center gap-3">
+                <span className="text-xs text-fg-muted w-24 truncate">{f.feature}</span>
+                <div className="flex-1 h-5 bg-surface rounded-md overflow-hidden relative">
+                  <div
+                    className={`h-full rounded-md ${f.value >= 0 ? "bg-amethyst/30" : "bg-rose-ember/30"} transition-all`}
+                    style={{ width: `${pct}%` }}
+                  />
+                  <span className={`absolute inset-y-0 right-2 flex items-center text-xs font-semibold ${f.value >= 0 ? "text-amethyst" : "text-rose-ember"}`}>
+                    {f.value.toFixed(4)}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <details className="text-xs">
+          <summary className="text-fg-faint cursor-pointer">Raw JSON</summary>
+          <pre className="bg-surface rounded-lg p-2 overflow-x-auto mt-1">
+            {JSON.stringify(detail, null, 2)}
+          </pre>
+        </details>
+      </div>
+    );
+  }
+
+  // SDD rich view
+  if (method === "sdd" && detail.regions) {
+    const regions = detail.regions as Array<{ region: string; saliency: number }>;
+    const dominant = detail.dominant_region as string | undefined;
+    return (
+      <div className="space-y-3">
+        <h4 className="text-sm font-semibold text-cyan">SDD Saliency Regions</h4>
+        {dominant && (
+          <p className="text-xs text-fg-muted">Dominant region: <span className="font-mono text-cyan">{dominant}</span></p>
+        )}
+        <div className="space-y-1">
+          {regions.map((r, i) => {
+            const maxSal = Math.max(...regions.map((x) => x.saliency));
+            const pct = maxSal > 0 ? (r.saliency / maxSal) * 100 : 0;
+            return (
+              <div key={i} className="flex items-center gap-3">
+                <span className="text-xs text-fg-muted w-24 truncate">{r.region}</span>
+                <div className="flex-1 h-5 bg-surface rounded-md overflow-hidden relative">
+                  <div
+                    className="h-full rounded-md bg-cyan/30 transition-all"
+                    style={{ width: `${pct}%` }}
+                  />
+                  <span className="absolute inset-y-0 right-2 flex items-center text-xs font-semibold text-cyan">
+                    {r.saliency.toFixed(4)}
+                  </span>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+        <details className="text-xs">
+          <summary className="text-fg-faint cursor-pointer">Raw JSON</summary>
+          <pre className="bg-surface rounded-lg p-2 overflow-x-auto mt-1">
+            {JSON.stringify(detail, null, 2)}
+          </pre>
+        </details>
+      </div>
+    );
+  }
+
+  // Fallback for computed but unknown structure
+  return (
+    <pre className="text-xs bg-surface rounded-lg p-2 overflow-x-auto">
+      {JSON.stringify(detail, null, 2)}
+    </pre>
   );
 }
 

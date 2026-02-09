@@ -2575,6 +2575,16 @@ async def get_auto_audit_config():
     }
 
 
+@app.get("/fairness/demographics", tags=["Fairness"], summary="Get demographic stats")
+async def get_demographic_stats():
+    """Return per-group demographic statistics from recognition results."""
+    try:
+        stats = await _db.get_demographic_stats()
+    except Exception:
+        stats = []
+    return {"groups": stats, "total_groups": len(stats)}
+
+
 async def _maybe_auto_audit():
     """Check if auto-audit should be triggered and run it if so.
 
@@ -3669,6 +3679,7 @@ v1_router.add_api_route("/fairness/audits/{audit_id}", get_bias_audit, methods=[
 v1_router.add_api_route("/fairness/status", get_fairness_status, methods=["GET"])
 v1_router.add_api_route("/fairness/config", configure_auto_audit, methods=["POST"])
 v1_router.add_api_route("/fairness/config", get_auto_audit_config, methods=["GET"])
+v1_router.add_api_route("/fairness/demographics", get_demographic_stats, methods=["GET"])
 
 # Explainability
 v1_router.add_api_route(
