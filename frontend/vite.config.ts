@@ -23,6 +23,7 @@ export default defineConfig({
       "/chain": "http://localhost:3849",
       "/provenance": "http://localhost:3849",
       "/verify": "http://localhost:3849",
+      "/gallery": "http://localhost:3849",
       "/recognize": "http://localhost:3849",
     },
   },

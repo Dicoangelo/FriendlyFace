@@ -1,4 +1,5 @@
 import { useState } from "react";
+import LoadingButton from "../components/LoadingButton";
 
 interface SimResult {
   simulation_id: string;
@@ -121,9 +122,13 @@ export default function FLSimulations() {
         )}
       </div>
 
-      <button onClick={tab === "standard" ? startSimulation : startDPSimulation} disabled={loading} className="btn-primary disabled:opacity-50">
-        {loading ? "Running..." : "Start Simulation"}
-      </button>
+      <LoadingButton
+        onClick={tab === "standard" ? startSimulation : startDPSimulation}
+        loading={loading}
+        loadingText="Running..."
+      >
+        Start Simulation
+      </LoadingButton>
 
       {/* Results */}
       {(tab === "standard" ? result : dpResult) && (
