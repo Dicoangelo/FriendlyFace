@@ -21,6 +21,7 @@ import io
 from pathlib import Path
 
 import numpy as np
+import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
 from PIL import Image
@@ -28,6 +29,12 @@ from PIL import Image
 from friendlyface.api import app as app_module
 from friendlyface.api.app import _db, _service, app, limiter
 from friendlyface.recognition.pca import IMAGE_SIZE
+
+
+@pytest.fixture(autouse=True)
+def _force_fallback_engine(monkeypatch):
+    """Force fallback engine for PCA+SVM pipeline tests."""
+    monkeypatch.setenv("FF_RECOGNITION_ENGINE", "fallback")
 
 
 # ---------------------------------------------------------------------------

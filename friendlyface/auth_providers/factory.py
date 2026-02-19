@@ -39,6 +39,11 @@ def create_provider(
 
         return OIDCProvider(oidc_issuer, oidc_audience)
 
+    if provider_name == "user_account":
+        from friendlyface.auth_providers.user_account import UserAccountProvider
+
+        return UserAccountProvider()
+
     msg = f"Unknown auth provider: {provider_name}"
     raise ValueError(msg)
 

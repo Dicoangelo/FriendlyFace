@@ -338,7 +338,7 @@ class TestDemoSeedAPI:
         assert resp.status_code == 200
         data = resp.json()
         assert data["seeded"] is True
-        assert data["events"] > 10
+        assert data["events_created"] > 10
         assert data["provenance_nodes"] == 4
 
     async def test_seed_idempotent(self, api_client):

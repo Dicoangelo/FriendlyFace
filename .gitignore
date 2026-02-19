@@ -20,3 +20,10 @@ venv/
 *.lock
 tsconfig.tsbuildinfo
 frontend/tsconfig.tsbuildinfo
+
+# ML models (large binaries — keep lightweight dev model)
+models/*.onnx
+!models/mobilefacenet.onnx
+
+# Benchmark results
+benchmarks/*.json

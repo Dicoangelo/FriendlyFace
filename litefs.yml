@@ -1,0 +1,50 @@
+# ──────────────────────────────────────────────────────────────
+# LiteFS — Distributed SQLite for FriendlyFace
+# ──────────────────────────────────────────────────────────────
+# LiteFS intercepts SQLite operations via FUSE, replicates writes
+# from the primary to all replicas. Reads are served locally.
+#
+# Docs: https://fly.io/docs/litefs/
+
+# FUSE mount point — the app reads/writes SQLite here.
+# LiteFS intercepts all operations transparently.
+fuse:
+  dir: "/litefs"
+  allow-other: true
+
+# Internal data directory — on the Fly persistent volume.
+# Stores WAL segments, snapshots, and replication state.
+data:
+  dir: "/var/lib/litefs"
+
+# Built-in HTTP proxy that routes writes to the primary.
+# GET/HEAD → served locally (read replica).
+# POST/PUT/DELETE/PATCH → forwarded to primary node.
+proxy:
+  addr: ":8080"
+  target: "localhost:8000"
+  db: "friendlyface.db"
+  passthrough:
+    - "*.css"
+    - "*.js"
+    - "*.png"
+    - "*.jpg"
+    - "*.svg"
+    - "*.ico"
+    - "*.woff2"
+
+# Consul-based leader election via Fly.io's built-in Consul.
+# Only nodes in the primary region are candidates for leader.
+lease:
+  type: "consul"
+  advertise-url: "http://${HOSTNAME}.vm.${FLY_APP_NAME}.internal:20202"
+  candidate: ${FLY_REGION == PRIMARY_REGION}
+  promote: true
+  consul:
+    url: "${FLY_CONSUL_URL}"
+    key: "litefs/${FLY_APP_NAME}"
+
+# LiteFS starts as root (FUSE requirement), then execs the app.
+# The app runs as ffuser (non-root) for security.
+exec:
+  - cmd: "su -s /bin/sh -c 'uvicorn friendlyface.api.app:app --host 0.0.0.0 --port 8000' ffuser"

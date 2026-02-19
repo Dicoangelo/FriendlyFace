@@ -3,10 +3,16 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+    # Override LiteFS entrypoint for local development.
+    # LiteFS requires Fly.io Consul — not available locally.
+    entrypoint: []
+    command: ["sh", "-c", "uvicorn friendlyface.api.app:app --host 0.0.0.0 --port ${FF_PORT:-8000}"]
+    user: "1000:1000"
     ports:
       - "8000:8000"
     environment:
       - FF_STORAGE=${FF_STORAGE:-sqlite}
+      - FF_DB_PATH=/app/data/friendlyface.db
       - SUPABASE_URL=${SUPABASE_URL:-}
       - SUPABASE_KEY=${SUPABASE_KEY:-}
     volumes:

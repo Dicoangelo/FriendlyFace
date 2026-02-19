@@ -367,15 +367,30 @@ async def lifespan(app: FastAPI):
         await _db.run_migrations()
     await _service.initialize()
 
-    # Initialize gallery and deep recognition pipeline
+    # Initialize gallery and deep recognition pipeline with ONNX model
+    from friendlyface.recognition.embeddings import EmbeddingExtractor
     from friendlyface.recognition.gallery import FaceGallery
+    from friendlyface.recognition.model_manager import ModelManager
     from friendlyface.recognition.pipeline import RecognitionPipeline
 
     _gallery = FaceGallery(_db)
-    _recognition_pipeline = RecognitionPipeline(gallery=_gallery)
+
+    # Resolve ONNX model path
+    model_manager = ModelManager(model_dir=settings.model_dir)
+    model_path = settings.onnx_model_path or model_manager.resolve()
+    extractor = EmbeddingExtractor(model_path=model_path)
+    _recognition_pipeline = RecognitionPipeline(gallery=_gallery, extractor=extractor)
+    logger.info(
+        "Recognition pipeline ready: engine=%s, embedding=%s",
+        settings.recognition_engine,
+        extractor.model_version,
+    )
 
     # Load persisted caches from DB into memory (write-through cache)
     await _load_persisted_caches()
+
+    # Expose DB on app.state for billing/auth route handlers
+    app.state.db = _db
 
     log_startup_info()
     yield
@@ -409,6 +424,9 @@ _OPENAPI_TAGS = [
     {"name": "ZK", "description": "Schnorr zero-knowledge proofs"},
     {"name": "Metrics", "description": "Prometheus metrics endpoint"},
     {"name": "Admin", "description": "Backup, migrations, and administrative operations"},
+    {"name": "billing", "description": "Stripe billing, checkout, and subscription management"},
+    {"name": "auth", "description": "User registration, login, and account management"},
+    {"name": "api-keys", "description": "Self-service API key management"},
 ]
 
 app = FastAPI(
@@ -594,14 +612,19 @@ def get_service() -> ForensicService:
 async def health():
     count = await _db.get_event_count()
     uptime_s = time.monotonic() - _STARTUP_TIME if _STARTUP_TIME > 0 else 0
-    return {
+    response: dict[str, Any] = {
         "status": "ok",
         "version": "0.1.0",
         "uptime_seconds": round(uptime_s, 1),
         "event_count": count,
         "merkle_root": _service.get_merkle_root(),
         "storage_backend": settings.storage,
+        "recognition_engine": _resolve_engine(),
     }
+    if _recognition_pipeline is not None:
+        response["embedding_backend"] = _recognition_pipeline.extractor.backend
+        response["embedding_model"] = _recognition_pipeline.extractor.model_version
+    return response
 
 
 @app.get("/health/deep", tags=["Health"], summary="Deep health check with dependency status")
@@ -1366,6 +1389,11 @@ async def _do_predict_deep(image_bytes: bytes, top_k: int = 5) -> dict[str, Any]
             "final_score": result.calibration.final_score,
             "method": result.calibration.method,
         }
+
+    # Include pipeline metadata
+    if result.details:
+        response["detector_backend"] = result.details.get("detector_backend")
+        response["embedding_model"] = result.details.get("embedding_model")
 
     return response
 
@@ -3636,18 +3664,31 @@ async def rollback_migration(dry_run: bool = False):
 
 
 @app.post("/demo/seed", tags=["Demo"], summary="Seed database with demo data")
-async def seed_demo_data():
+async def seed_demo_data(force: bool = False):
     """Populate the database with realistic forensic events across all 6 layers.
 
     Generates: training events, inference events, FL rounds, bias audits,
     consent records, compliance report, provenance nodes, and bundles.
-    Idempotent: skips if events already exist.
+    Idempotent: skips if events already exist (unless force=True).
     """
     from friendlyface.core.models import EventType
 
     count = await _db.get_event_count()
-    if count > 0:
+    if count > 0 and not force:
         return {"seeded": False, "message": "Database already has data", "events": count}
+
+    events_deleted = 0
+    if count > 0 and force:
+        # Delete only demo-generated events (safe for production)
+        try:
+            cursor = await _db.db.execute(
+                "DELETE FROM forensic_events WHERE actor LIKE 'demo-%'"
+            )
+            events_deleted = cursor.rowcount
+            await _db.db.commit()
+            logger.info("Force seed: deleted %d demo events", events_deleted)
+        except Exception:
+            logger.warning("Force seed: could not delete demo events", exc_info=True)
 
     actors = ["demo-trainer", "demo-user", "demo-auditor", "demo-system"]
     created = 0
@@ -3804,7 +3845,13 @@ async def seed_demo_data():
     except Exception:
         pass
 
-    return {"seeded": True, "events": created, "provenance_nodes": 4}
+    return {
+        "seeded": True,
+        "events_created": created,
+        "provenance_nodes": 4,
+        "forced": force,
+        "events_deleted": events_deleted,
+    }
 
 
 # ---------------------------------------------------------------------------
@@ -3993,6 +4040,15 @@ v1_router.add_api_route("/admin/backup/stats", backup_stats, methods=["GET"])
 # Admin — Migrations
 v1_router.add_api_route("/admin/migrations/status", migration_status, methods=["GET"])
 v1_router.add_api_route("/admin/migrations/rollback", rollback_migration, methods=["POST"])
+
+# Billing, Auth, and API Keys routers
+from friendlyface.billing.routes import router as billing_router  # noqa: E402
+from friendlyface.api.routes.auth import router as auth_router  # noqa: E402
+from friendlyface.api.routes.api_keys import router as api_keys_router  # noqa: E402
+
+v1_router.include_router(billing_router)
+v1_router.include_router(auth_router)
+v1_router.include_router(api_keys_router)
 
 app.include_router(v1_router)
 

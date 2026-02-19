@@ -208,13 +208,15 @@ class TestTrainEndpoint:
 
 class TestPredictEndpoint:
     async def test_predict_no_models(self, client):
-        """Returns 503 when no models are configured."""
+        """Returns 503 when no models are configured and no deep pipeline."""
         import friendlyface.api.app as app_module
 
         old_pca = app_module._pca_model_path
         old_svm = app_module._svm_model_path
+        old_pipeline = app_module._recognition_pipeline
         app_module._pca_model_path = None
         app_module._svm_model_path = None
+        app_module._recognition_pipeline = None
         try:
             image_bytes = _make_test_image()
             resp = await client.post(
@@ -225,9 +227,11 @@ class TestPredictEndpoint:
         finally:
             app_module._pca_model_path = old_pca
             app_module._svm_model_path = old_svm
+            app_module._recognition_pipeline = old_pipeline
 
-    async def test_predict_after_train(self, client, tmp_path):
-        """After training, predict returns matches with event_id."""
+    async def test_predict_after_train(self, client, tmp_path, monkeypatch):
+        """After training, predict returns matches with event_id (fallback engine)."""
+        monkeypatch.setenv("FF_RECOGNITION_ENGINE", "fallback")
         dataset_dir, labels = _create_test_dataset(tmp_path)
         output_dir = tmp_path / "models"
 
@@ -258,8 +262,9 @@ class TestPredictEndpoint:
         assert "label" in data["matches"][0]
         assert "confidence" in data["matches"][0]
 
-    async def test_predict_forensic_event_persisted(self, client, tmp_path):
+    async def test_predict_forensic_event_persisted(self, client, tmp_path, monkeypatch):
         """Prediction event is persisted in the forensic chain."""
+        monkeypatch.setenv("FF_RECOGNITION_ENGINE", "fallback")
         dataset_dir, labels = _create_test_dataset(tmp_path)
         output_dir = tmp_path / "models"
 
@@ -286,8 +291,9 @@ class TestPredictEndpoint:
         assert event_data["event_type"] == "inference_result"
         assert event_data["payload"]["input_hash"] == data["input_hash"]
 
-    async def test_predict_empty_upload(self, client, tmp_path):
+    async def test_predict_empty_upload(self, client, tmp_path, monkeypatch):
         """Returns 400 for empty image upload."""
+        monkeypatch.setenv("FF_RECOGNITION_ENGINE", "fallback")
         dataset_dir, labels = _create_test_dataset(tmp_path)
         output_dir = tmp_path / "models"
 
@@ -307,8 +313,9 @@ class TestPredictEndpoint:
         )
         assert resp.status_code == 400
 
-    async def test_predict_with_top_k(self, client, tmp_path):
-        """Predict respects the top_k query parameter."""
+    async def test_predict_with_top_k(self, client, tmp_path, monkeypatch):
+        """Predict respects the top_k query parameter (fallback engine)."""
+        monkeypatch.setenv("FF_RECOGNITION_ENGINE", "fallback")
         dataset_dir, labels = _create_test_dataset(tmp_path)
         output_dir = tmp_path / "models"
 
@@ -669,9 +676,29 @@ class TestLegacyRecognize:
 
 
 class TestResolveEngine:
-    def test_default_is_fallback(self, monkeypatch):
+    def test_default_is_auto(self, monkeypatch):
         monkeypatch.delenv("FF_RECOGNITION_ENGINE", raising=False)
-        assert app_module._resolve_engine() == "fallback"
+        from friendlyface.config import settings
+
+        assert settings.recognition_engine == "auto"
+
+    def test_auto_resolves_to_deep_with_pipeline(self, monkeypatch):
+        monkeypatch.delenv("FF_RECOGNITION_ENGINE", raising=False)
+        original = app_module._recognition_pipeline
+        app_module._recognition_pipeline = object()  # truthy sentinel
+        try:
+            assert app_module._resolve_engine() == "deep"
+        finally:
+            app_module._recognition_pipeline = original
+
+    def test_auto_resolves_to_fallback_without_pipeline(self, monkeypatch):
+        monkeypatch.delenv("FF_RECOGNITION_ENGINE", raising=False)
+        original = app_module._recognition_pipeline
+        app_module._recognition_pipeline = None
+        try:
+            assert app_module._resolve_engine() == "fallback"
+        finally:
+            app_module._recognition_pipeline = original
 
     def test_explicit_deep(self, monkeypatch):
         monkeypatch.setenv("FF_RECOGNITION_ENGINE", "deep")
