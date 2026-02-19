@@ -11,9 +11,16 @@ import io
 from pathlib import Path
 
 import numpy as np
+import pytest
 from PIL import Image as PILImage
 
 from friendlyface.recognition.pca import IMAGE_SIZE
+
+
+@pytest.fixture(autouse=True)
+def _force_fallback_engine(monkeypatch):
+    """Force fallback engine for PCA+SVM pipeline tests."""
+    monkeypatch.setenv("FF_RECOGNITION_ENGINE", "fallback")
 
 
 def _make_face_bytes() -> bytes:

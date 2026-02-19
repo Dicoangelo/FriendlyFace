@@ -31,6 +31,16 @@ class Settings(BaseSettings):
         default="", description='JSON map of api_key -> roles (e.g., \'{"key1": ["admin"]}\')'
     )
 
+    # JWT
+    jwt_secret: str = Field(default="", description="Secret key for JWT signing (required for user_account auth)")
+
+    # Stripe
+    stripe_secret_key: str = Field(default="", description="Stripe secret API key")
+    stripe_webhook_secret: str = Field(default="", description="Stripe webhook signing secret")
+    stripe_price_starter: str = Field(default="price_starter", description="Stripe Price ID for Starter plan")
+    stripe_price_professional: str = Field(default="price_professional", description="Stripe Price ID for Professional plan")
+    stripe_price_enterprise: str = Field(default="price_enterprise", description="Stripe Price ID for Enterprise plan")
+
     # Crypto
     did_seed: str | None = Field(
         default=None, description="64-char hex seed for deterministic DID key"
@@ -100,11 +110,19 @@ class Settings(BaseSettings):
 
     # Recognition engine
     recognition_engine: str = Field(
-        default="fallback",
+        default="auto",
         description=(
             "Recognition backend: 'fallback' (PCA+SVM only), 'deep' (detection+embedding pipeline), "
-            "'auto' (deep when gallery non-empty, else fallback), 'mediapipe', or 'onnx'"
+            "'auto' (deep when available, else fallback), 'mediapipe', or 'onnx'"
         ),
+    )
+
+    # ONNX model management
+    onnx_model_path: str | None = Field(
+        default=None, description="Explicit path to ONNX face recognition model"
+    )
+    model_dir: str = Field(
+        default="models", description="Directory to search for ONNX models"
     )
 
     # Inference artifacts for explainability

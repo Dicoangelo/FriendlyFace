@@ -24,6 +24,8 @@ dependencies = [
     "prometheus-fastapi-instrumentator>=7.0.0",
     "pyjwt[crypto]>=2.8.0",
     "cryptography>=42.0.0",
+    "stripe>=7.0.0",
+    "email-validator>=2.0.0",
 ]
 
 [project.optional-dependencies]
@@ -50,6 +52,10 @@ build-backend = "hatchling.build"
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+markers = [
+    "ml: requires ML extras (onnxruntime, mediapipe)",
+    "benchmark: slow benchmark tests (LFW evaluation)",
+]
 
 [tool.coverage.run]
 source = ["friendlyface"]

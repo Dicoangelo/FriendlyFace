@@ -1,38 +1,68 @@
-# fly.toml app configuration file generated for friendlyface on 2026-02-07T13:51:44-05:00
+# ──────────────────────────────────────────────────────────────
+# FriendlyFace — Fly.io Configuration
+# ──────────────────────────────────────────────────────────────
+# Multi-region deployment with LiteFS distributed SQLite,
+# auto-scaling, and health checks.
 #
-# See https://fly.io/docs/reference/configuration/ for information about how to use this file.
-#
+# Deploy:  fly deploy
+# Regions: fly regions add lhr sin  (London, Singapore)
+# Scale:   fly scale count 2 --region lhr
+#          fly scale count 2 --region sin
+# Status:  fly status
+# Logs:    fly logs
 
 app = 'friendlyface'
 primary_region = 'iad'
 
 [build]
 
+# ── Consul ───────────────────────────────────────────────────
+# Required for LiteFS leader election. Fly provides Consul
+# automatically — no external service needed.
+[consul]
+
+# ── Environment ──────────────────────────────────────────────
 [env]
   FF_HOST = '0.0.0.0'
   FF_PORT = '8000'
   FF_STORAGE = 'sqlite'
+  FF_DB_PATH = '/litefs/friendlyface.db'
 
+# ── Persistent Volume ────────────────────────────────────────
+# LiteFS stores WAL segments and snapshots on this volume.
+# The FUSE mount at /litefs is ephemeral — this is the durable layer.
 [[mounts]]
   source = 'ff_data'
-  destination = '/app/data'
+  destination = '/var/lib/litefs'
 
+# ── HTTP Service ─────────────────────────────────────────────
+# Traffic hits the LiteFS proxy on 8080, which forwards to
+# uvicorn on 8000. The proxy handles write routing to primary.
 [http_service]
-  internal_port = 8000
+  internal_port = 8080
   force_https = true
   auto_stop_machines = 'stop'
   auto_start_machines = true
   min_machines_running = 1
 
+  # ── Auto-scaling ─────────────────────────────────────────
+  # Fly spawns additional machines when concurrency exceeds
+  # soft_limit. Hard limit triggers 503s to protect the system.
+  [http_service.concurrency]
+    type = 'requests'
+    soft_limit = 150
+    hard_limit = 250
+
+  # ── Health checks ────────────────────────────────────────
   [[http_service.checks]]
     interval = '15s'
     timeout = '5s'
-    grace_period = '10s'
+    grace_period = '15s'
     method = 'GET'
     path = '/health'
 
+# ── VM Resources ─────────────────────────────────────────────
 [[vm]]
   memory = '512mb'
   cpu_kind = 'shared'
   cpus = 1
-  memory_mb = 512

@@ -18,6 +18,11 @@ import RetentionPolicies from "./pages/RetentionPolicies";
 import AdminOps from "./pages/AdminOps";
 import MerkleExplorer from "./pages/MerkleExplorer";
 import ProvenanceExplorer from "./pages/ProvenanceExplorer";
+import LandingPage from "./pages/LandingPage";
+import LoginPage from "./pages/LoginPage";
+import SignupPage from "./pages/SignupPage";
+import PricingPage from "./pages/PricingPage";
+import APIKeysPage from "./pages/APIKeysPage";
 
 interface NavItem {
   to: string;
@@ -68,6 +73,12 @@ const NAV_SECTIONS: NavSection[] = [
     ],
   },
   {
+    title: "Account",
+    items: [
+      { to: "/api-keys", label: "API Keys", icon: "key" },
+    ],
+  },
+  {
     title: "Admin",
     items: [
       { to: "/admin", label: "Operations", icon: "settings" },
@@ -93,6 +104,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/admin": "Admin Operations",
   "/merkle": "Merkle Tree",
   "/provenance": "Provenance Explorer",
+  "/api-keys": "API Keys",
 };
 
 const PAGE_DESCRIPTIONS: Record<string, string> = {
@@ -113,6 +125,7 @@ const PAGE_DESCRIPTIONS: Record<string, string> = {
   "/admin": "Database backups, migrations, and system operations",
   "/merkle": "Append-only Merkle tree root and cryptographic inclusion proofs",
   "/provenance": "Trace artifact lineage: dataset → training → model → inference → explanation",
+  "/api-keys": "Create, list, and revoke API keys for programmatic access",
 };
 
 const NAV_ICONS: Record<string, React.ReactNode> = {
@@ -173,7 +186,13 @@ function ThemeToggle() {
 export default function App() {
   return (
     <BrowserRouter>
-      <AppLayout />
+      <Routes>
+        <Route path="/landing" element={<LandingPage />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/signup" element={<SignupPage />} />
+        <Route path="/pricing" element={<PricingPage />} />
+        <Route path="/*" element={<AppLayout />} />
+      </Routes>
     </BrowserRouter>
   );
 }
@@ -321,6 +340,7 @@ function AppLayout() {
               <Route path="/admin" element={<AdminOps />} />
               <Route path="/merkle" element={<MerkleExplorer />} />
               <Route path="/provenance" element={<ProvenanceExplorer />} />
+              <Route path="/api-keys" element={<APIKeysPage />} />
               <Route path="/index.html" element={<Navigate to="/" replace />} />
               <Route path="*" element={<NotFound />} />
             </Routes>

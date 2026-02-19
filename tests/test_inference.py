@@ -282,14 +282,16 @@ class TestRunInference:
 
 class TestRecognizeEndpoint:
     async def test_recognize_no_models_configured(self, client):
-        """Returns 503 when model paths are not set."""
+        """Returns 503 when model paths are not set and no deep pipeline."""
         import friendlyface.api.app as app_module
 
-        # Ensure model paths are None
+        # Ensure model paths and pipeline are None
         old_pca = app_module._pca_model_path
         old_svm = app_module._svm_model_path
+        old_pipeline = app_module._recognition_pipeline
         app_module._pca_model_path = None
         app_module._svm_model_path = None
+        app_module._recognition_pipeline = None
         try:
             image_bytes = _make_test_image()
             resp = await client.post(
@@ -300,11 +302,13 @@ class TestRecognizeEndpoint:
         finally:
             app_module._pca_model_path = old_pca
             app_module._svm_model_path = old_svm
+            app_module._recognition_pipeline = old_pipeline
 
-    async def test_recognize_success(self, client, tmp_path):
+    async def test_recognize_success(self, client, tmp_path, monkeypatch):
         """Upload image -> get prediction + verify forensic event exists."""
         import friendlyface.api.app as app_module
 
+        monkeypatch.setenv("FF_RECOGNITION_ENGINE", "fallback")
         pca_path, svm_path = _train_and_save_models(tmp_path)
         app_module._pca_model_path = str(pca_path)
         app_module._svm_model_path = str(svm_path)

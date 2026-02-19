@@ -1,4 +1,4 @@
-"""Tests for face embedding extraction (US-046)."""
+"""Tests for face embedding extraction (US-046, US-091)."""
 
 from __future__ import annotations
 
@@ -9,6 +9,7 @@ from friendlyface.recognition.embeddings import (
     EMBEDDING_DIM,
     EmbeddingExtractor,
     FaceEmbedding,
+    _infer_model_name,
 )
 
 
@@ -107,3 +108,42 @@ class TestEmbeddingExtractor:
         ext = EmbeddingExtractor()
         emb = ext.extract(_aligned_face())
         assert emb.model_version == ext.model_version
+
+    def test_model_info_fallback(self):
+        ext = EmbeddingExtractor()
+        info = ext.model_info
+        assert info["backend"] == "fallback"
+        assert info["model_version"] == "pca-fallback-v1"
+        assert info["embedding_dim"] == EMBEDDING_DIM
+        assert "model_path" not in info
+
+    def test_model_name_override(self):
+        ext = EmbeddingExtractor(model_name="custom-v2")
+        # Without a model path + ORT, name is ignored (stays fallback)
+        assert ext.model_version == "pca-fallback-v1"
+
+    def test_model_path_without_ort_falls_back(self):
+        # When ORT is not available, providing a path should fall back gracefully
+        import friendlyface.recognition.embeddings as emb_module
+
+        original = emb_module._HAS_ORT
+        emb_module._HAS_ORT = False
+        try:
+            ext = EmbeddingExtractor(model_path="/nonexistent/model.onnx")
+            assert ext.backend == "fallback"
+        finally:
+            emb_module._HAS_ORT = original
+
+
+class TestInferModelName:
+    def test_mobilefacenet(self):
+        assert _infer_model_name("/path/mobilefacenet.onnx") == "onnx-mobilefacenet"
+
+    def test_arcface_r100(self):
+        assert _infer_model_name("/models/glintr100.onnx") == "onnx-arcface-r100"
+
+    def test_arcface_r50(self):
+        assert _infer_model_name("/models/w600k_r50.onnx") == "onnx-arcface-r50"
+
+    def test_unknown_model(self):
+        assert _infer_model_name("/models/custom_face.onnx") == "onnx-custom_face"

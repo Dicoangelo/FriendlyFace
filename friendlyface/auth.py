@@ -27,6 +27,14 @@ from friendlyface.config import settings
 # Paths that are always public, even when auth is enabled.
 PUBLIC_PATHS: frozenset[str] = frozenset({"/health", "/metrics"})
 
+# Path prefixes that are always public (checked with startswith).
+PUBLIC_PREFIXES: tuple[str, ...] = (
+    "/billing/webhook",
+    "/auth/",
+    "/api/v1/billing/webhook",
+    "/api/v1/auth/",
+)
+
 _audit_logger = logging.getLogger("friendlyface.audit")
 
 
@@ -76,6 +84,10 @@ async def require_api_key(request: Request) -> None:
     """
     # Always allow public paths.
     if request.url.path in PUBLIC_PATHS:
+        return
+
+    # Allow public prefix paths (auth routes, webhook).
+    if request.url.path.startswith(PUBLIC_PREFIXES):
         return
 
     # Read config — use os.environ so monkeypatch works in tests.

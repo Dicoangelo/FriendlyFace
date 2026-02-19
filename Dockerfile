@@ -1,5 +1,5 @@
 # ──────────────────────────────────────────────────────────────
-# FriendlyFace — Multi-stage Docker build
+# FriendlyFace — Multi-stage Docker build with LiteFS
 # ──────────────────────────────────────────────────────────────
 
 # ── Stage 1: Frontend build ─────────────────────────────────
@@ -42,19 +42,27 @@ COPY friendlyface/ ./friendlyface/
 COPY migrations/ ./migrations/
 RUN pip install --no-cache-dir .
 
-# ── Stage 3: Runtime ─────────────────────────────────────────
+# ── Stage 3: Runtime with LiteFS ────────────────────────────
 FROM python:3.11-slim AS runtime
 
-# Runtime libs only (no compilers)
+# Runtime libs + FUSE for LiteFS
 RUN apt-get update && apt-get install -y --no-install-recommends \
     libopenblas0 \
     libjpeg62-turbo \
     zlib1g \
     libfreetype6 \
     curl \
+    fuse3 \
+    ca-certificates \
     && rm -rf /var/lib/apt/lists/*
 
-# Non-root user
+# Install LiteFS binary from official image
+COPY --from=flyio/litefs:0.5 /usr/local/bin/litefs /usr/local/bin/litefs
+
+# Enable FUSE allow_other so non-root users can access the LiteFS mount
+RUN echo "user_allow_other" >> /etc/fuse.conf
+
+# Non-root user (LiteFS execs the app as this user)
 RUN groupadd --gid 1000 ffuser && \
     useradd --uid 1000 --gid ffuser --create-home ffuser
 
@@ -70,16 +78,23 @@ COPY --from=builder /build/migrations ./migrations
 # Copy built frontend assets
 COPY --from=frontend /frontend/dist ./frontend/dist
 
-# Create data directory for SQLite persistence
-RUN mkdir -p /app/data && chown -R ffuser:ffuser /app
+# Copy LiteFS configuration
+COPY litefs.yml /etc/litefs.yml
 
-# Switch to non-root user
-USER ffuser
+# Create directories:
+#   /litefs          — FUSE mount point (app reads/writes here)
+#   /var/lib/litefs  — LiteFS internal data (on Fly persistent volume)
+#   /app/data        — Legacy data dir (backups, etc.)
+RUN mkdir -p /litefs /var/lib/litefs /app/data && \
+    chown -R ffuser:ffuser /app
 
 EXPOSE 8000
 
-# Health check against /health endpoint
-HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
-    CMD curl -f http://localhost:${PORT:-8000}/health || exit 1
+# Health check hits the LiteFS proxy (8080), not uvicorn directly.
+# The proxy forwards to localhost:8000 after verifying DB health.
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+    CMD curl -f http://localhost:8080/health || exit 1
 
-CMD ["sh", "-c", "uvicorn friendlyface.api.app:app --host 0.0.0.0 --port ${PORT:-8000}"]
+# LiteFS starts as root (FUSE mount requirement), then execs
+# the application as ffuser via the exec config in litefs.yml.
+ENTRYPOINT ["litefs", "mount"]

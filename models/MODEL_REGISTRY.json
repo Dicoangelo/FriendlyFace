@@ -1,0 +1,20 @@
+{
+  "mobilefacenet": {
+    "url": "https://github.com/deepinsight/insightface/releases/download/v0.7/buffalo_sc.zip",
+    "sha256": "9cc6e4a75f0e2bf0b1aed94578f144d15175f357bdc05e815e5c4a02b319eb4f",
+    "filename_in_zip": "w600k_mbf.onnx",
+    "size_mb": 13,
+    "embedding_dim": 512,
+    "input_shape": [1, 3, 112, 112],
+    "description": "MobileFaceNet (w600k_mbf) from insightface buffalo_sc — lightweight ArcFace, 512-d embeddings"
+  },
+  "buffalo_l": {
+    "url": "https://github.com/deepinsight/insightface/releases/download/v0.7/buffalo_l.zip",
+    "sha256": null,
+    "filename_in_zip": "w600k_r50.onnx",
+    "size_mb": 250,
+    "embedding_dim": 512,
+    "input_shape": [1, 3, 112, 112],
+    "description": "ArcFace R50 from insightface buffalo_l — production quality, ~250MB"
+  }
+}

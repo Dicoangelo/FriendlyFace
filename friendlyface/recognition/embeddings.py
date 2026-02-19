@@ -1,6 +1,6 @@
-"""ArcFace deep face embeddings (US-046).
+"""ArcFace deep face embeddings (US-046, US-091).
 
-Produces 512-dimensional face embeddings using an ArcFace-R100 ONNX model
+Produces 512-dimensional face embeddings using an ArcFace ONNX model
 when ``onnxruntime`` is available, or a PCA-based fallback for testing.
 """
 
@@ -8,13 +8,16 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import time
 from dataclasses import dataclass
+from pathlib import Path
 
 import numpy as np
 
 logger = logging.getLogger("friendlyface.recognition.embeddings")
 
 EMBEDDING_DIM = 512
+_EXPECTED_INPUT_SIZE = (112, 112)
 
 try:
     import onnxruntime as ort  # type: ignore[import-untyped]
@@ -47,6 +50,18 @@ class FaceEmbedding:
         return dot / norm
 
 
+def _infer_model_name(model_path: str) -> str:
+    """Infer a human-readable model name from the file path."""
+    stem = Path(model_path).stem.lower()
+    if "mobilefacenet" in stem or "mobile" in stem:
+        return "onnx-mobilefacenet"
+    if "r100" in stem or "buffalo_l" in stem or "glintr100" in stem:
+        return "onnx-arcface-r100"
+    if "r50" in stem or "w600k" in stem:
+        return "onnx-arcface-r50"
+    return f"onnx-{stem}"
+
+
 class EmbeddingExtractor:
     """Extract face embeddings from aligned 112x112 face crops.
 
@@ -54,14 +69,36 @@ class EmbeddingExtractor:
     falls back to a deterministic PCA-like projection for testing.
     """
 
-    def __init__(self, model_path: str | None = None) -> None:
+    def __init__(self, model_path: str | None = None, model_name: str | None = None) -> None:
         self._session = None
         self._model_version = "pca-fallback-v1"
+        self._model_path: str | None = None
 
         if model_path and _HAS_ORT:
-            self._session = ort.InferenceSession(model_path)
-            self._model_version = "arcface-r100-onnx"
-            logger.info("ONNX ArcFace model loaded from %s", model_path)
+            t0 = time.monotonic()
+            opts = ort.SessionOptions()
+            opts.intra_op_num_threads = 2
+            opts.graph_optimization_level = ort.GraphOptimizationLevel.ORT_ENABLE_ALL
+            self._session = ort.InferenceSession(model_path, sess_options=opts)
+            elapsed = time.monotonic() - t0
+
+            self._model_path = model_path
+            self._model_version = model_name or _infer_model_name(model_path)
+
+            # Log model metadata
+            inp = self._session.get_inputs()[0]
+            out = self._session.get_outputs()[0]
+            logger.info(
+                "ONNX model loaded: %s (%.2fs) | input=%s %s | output=%s %s",
+                self._model_version,
+                elapsed,
+                inp.name,
+                inp.shape,
+                out.name,
+                out.shape,
+            )
+        elif model_path and not _HAS_ORT:
+            logger.warning("Model path provided but onnxruntime not installed — using fallback")
         elif not _HAS_ORT:
             logger.info("onnxruntime not available — using PCA fallback embeddings")
 
@@ -72,6 +109,24 @@ class EmbeddingExtractor:
     @property
     def model_version(self) -> str:
         return self._model_version
+
+    @property
+    def model_info(self) -> dict:
+        """Return model metadata for forensic logging and health checks."""
+        info: dict = {
+            "backend": self.backend,
+            "model_version": self._model_version,
+            "embedding_dim": EMBEDDING_DIM,
+        }
+        if self._session is not None and self._model_path:
+            info["model_path"] = self._model_path
+            inp = self._session.get_inputs()[0]
+            out = self._session.get_outputs()[0]
+            info["input_name"] = inp.name
+            info["input_shape"] = inp.shape
+            info["output_name"] = out.name
+            info["output_shape"] = out.shape
+        return info
 
     def extract(self, aligned_face: np.ndarray) -> FaceEmbedding:
         """Extract a 512-d embedding from an aligned face crop.
@@ -102,6 +157,12 @@ class EmbeddingExtractor:
 
     def _extract_onnx(self, aligned_face: np.ndarray) -> np.ndarray:
         """Run ONNX inference for ArcFace embedding."""
+        # Validate input dimensions
+        h, w = aligned_face.shape[:2]
+        if (h, w) != _EXPECTED_INPUT_SIZE:
+            msg = f"Expected {_EXPECTED_INPUT_SIZE} input, got ({h}, {w})"
+            raise ValueError(msg)
+
         # Prepare input: (1, 3, 112, 112) float32
         if aligned_face.ndim == 2:
             img = np.stack([aligned_face] * 3, axis=0)
