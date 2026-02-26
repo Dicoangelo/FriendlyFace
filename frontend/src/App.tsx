@@ -1,5 +1,5 @@
 import { BrowserRouter, Routes, Route, NavLink, Navigate, useLocation } from "react-router-dom";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useTheme } from "./hooks/useTheme";
 import Dashboard from "./pages/Dashboard";
 import EventStream from "./pages/EventStream";
@@ -197,6 +197,74 @@ export default function App() {
   );
 }
 
+function ScrollToTop() {
+  const [visible, setVisible] = useState(false);
+  const mainRef = useRef<HTMLElement | null>(null);
+
+  useEffect(() => {
+    const main = document.getElementById("main-content");
+    if (!main) return;
+    mainRef.current = main;
+    const handler = () => setVisible(main.scrollTop > 400);
+    main.addEventListener("scroll", handler, { passive: true });
+    return () => main.removeEventListener("scroll", handler);
+  }, []);
+
+  if (!visible) return null;
+
+  return (
+    <button
+      onClick={() => mainRef.current?.scrollTo({ top: 0, behavior: "smooth" })}
+      className="fixed bottom-16 right-6 z-40 w-10 h-10 rounded-full bg-surface border border-border-theme shadow-lg flex items-center justify-center text-fg-muted hover:text-fg hover:border-cyan/30 transition-all animate-fade-in"
+      aria-label="Scroll to top"
+    >
+      <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 15l7-7 7 7" />
+      </svg>
+    </button>
+  );
+}
+
+function NavTooltip({ label, children, show }: { label: string; children: React.ReactNode; show: boolean }) {
+  if (!show) return <>{children}</>;
+  return (
+    <div className="relative group">
+      {children}
+      <div className="absolute left-full ml-2 top-1/2 -translate-y-1/2 px-2.5 py-1 rounded-md bg-fg text-page text-xs font-medium whitespace-nowrap opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-50 shadow-lg">
+        {label}
+        <div className="absolute right-full top-1/2 -translate-y-1/2 border-4 border-transparent border-r-fg" />
+      </div>
+    </div>
+  );
+}
+
+function UserProfileArea({ expanded }: { expanded: boolean }) {
+  const email = localStorage.getItem("ff_email");
+  const initial = (email?.[0] || "U").toUpperCase();
+
+  if (!expanded) {
+    return (
+      <NavTooltip label={email || "User"} show={true}>
+        <div className="mx-auto w-8 h-8 rounded-full bg-gradient-to-br from-amethyst to-cyan flex items-center justify-center text-white text-xs font-bold">
+          {initial}
+        </div>
+      </NavTooltip>
+    );
+  }
+
+  return (
+    <div className="flex items-center gap-2.5 min-w-0">
+      <div className="w-8 h-8 rounded-full bg-gradient-to-br from-amethyst to-cyan flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
+        {initial}
+      </div>
+      <div className="min-w-0">
+        <p className="text-sm font-medium text-fg truncate">{email || "User"}</p>
+        <p className="text-[10px] text-fg-faint">Forensic Operator</p>
+      </div>
+    </div>
+  );
+}
+
 function AppLayout() {
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
@@ -208,6 +276,20 @@ function AppLayout() {
   useEffect(() => {
     setMobileMenuOpen(false);
   }, [location.pathname]);
+
+  // Keyboard shortcut: Cmd/Ctrl+B to toggle sidebar
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key === "b") {
+        e.preventDefault();
+        setSidebarOpen((v) => !v);
+      }
+    };
+    window.addEventListener("keydown", handler);
+    return () => window.removeEventListener("keydown", handler);
+  }, []);
+
+  const isExpanded = sidebarOpen || mobileMenuOpen;
 
   return (
       <div className="flex h-screen bg-page grid-bg">
@@ -227,8 +309,9 @@ function AppLayout() {
           ${mobileMenuOpen ? "fixed inset-y-0 left-0 z-40 w-56 shadow-2xl animate-slide-in-left" : "hidden md:flex"}
           `}
         >
+          {/* Logo header */}
           <div className="flex items-center justify-between px-3 py-4 border-b border-border-theme">
-            {(sidebarOpen || mobileMenuOpen) && (
+            {isExpanded && (
               <div className="flex items-center gap-2">
                 <img
                   src="/logo.png"
@@ -244,48 +327,55 @@ function AppLayout() {
                 else setSidebarOpen(!sidebarOpen);
               }}
               className="text-fg-faint hover:text-fg-secondary p-1 transition-colors"
-              title={sidebarOpen ? "Collapse" : "Expand"}
+              title={sidebarOpen ? "Collapse (Ctrl+B)" : "Expand (Ctrl+B)"}
               aria-label="Toggle sidebar"
             >
-              {sidebarOpen || mobileMenuOpen ? (
+              {isExpanded ? (
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 19l-7-7 7-7m8 14l-7-7 7-7" /></svg>
               ) : (
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 5l7 7-7 7M5 5l7 7-7 7" /></svg>
               )}
             </button>
           </div>
+
+          {/* User profile */}
+          <div className={`px-3 py-3 border-b border-border-theme ${isExpanded ? "" : "flex justify-center"}`}>
+            <UserProfileArea expanded={isExpanded} />
+          </div>
+
           <nav className="flex-1 py-2 overflow-y-auto">
             {NAV_SECTIONS.map((section) => (
               <div key={section.title} className="mb-1">
-                {sidebarOpen && (
+                {isExpanded && (
                   <p className="px-4 pt-3 pb-1 text-[10px] font-semibold uppercase tracking-wider text-fg-faint">
                     {section.title}
                   </p>
                 )}
-                {!sidebarOpen && section.title !== "Overview" && (
+                {!isExpanded && section.title !== "Overview" && (
                   <div className="mx-3 my-1 border-t border-border-theme" />
                 )}
                 {section.items.map((item) => (
-                  <NavLink
-                    key={item.to}
-                    to={item.to}
-                    end={item.to === "/"}
-                    className={({ isActive }) =>
-                      `flex items-center gap-3 px-3 py-2 mx-1 rounded-lg text-sm transition-all ${
-                        isActive
-                          ? "bg-cyan/10 text-cyan border border-cyan/20"
-                          : "text-fg-muted hover:bg-fg/5 hover:text-fg border border-transparent"
-                      }`
-                    }
-                  >
-                    <span className="flex-shrink-0">{NAV_ICONS[item.icon]}</span>
-                    {sidebarOpen && <span>{item.label}</span>}
-                  </NavLink>
+                  <NavTooltip key={item.to} label={item.label} show={!isExpanded}>
+                    <NavLink
+                      to={item.to}
+                      end={item.to === "/"}
+                      className={({ isActive }) =>
+                        `flex items-center gap-3 px-3 py-2 mx-1 rounded-lg text-sm transition-all ${
+                          isActive
+                            ? "bg-cyan/10 text-cyan border border-cyan/20"
+                            : "text-fg-muted hover:bg-fg/5 hover:text-fg border border-transparent"
+                        }`
+                      }
+                    >
+                      <span className="flex-shrink-0">{NAV_ICONS[item.icon]}</span>
+                      {isExpanded && <span>{item.label}</span>}
+                    </NavLink>
+                  </NavTooltip>
                 ))}
               </div>
             ))}
           </nav>
-          {sidebarOpen && (
+          {isExpanded && (
             <div className="px-3 py-3 border-t border-border-theme text-xs text-fg-faint">
               v0.1.0 — Forensic Layer
             </div>
@@ -309,9 +399,9 @@ function AppLayout() {
               </button>
               <div>
                 <h1 className="text-lg font-semibold text-fg">{pageTitle}</h1>
-              {pageDescription && (
-                <p className="text-xs text-fg-faint mt-0.5 hidden sm:block">{pageDescription}</p>
-              )}
+                {pageDescription && (
+                  <p className="text-xs text-fg-faint mt-0.5 hidden sm:block">{pageDescription}</p>
+                )}
               </div>
             </div>
             <div className="flex items-center gap-2 sm:gap-3">
@@ -321,7 +411,7 @@ function AppLayout() {
           </header>
 
           {/* Page content */}
-          <main className="flex-1 overflow-auto p-6 max-w-screen-2xl mx-auto w-full">
+          <main id="main-content" className="flex-1 overflow-auto p-6 max-w-screen-2xl mx-auto w-full">
             <Routes>
               <Route path="/" element={<Dashboard />} />
               <Route path="/events/live" element={<EventStream />} />
@@ -350,12 +440,20 @@ function AppLayout() {
           <footer className="bg-sidebar/50 backdrop-blur-sm border-t border-border-theme px-4 md:px-6 py-2 flex items-center justify-between text-xs text-fg-faint flex-shrink-0">
             <span className="truncate">FriendlyFace v0.1.0</span>
             <div className="flex items-center gap-3 sm:gap-4 flex-shrink-0">
-              <span className="hidden sm:inline">Hash-chained</span>
-              <span className="hidden sm:inline">Merkle-verified</span>
+              <span className="hidden sm:inline flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-teal" />
+                Hash-chained
+              </span>
+              <span className="hidden sm:inline flex items-center gap-1.5">
+                <span className="w-1.5 h-1.5 rounded-full bg-amethyst" />
+                Merkle-verified
+              </span>
               <HealthBadge />
             </div>
           </footer>
         </div>
+
+        <ScrollToTop />
       </div>
   );
 }

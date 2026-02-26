@@ -90,20 +90,21 @@ function ToastItem({
 
   return (
     <div
-      className={`pointer-events-auto flex items-center gap-2 px-4 py-3 rounded-lg shadow-lg text-sm font-medium min-w-[280px] max-w-sm animate-slide-in ${STYLE_MAP[toast.type]}`}
+      className={`pointer-events-auto relative flex items-center gap-2.5 px-4 py-3 rounded-lg shadow-lg text-sm font-medium min-w-[280px] max-w-sm animate-slide-in overflow-hidden ${STYLE_MAP[toast.type]}`}
       role="alert"
     >
-      <span className="font-bold text-base leading-none">
+      <span className="w-5 h-5 rounded-full bg-white/20 flex items-center justify-center text-xs font-bold flex-shrink-0">
         {ICON_MAP[toast.type]}
       </span>
       <span className="flex-1">{toast.message}</span>
       <button
         onClick={() => onDismiss(toast.id)}
-        className="ml-2 opacity-70 hover:opacity-100 text-lg leading-none"
+        className="ml-2 opacity-70 hover:opacity-100 text-lg leading-none flex-shrink-0"
         aria-label="Dismiss"
       >
         &times;
       </button>
+      <div className="toast-progress" />
     </div>
   );
 }

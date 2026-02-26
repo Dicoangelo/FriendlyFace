@@ -49,19 +49,19 @@ export default function ConfirmDialog({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
+      className="fixed inset-0 z-50 flex items-center justify-center animate-fade-in"
       role="dialog"
       aria-modal="true"
       aria-label={title}
     >
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/60"
+        className="absolute inset-0 bg-black/60 backdrop-blur-sm"
         onClick={onCancel}
       />
 
       {/* Dialog box */}
-      <div className="relative glass-card max-w-sm w-full mx-4 p-6">
+      <div className="relative glass-card max-w-sm w-full mx-4 p-6 animate-slide-in">
         <h3 className="text-lg font-semibold text-fg mb-2">{title}</h3>
         <p className="text-sm text-fg-secondary mb-6">{message}</p>
 

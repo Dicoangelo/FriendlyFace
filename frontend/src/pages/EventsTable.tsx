@@ -160,7 +160,7 @@ export default function EventsTable() {
               <Fragment key={e.id}>
                 <tr
                   onClick={() => setExpandedId(expandedId === e.id ? null : e.id)}
-                  className="border-b border-border-theme hover:bg-fg/[0.02] cursor-pointer"
+                  className="border-b border-border-theme table-row-hover cursor-pointer"
                 >
                   <td className="px-4 py-2 font-mono text-xs text-fg-secondary">
                     {e.id.slice(0, 8)}...
