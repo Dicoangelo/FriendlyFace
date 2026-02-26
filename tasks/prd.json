@@ -1,0 +1,382 @@
+{
+  "name": "FriendlyFace Tab-by-Tab UI Improvements",
+  "description": "Systematically improve all 17 existing frontend pages in the FriendlyFace forensic AI platform, one at a time. Each improvement targets: consistent loading skeletons, proper empty states, error handling, real data wiring, interactive polish, and visual refinement. Stack: React 19 + Vite + TailwindCSS. Backend: FastAPI at /api/v1/.",
+  "branchName": "ralph/tab-improvements",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "EventStream — Live forensic event feed",
+      "description": "As a forensic analyst, I want to see a polished live event stream so that I can monitor activity in real time without staring at raw JSON.",
+      "acceptanceCriteria": [
+        "Shows skeleton (3 pulsing rows) while SSE connection is establishing",
+        "Empty state shown when no events have arrived yet (EmptyState with subtitle 'Waiting for forensic events…')",
+        "Each event row shows: event type badge (eventBadgeColor), actor, timestamp, event_id (truncated)",
+        "Connection status indicator: green dot 'Connected' / red dot 'Disconnected' in header area",
+        "Auto-scrolls to latest event, with a 'Pause scroll' toggle button",
+        "Error banner (rose-ember) if SSE connection fails with retry button",
+        "File: frontend/src/pages/EventStream.tsx",
+        "cd ~/projects/products/friendlyface/frontend && npm run build passes",
+        "cd ~/projects/products/friendlyface/frontend && npm run lint passes",
+        "Screenshot verification: start dev server and take Chrome DevTools screenshot of /events/live tab"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "Implemented: skeleton on connect, fixed pause gating events, error banner with retry after 5 failures, event_id truncated per row, append+auto-scroll to bottom, expanded payload on click.",
+      "dependsOn": []
+    },
+    {
+      "id": "US-002",
+      "title": "EventsTable — Paginated forensic event table",
+      "description": "As a forensic analyst, I want a paginated, filterable table of all events so that I can audit the chain history efficiently.",
+      "acceptanceCriteria": [
+        "Skeleton table (5 rows) shown during initial fetch",
+        "Empty state when no events exist",
+        "Pagination controls (Prev / Next + 'Page X of Y') wired to limit/offset API params",
+        "Filter by event_type via dropdown (populated from unique types in data)",
+        "Each row: event_type badge, actor, timestamp, event_id copy button",
+        "Row click expands inline detail (content JSON in a pre block)",
+        "Error banner if fetch fails",
+        "File: frontend/src/pages/EventsTable.tsx",
+        "cd ~/projects/products/friendlyface/frontend && npm run build passes",
+        "cd ~/projects/products/friendlyface/frontend && npm run lint passes",
+        "Screenshot verification: start dev server and take Chrome DevTools screenshot of /events tab"
+      ],
+      "priority": 2,
+      "passes": false,
+      "notes": "",
+      "dependsOn": []
+    },
+    {
+      "id": "US-003",
+      "title": "Bundles — Forensic bundle list + creation",
+      "description": "As a forensic analyst, I want to view, create, and inspect bundles so that I can package and export forensic evidence sets.",
+      "acceptanceCriteria": [
+        "Skeleton (3 pulsing cards) during initial load",
+        "Empty state when no bundles exist with CTA 'Create your first bundle'",
+        "Bundle list shows: id (truncated+copy), event count, created_at, VC/DID badges if present",
+        "'Create Bundle' button opens inline form: event_ids textarea, optional description",
+        "LoadingButton on create action, success banner on completion with bundle ID",
+        "Bundle row 'View' expands: full JSON-LD export preview in scrollable pre block",
+        "Download button exports bundle as JSON file",
+        "Error banner on any failure",
+        "File: frontend/src/pages/Bundles.tsx",
+        "cd ~/projects/products/friendlyface/frontend && npm run build passes",
+        "cd ~/projects/products/friendlyface/frontend && npm run lint passes",
+        "Screenshot verification: start dev server and take Chrome DevTools screenshot of /bundles tab"
+      ],
+      "priority": 3,
+      "passes": false,
+      "notes": "",
+      "dependsOn": []
+    },
+    {
+      "id": "US-004",
+      "title": "DID Management — Decentralized Identity registry",
+      "description": "As a system operator, I want to create and inspect DIDs so that I can manage cryptographic identities for the forensic chain.",
+      "acceptanceCriteria": [
+        "Skeleton during load of DID list",
+        "Empty state if no DIDs created yet",
+        "DID list shows: did string (truncated+copy), created_at, public_key hint",
+        "'Create DID' button → LoadingButton → shows new DID with full key material in a reveal card",
+        "'Resolve' input: enter a DID, fetch and display resolution document in pre block",
+        "Verify VC section: paste VC JSON, verify button, pass/fail result badge",
+        "Error banner on failures",
+        "File: frontend/src/pages/DIDManagement.tsx",
+        "cd ~/projects/products/friendlyface/frontend && npm run build passes",
+        "cd ~/projects/products/friendlyface/frontend && npm run lint passes",
+        "Screenshot verification: start dev server and take Chrome DevTools screenshot of /did tab"
+      ],
+      "priority": 4,
+      "passes": false,
+      "notes": "",
+      "dependsOn": []
+    },
+    {
+      "id": "US-005",
+      "title": "ZK Proofs — Zero-knowledge proof generation + verification",
+      "description": "As a forensic analyst, I want a clean interface for generating and verifying ZK proofs so that I can prove bundle integrity without exposing data.",
+      "acceptanceCriteria": [
+        "Replace raw JSON textarea for proof verification with structured textarea with monospace font and clear label",
+        "'Generate Proof' section: bundle ID input + LoadingButton, result shows proof fields in a structured breakdown (not raw JSON dump)",
+        "Proof display shows: scheme, commitment, challenge, response as labelled rows",
+        "Copy-to-clipboard button on generated proof",
+        "'Verify Proof' section pre-filled with last generated proof, verify button, clear pass/fail badge (teal checkmark / rose-ember X)",
+        "'Get Stored Proof' section: bundle ID lookup with loading state",
+        "Error banner on failures",
+        "File: frontend/src/pages/ZKProofs.tsx",
+        "cd ~/projects/products/friendlyface/frontend && npm run build passes",
+        "cd ~/projects/products/friendlyface/frontend && npm run lint passes",
+        "Screenshot verification: start dev server and take Chrome DevTools screenshot of /zk tab"
+      ],
+      "priority": 5,
+      "passes": false,
+      "notes": "",
+      "dependsOn": []
+    },
+    {
+      "id": "US-006",
+      "title": "Merkle Explorer — Tree root + inclusion proofs",
+      "description": "As a forensic analyst, I want to visually explore the Merkle tree so that I can verify event inclusion with confidence.",
+      "acceptanceCriteria": [
+        "Root card shows: merkle_root (truncated hash + copy), leaf_count, last updated timestamp",
+        "Skeleton for root card during fetch",
+        "Empty state if leaf_count is 0 with explanation 'No events in the Merkle tree yet'",
+        "Proof lookup: event ID input → lookup button (LoadingButton) → result card",
+        "Proof result shows: leaf_hash, root match indicator, path length, leaf_index as 'Leaf 3 of 47'",
+        "Proof path rendered as vertical chain: each node shows hash (truncated) + direction badge (left/right)",
+        "'Refresh Root' button re-fetches root",
+        "Error banner on failures",
+        "File: frontend/src/pages/MerkleExplorer.tsx",
+        "cd ~/projects/products/friendlyface/frontend && npm run build passes",
+        "cd ~/projects/products/friendlyface/frontend && npm run lint passes",
+        "Screenshot verification: start dev server and take Chrome DevTools screenshot of /merkle tab"
+      ],
+      "priority": 6,
+      "passes": false,
+      "notes": "",
+      "dependsOn": []
+    },
+    {
+      "id": "US-007",
+      "title": "Bias Audits — Fairness audit interface",
+      "description": "As a fairness analyst, I want a structured form to run bias audits so that I don't have to hand-craft raw JSON to test demographic groups.",
+      "acceptanceCriteria": [
+        "Fairness status card at top: score ring (ProgressRing component), total/compliant audit counts, skeleton during load",
+        "Replace raw JSON textarea for groups with a dynamic group builder: add/remove group rows with fields (group_name, true_positives, false_positives, true_negatives, false_negatives)",
+        "Threshold sliders for demographic_parity and equalized_odds (0–0.5 range, 0.01 step)",
+        "'Run Audit' → LoadingButton → result card shows: compliant badge, fairness_score ring, DP gap, EO gap",
+        "Audit history table: audit_id, timestamp, compliant badge, fairness_score bar — row click fetches and shows detail in expandable section",
+        "Demographics breakdown table (if data available)",
+        "Error banner on failures",
+        "File: frontend/src/pages/BiasAudits.tsx",
+        "cd ~/projects/products/friendlyface/frontend && npm run build passes",
+        "cd ~/projects/products/friendlyface/frontend && npm run lint passes",
+        "Screenshot verification: start dev server and take Chrome DevTools screenshot of /bias tab"
+      ],
+      "priority": 7,
+      "passes": false,
+      "notes": "",
+      "dependsOn": []
+    },
+    {
+      "id": "US-008",
+      "title": "FL Simulations — Federated learning execution",
+      "description": "As an ML engineer, I want a clean simulation launcher so that I can run and compare standard vs DP-FedAvg experiments with clear visual results.",
+      "acceptanceCriteria": [
+        "Two-tab layout (Standard / DP-FedAvg) preserved, tab switching is pill style",
+        "Standard form: n_clients (number input, 2–20), n_rounds (1–10), enable_poisoning_detection toggle, seed input",
+        "DP form: all standard params + epsilon slider (0.1–10), delta input, max_grad_norm input",
+        "'Run Simulation' → LoadingButton with 'Running…' state",
+        "Results: timeline of rounds — each round as a row: round number, accuracy progress bar, model hash (truncated), poisoning flags if present",
+        "Summary card: simulation_id, total rounds, final accuracy, DP budget if applicable",
+        "FL Status card: fetched from /api/v1/fl/status with skeleton",
+        "Error banner on failures",
+        "File: frontend/src/pages/FLSimulations.tsx",
+        "cd ~/projects/products/friendlyface/frontend && npm run build passes",
+        "cd ~/projects/products/friendlyface/frontend && npm run lint passes",
+        "Screenshot verification: start dev server and take Chrome DevTools screenshot of /fl tab"
+      ],
+      "priority": 8,
+      "passes": false,
+      "notes": "",
+      "dependsOn": []
+    },
+    {
+      "id": "US-009",
+      "title": "Explainability — LIME, SHAP, SDD saliency",
+      "description": "As an ML engineer, I want a structured explainability interface so that I can generate and compare LIME, SHAP, and SDD explanations for model decisions.",
+      "acceptanceCriteria": [
+        "Three-section layout: LIME / SHAP / SDD — each collapsible or tab-switched",
+        "Each section has a consistent form pattern: model_id input, subject_id or image input, generate button (LoadingButton)",
+        "LIME results: feature importance as horizontal bar chart (inline CSS bars, no chart library needed)",
+        "SHAP results: base value + feature contribution rows with +/- color coding (teal positive, rose-ember negative)",
+        "SDD results: gradient magnitude display, class label, confidence score",
+        "Skeleton placeholders in each result area while loading",
+        "Copy-to-clipboard for raw result JSON in each section",
+        "Error banner per section (not global — so one can fail without hiding others)",
+        "File: frontend/src/pages/Explainability.tsx",
+        "cd ~/projects/products/friendlyface/frontend && npm run build passes",
+        "cd ~/projects/products/friendlyface/frontend && npm run lint passes",
+        "Screenshot verification: start dev server and take Chrome DevTools screenshot of /explainability tab"
+      ],
+      "priority": 9,
+      "passes": false,
+      "notes": "",
+      "dependsOn": []
+    },
+    {
+      "id": "US-010",
+      "title": "Compliance — EU AI Act compliance report",
+      "description": "As a compliance officer, I want a visual compliance dashboard so that I can quickly see pass/fail status per requirement and export reports.",
+      "acceptanceCriteria": [
+        "Overall compliance ring (ProgressRing) with score % and compliant/non-compliant badge — skeleton during load",
+        "Requirements broken into sections (data governance, transparency, human oversight, robustness) — each as a collapsible card",
+        "Per-requirement row: name, status badge (pass/fail/partial), score bar, details text",
+        "'Re-check Compliance' refresh button with LoadingButton",
+        "OSCAL export button: calls /api/v1/governance/oscal and downloads JSON",
+        "EU AI Act summary section: risk level badge, applicable articles list",
+        "Empty state if no compliance data yet",
+        "Error banner on failures",
+        "File: frontend/src/pages/Compliance.tsx",
+        "cd ~/projects/products/friendlyface/frontend && npm run build passes",
+        "cd ~/projects/products/friendlyface/frontend && npm run lint passes",
+        "Screenshot verification: start dev server and take Chrome DevTools screenshot of /compliance tab"
+      ],
+      "priority": 10,
+      "passes": false,
+      "notes": "",
+      "dependsOn": []
+    },
+    {
+      "id": "US-011",
+      "title": "Consent Management — Subject consent registry",
+      "description": "As a data controller, I want to manage consent records so that I can grant, revoke, and audit subject consent in compliance with GDPR.",
+      "acceptanceCriteria": [
+        "Consent list with skeleton during load, empty state if none",
+        "Each consent row: subject_id, purpose, status badge (granted/revoked/expired), granted_at, expiry",
+        "'Grant Consent' form: subject_id input, purpose input, expiry date picker, optional metadata — LoadingButton",
+        "Revoke action per row with confirmation dialog",
+        "Consent event audit trail: expandable list of all consent events for a subject (fetch on demand)",
+        "Filter by status (all / granted / revoked)",
+        "Error banner on failures",
+        "File: frontend/src/pages/ConsentManagement.tsx",
+        "cd ~/projects/products/friendlyface/frontend && npm run build passes",
+        "cd ~/projects/products/friendlyface/frontend && npm run lint passes",
+        "Screenshot verification: start dev server and take Chrome DevTools screenshot of /consent tab"
+      ],
+      "priority": 11,
+      "passes": false,
+      "notes": "",
+      "dependsOn": []
+    },
+    {
+      "id": "US-012",
+      "title": "Data Erasure — Right-to-erasure requests",
+      "description": "As a data controller, I want a structured erasure request interface so that I can comply with right-to-erasure requests with full forensic traceability.",
+      "acceptanceCriteria": [
+        "Erasure request form: subject_id input, reason textarea, checkbox 'I confirm this erasure is legally required' — submit disabled until checkbox checked",
+        "'Submit Erasure Request' → LoadingButton → result shows: request_id, subject_id, erasure_event_id, timestamp in a success card",
+        "Erasure history list (from /api/v1/governance/erasure/requests): skeleton, empty state, rows with subject_id + timestamp + event_id",
+        "Warning banner explaining the forensic chain records the erasure event (data removed but event logged)",
+        "Error banner on failures",
+        "File: frontend/src/pages/DataErasure.tsx",
+        "cd ~/projects/products/friendlyface/frontend && npm run build passes",
+        "cd ~/projects/products/friendlyface/frontend && npm run lint passes",
+        "Screenshot verification: start dev server and take Chrome DevTools screenshot of /erasure tab"
+      ],
+      "priority": 12,
+      "passes": false,
+      "notes": "",
+      "dependsOn": []
+    },
+    {
+      "id": "US-013",
+      "title": "Retention Policies — Automated data lifecycle",
+      "description": "As a system operator, I want to configure and run retention policies so that I can enforce data lifecycle rules without manual cleanup.",
+      "acceptanceCriteria": [
+        "Active policy card: shows current policy config (max_age_days, max_events, action) — skeleton during load",
+        "Edit policy form: inline edit with max_age_days number input, max_events number input, action select (archive/delete/flag)",
+        "'Apply Policy Now' → LoadingButton → result shows: events_processed, events_retained, events_expired counts in a summary card",
+        "Policy history: last N runs with timestamp + counts as compact rows",
+        "Dry-run toggle: apply policy in preview mode without executing",
+        "Error banner on failures",
+        "File: frontend/src/pages/RetentionPolicies.tsx",
+        "cd ~/projects/products/friendlyface/frontend && npm run build passes",
+        "cd ~/projects/products/friendlyface/frontend && npm run lint passes",
+        "Screenshot verification: start dev server and take Chrome DevTools screenshot of /retention tab"
+      ],
+      "priority": 13,
+      "passes": false,
+      "notes": "",
+      "dependsOn": []
+    },
+    {
+      "id": "US-014",
+      "title": "Provenance Explorer — DAG lineage browser",
+      "description": "As a forensic analyst, I want to explore the provenance graph so that I can trace any model or inference back to its training data.",
+      "acceptanceCriteria": [
+        "Stats header: total_nodes count, total_edges count — skeleton during load",
+        "Node search: event_id or node_id input → fetch node detail → display in card",
+        "Node card shows: node_id, node_type badge (training/inference/explanation/bundle), timestamp, parent IDs as links",
+        "Lineage path: 'trace from root' button — fetches path and renders as vertical chain of node cards",
+        "Recent nodes list: last 10 nodes as compact rows (type badge + id + timestamp)",
+        "Empty state if no provenance nodes",
+        "Error banner on failures",
+        "File: frontend/src/pages/ProvenanceExplorer.tsx",
+        "cd ~/projects/products/friendlyface/frontend && npm run build passes",
+        "cd ~/projects/products/friendlyface/frontend && npm run lint passes",
+        "Screenshot verification: start dev server and take Chrome DevTools screenshot of /provenance tab"
+      ],
+      "priority": 14,
+      "passes": false,
+      "notes": "",
+      "dependsOn": []
+    },
+    {
+      "id": "US-015",
+      "title": "Recognition — Face recognition model management",
+      "description": "As an ML engineer, I want a complete recognition interface so that I can train models, run inference, and manage the face gallery with full forensic traceability.",
+      "acceptanceCriteria": [
+        "Tab layout: Gallery / Train / Recognize / Models (existing structure preserved, pill tabs)",
+        "Gallery tab: subject grid with skeleton, empty state, each subject card shows subject_id + image_count, delete subject button with confirmation",
+        "Train tab: class JSON builder (dynamic add/remove rows for class_name + image count), epochs/components inputs, LoadingButton, result shows model_id + accuracy + event_id",
+        "Recognize tab: subject_id + model_id inputs, optional confidence threshold slider (0–1), LoadingButton, result shows top-N predictions as ranked list with confidence bars",
+        "Models tab: list with skeleton, each model row shows model_id, type, accuracy bar, trained_at, delete button",
+        "Error banners per-tab (not global — so Gallery errors don't hide Recognize tab)",
+        "File: frontend/src/pages/Recognition.tsx",
+        "cd ~/projects/products/friendlyface/frontend && npm run build passes",
+        "cd ~/projects/products/friendlyface/frontend && npm run lint passes",
+        "Screenshot verification: start dev server and take Chrome DevTools screenshot of /recognition tab"
+      ],
+      "priority": 15,
+      "passes": false,
+      "notes": "",
+      "dependsOn": []
+    },
+    {
+      "id": "US-016",
+      "title": "Admin Ops — Backup, migrations, system ops",
+      "description": "As a system operator, I want a clean admin panel so that I can manage backups, run migrations, and perform system operations safely.",
+      "acceptanceCriteria": [
+        "Three sections: Backups / Migrations / System — each as distinct card",
+        "Backups: list with skeleton, each backup row shows filename + size + created_at + restore button (with confirmation dialog); 'Create Backup' LoadingButton",
+        "Migrations: current version display, available migrations list, 'Run Migrations' LoadingButton with confirmation, rollback button per migration",
+        "System: storage backend indicator, DB stats (event count, bundle count), 'Rebuild Merkle Tree' LoadingButton, chain integrity re-check button",
+        "All destructive actions (restore, rollback) require confirmation dialog (ConfirmDialog component)",
+        "Success/error banners per section",
+        "File: frontend/src/pages/AdminOps.tsx",
+        "cd ~/projects/products/friendlyface/frontend && npm run build passes",
+        "cd ~/projects/products/friendlyface/frontend && npm run lint passes",
+        "Screenshot verification: start dev server and take Chrome DevTools screenshot of /admin tab"
+      ],
+      "priority": 16,
+      "passes": false,
+      "notes": "",
+      "dependsOn": []
+    },
+    {
+      "id": "US-017",
+      "title": "Dashboard — Polish pass",
+      "description": "As a user, I want a refined dashboard so that the entry point feels production-grade.",
+      "acceptanceCriteria": [
+        "Add manual 'Refresh' button next to auto-refresh — shows 'Last updated X seconds ago' text",
+        "Format uptime as 'Xh Ym Zs' when uptime > 3600s (currently shows only minutes+seconds)",
+        "Chain integrity card shows last verified timestamp (not just valid/invalid)",
+        "Events by type bar chart: long event type names truncated with title tooltip attribute",
+        "Recent events table: add a 'View all →' link that navigates to /events route",
+        "Compliance card: show count of failing requirements if non-compliant (e.g. '3 requirements failing')",
+        "File: frontend/src/pages/Dashboard.tsx",
+        "cd ~/projects/products/friendlyface/frontend && npm run build passes",
+        "cd ~/projects/products/friendlyface/frontend && npm run lint passes",
+        "Screenshot verification: start dev server and take Chrome DevTools screenshot of / (dashboard)"
+      ],
+      "priority": 17,
+      "passes": false,
+      "notes": "",
+      "dependsOn": []
+    }
+  ],
+  "metadata": {
+    "updatedAt": "2026-02-19T13:11:24.277Z"
+  }
+}
