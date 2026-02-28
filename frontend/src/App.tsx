@@ -1,4 +1,7 @@
 import { BrowserRouter, Routes, Route, NavLink, Navigate, useLocation } from "react-router-dom";
+import { DemoProvider } from "./contexts/DemoContext";
+import { useDemoMode } from "./contexts/DemoContext";
+import DemoBanner from "./components/DemoBanner";
 import { useState, useEffect } from "react";
 import { useTheme } from "./hooks/useTheme";
 import Dashboard from "./pages/Dashboard";
@@ -185,15 +188,17 @@ function ThemeToggle() {
 
 export default function App() {
   return (
-    <BrowserRouter>
-      <Routes>
-        <Route path="/landing" element={<LandingPage />} />
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/signup" element={<SignupPage />} />
-        <Route path="/pricing" element={<PricingPage />} />
-        <Route path="/*" element={<AppLayout />} />
-      </Routes>
-    </BrowserRouter>
+    <DemoProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/landing" element={<LandingPage />} />
+          <Route path="/login" element={<LoginPage />} />
+          <Route path="/signup" element={<SignupPage />} />
+          <Route path="/pricing" element={<PricingPage />} />
+          <Route path="/*" element={<AppLayout />} />
+        </Routes>
+      </BrowserRouter>
+    </DemoProvider>
   );
 }
 
@@ -203,6 +208,7 @@ function AppLayout() {
   const location = useLocation();
   const pageTitle = PAGE_TITLES[location.pathname] || "FriendlyFace";
   const pageDescription = PAGE_DESCRIPTIONS[location.pathname];
+  const { isDemo } = useDemoMode();
 
   // Close mobile menu on route change
   useEffect(() => {
@@ -210,7 +216,9 @@ function AppLayout() {
   }, [location.pathname]);
 
   return (
-      <div className="flex h-screen bg-page grid-bg">
+    <div className="flex flex-col h-screen">
+      <DemoBanner visible={isDemo} />
+      <div className="flex flex-1 bg-page grid-bg min-h-0">
         {/* Mobile backdrop */}
         {mobileMenuOpen && (
           <div
@@ -221,9 +229,8 @@ function AppLayout() {
 
         {/* Sidebar */}
         <aside
-          className={`${
-            sidebarOpen ? "w-56" : "w-14"
-          } bg-sidebar border-r border-border-theme flex flex-col transition-all duration-200 flex-shrink-0
+          className={`${sidebarOpen ? "w-56" : "w-14"
+            } bg-sidebar border-r border-border-theme flex flex-col transition-all duration-200 flex-shrink-0
           ${mobileMenuOpen ? "fixed inset-y-0 left-0 z-40 w-56 shadow-2xl animate-slide-in-left" : "hidden md:flex"}
           `}
         >
@@ -271,10 +278,9 @@ function AppLayout() {
                     to={item.to}
                     end={item.to === "/"}
                     className={({ isActive }) =>
-                      `flex items-center gap-3 px-3 py-2 mx-1 rounded-lg text-sm transition-all ${
-                        isActive
-                          ? "bg-cyan/10 text-cyan border border-cyan/20"
-                          : "text-fg-muted hover:bg-fg/5 hover:text-fg border border-transparent"
+                      `flex items-center gap-3 px-3 py-2 mx-1 rounded-lg text-sm transition-all ${isActive
+                        ? "bg-cyan/10 text-cyan border border-cyan/20"
+                        : "text-fg-muted hover:bg-fg/5 hover:text-fg border border-transparent"
                       }`
                     }
                   >
@@ -309,9 +315,9 @@ function AppLayout() {
               </button>
               <div>
                 <h1 className="text-lg font-semibold text-fg">{pageTitle}</h1>
-              {pageDescription && (
-                <p className="text-xs text-fg-faint mt-0.5 hidden sm:block">{pageDescription}</p>
-              )}
+                {pageDescription && (
+                  <p className="text-xs text-fg-faint mt-0.5 hidden sm:block">{pageDescription}</p>
+                )}
               </div>
             </div>
             <div className="flex items-center gap-2 sm:gap-3">
@@ -357,6 +363,7 @@ function AppLayout() {
           </footer>
         </div>
       </div>
+    </div>
   );
 }
 
