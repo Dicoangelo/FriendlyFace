@@ -15,6 +15,7 @@
 | Phase 9 | Frontend Polish & Theming | ✅ Complete | ~1100 | Light/dark theme, design system, UX components, nav sections |
 | Phase 10 | Dashboard Elevation | ✅ Complete | ~1200 | Dashboard viz, mobile sidebar, transitions, useFetch, EmptyState |
 | Phase 11 | Forensic Core & Completeness | ✅ Complete | 1345 | Merkle explorer, Provenance DAG, FL sim, restore/rollback UI, OSCAL export |
+| Phase 12 | Step-Change Upgrade | ✅ Complete | 1345 | Vercel fix, premium landing page, demo mode, animated components |
 
 ---
 
@@ -242,6 +243,42 @@ bd sync               # Sync with git
 | `friendlyface-fae` | Phase 1: Full 6-Layer Architecture | ✅ Closed |
 | `friendlyface-jnb` | Phase 2: Advanced Features | ✅ Closed |
 | `friendlyface-5xa` | Phase 3: Crypto Hardening & Ops | ✅ Closed |
+
+---
+
+## Phase 12: Step-Change Upgrade ✅
+
+**Focus:** Fix broken Vercel deployment, premium landing page redesign, demo mode for static deploys.
+
+### Deliverables
+
+| Area | What Changed |
+|------|-------------|
+| Vercel Fix | New `vercel.json` for static React frontend deployment with SPA rewrites |
+| Demo Mode | Client-side mock data + DemoContext when backend is unreachable; DemoBanner component |
+| Landing Page | Premium redesign: particle constellation animation, animated stat counters, interactive 6-layer architecture viz, terminal API demo, research lineage section, gradient CTA |
+| API Client | Centralized `apiClient.ts` with configurable base URL and health checking |
+| Animations | CSS fade-in, slide-in-left, glow-pulse keyframes; Intersection Observer triggers |
+| Components | `ParticleBackground`, `AnimatedCounter`, `TerminalDemo`, `DemoBanner` |
+| Build Config | Explicit Vite `base: "/"` for deployment compatibility |
+
+### New Files
+
+- `vercel.json` — Static site deployment config
+- `frontend/src/services/apiClient.ts` — Centralized API client with demo mode
+- `frontend/src/services/demoData.ts` — Mock data for all dashboard endpoints
+- `frontend/src/contexts/DemoContext.tsx` — Demo mode React context
+- `frontend/src/components/ParticleBackground.tsx` — Canvas particle animation
+- `frontend/src/components/AnimatedCounter.tsx` — Scroll-triggered count-up
+- `frontend/src/components/TerminalDemo.tsx` — Auto-typing terminal component
+- `frontend/src/components/DemoBanner.tsx` — Dismissible demo mode banner
+
+### Phase 12 Achievements
+
+- **Vercel deployment fixed** — Site deploys as static React app with SPA routing
+- **Premium landing page** — Particle animation, animated counters, terminal demo
+- **Demo mode** — Full dashboard works without backend using realistic mock data
+- **84 modules** building successfully via `tsc -b && vite build`
 
 ---
 
