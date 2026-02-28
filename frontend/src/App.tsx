@@ -369,12 +369,14 @@ function AppLayout() {
 
 function HealthBadge() {
   const [status, setStatus] = useState<"ok" | "error" | "loading">("loading");
+  const { isDemo } = useDemoMode();
 
   useEffect(() => {
+    if (isDemo) { setStatus("ok"); return; }
     fetch("/api/v1/health")
       .then((r) => (r.ok ? setStatus("ok") : setStatus("error")))
       .catch(() => setStatus("error"));
-  }, []);
+  }, [isDemo]);
 
   const colors = {
     ok: "bg-teal/10 text-teal border border-teal/20",
