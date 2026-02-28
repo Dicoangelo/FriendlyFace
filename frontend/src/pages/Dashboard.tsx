@@ -71,22 +71,22 @@ export default function Dashboard() {
     demoFetch("/api/v1/fl/rounds")
       .then((r) => r.json())
       .then((data) => setFlRounds(Array.isArray(data) ? data : []))
-      .catch(() => {});
+      .catch(() => { });
 
     demoFetch("/api/v1/recognition/models")
       .then((r) => r.json())
       .then((data) => setModels(Array.isArray(data) ? data : []))
-      .catch(() => {});
+      .catch(() => { });
 
     demoFetch("/api/v1/gallery/count")
       .then((r) => r.json())
       .then((data) => setGalleryCount(data.total ?? data.count ?? 0))
-      .catch(() => {});
+      .catch(() => { });
 
     demoFetch("/api/v1/governance/compliance")
       .then((r) => r.json())
       .then(setCompliance)
-      .catch(() => {});
+      .catch(() => { });
 
     return () => clearInterval(id);
   }, []);
@@ -98,7 +98,7 @@ export default function Dashboard() {
   return (
     <div className="space-y-6">
       {/* Stats cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5" data-animate>
         <StatCard label="Total Events" value={data.total_events} color="cyan" />
         <StatCard label="Total Bundles" value={data.total_bundles} color="amethyst" />
         <StatCard label="Provenance Nodes" value={data.total_provenance_nodes} color="teal" />
@@ -132,7 +132,7 @@ export default function Dashboard() {
       {/* Chain integrity + Crypto status */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <div className="glass-card p-4">
-          <h3 className="font-semibold text-fg-secondary mb-3">Chain Integrity</h3>
+          <h3 className="text-sm font-semibold text-fg-secondary tracking-wide uppercase mb-3">Chain Integrity</h3>
           <div className="flex items-center gap-2">
             <span
               className={`w-3 h-3 rounded-full ${data.chain_integrity.valid ? "bg-teal shadow-lg shadow-teal/30" : "bg-rose-ember shadow-lg shadow-rose-ember/30"}`}
@@ -144,7 +144,7 @@ export default function Dashboard() {
           </div>
         </div>
         <div className="glass-card p-4">
-          <h3 className="font-semibold text-fg-secondary mb-3">Crypto Status</h3>
+          <h3 className="text-sm font-semibold text-fg-secondary tracking-wide uppercase mb-3">Crypto Status</h3>
           <div className="text-sm space-y-1">
             <p>
               DID:{" "}
@@ -160,7 +160,7 @@ export default function Dashboard() {
 
       {/* Events by type */}
       <div className="glass-card p-4">
-        <h3 className="font-semibold text-fg-secondary mb-3">Events by Type</h3>
+        <h3 className="text-sm font-semibold text-fg-secondary tracking-wide uppercase mb-4">Events by Type</h3>
         {Object.keys(data.events_by_type).length === 0 ? (
           <EmptyState title="No events recorded yet" subtitle="Record forensic events via the API to see type distribution here" />
         ) : (
@@ -172,12 +172,12 @@ export default function Dashboard() {
                 const pct = maxCount > 0 ? (count / maxCount) * 100 : 0;
                 const color = eventBarColor(type);
                 return (
-                  <div key={type} className="flex items-center gap-3">
-                    <span className="text-xs text-fg-muted w-40 truncate">{type.replace(/_/g, " ")}</span>
-                    <div className="flex-1 h-6 bg-surface rounded-md overflow-hidden relative">
+                  <div key={type} className="flex items-center gap-3 group">
+                    <span className="text-xs text-fg-muted w-40 truncate group-hover:text-fg-secondary transition-colors">{type.replace(/_/g, " ")}</span>
+                    <div className="flex-1 h-7 bg-surface/60 rounded-lg overflow-hidden relative">
                       <div
-                        className={`h-full rounded-md ${color.bg} transition-all duration-500`}
-                        style={{ width: `${pct}%` }}
+                        className={`h-full rounded-lg ${color.bg} transition-all duration-700 ease-out-expo`}
+                        style={{ width: `${Math.max(pct, 3)}%` }}
                       />
                       <span className={`absolute inset-y-0 right-2 flex items-center text-xs font-semibold ${color.text}`}>
                         {count}
@@ -194,13 +194,13 @@ export default function Dashboard() {
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* FL Simulation History */}
         <div className="glass-card p-4">
-          <h3 className="font-semibold text-fg-secondary mb-3">FL Simulation History</h3>
+          <h3 className="text-sm font-semibold text-fg-secondary tracking-wide uppercase mb-3">FL Simulation History</h3>
           {flRounds.length === 0 ? (
             <EmptyState title="No FL rounds yet" subtitle="Run a federated learning simulation to see results" />
           ) : (
             <div className="space-y-2">
               {flRounds.slice(0, 5).map((r, i) => (
-                <div key={i} className="flex items-center justify-between bg-surface rounded-lg px-3 py-2">
+                <div key={i} className="flex items-center justify-between bg-surface/50 rounded-lg px-3 py-2.5 hover:bg-surface transition-colors">
                   <div>
                     <p className="text-sm text-fg-secondary">
                       {r.simulation_id.slice(0, 8)} — Round {r.round_number}
@@ -231,13 +231,13 @@ export default function Dashboard() {
 
         {/* Model Registry */}
         <div className="glass-card p-4">
-          <h3 className="font-semibold text-fg-secondary mb-3">Recognition Models</h3>
+          <h3 className="text-sm font-semibold text-fg-secondary tracking-wide uppercase mb-3">Recognition Models</h3>
           {models.length === 0 ? (
             <EmptyState title="No models trained yet" subtitle="Train a PCA+SVM model to see it listed here" />
           ) : (
             <div className="space-y-2">
               {models.slice(0, 5).map((m) => (
-                <div key={m.model_id} className="flex items-center justify-between bg-surface rounded-lg px-3 py-2">
+                <div key={m.model_id} className="flex items-center justify-between bg-surface/50 rounded-lg px-3 py-2.5 hover:bg-surface transition-colors">
                   <div>
                     <p className="text-sm text-fg-secondary font-mono">{m.model_id.slice(0, 12)}</p>
                     <p className="text-xs text-fg-faint">
@@ -264,7 +264,7 @@ export default function Dashboard() {
 
       {/* Recent events */}
       <div className="glass-card p-4">
-        <h3 className="font-semibold text-fg-secondary mb-3">Recent Events</h3>
+        <h3 className="text-sm font-semibold text-fg-secondary tracking-wide uppercase mb-3">Recent Events</h3>
         {data.recent_events.length === 0 ? (
           <EmptyState title="No events yet" subtitle="Events will appear here as they are recorded" />
         ) : (
@@ -294,22 +294,23 @@ export default function Dashboard() {
   );
 }
 
-const STAT_COLORS: Record<string, string> = {
-  cyan: "border-cyan/20 text-cyan",
-  amethyst: "border-amethyst/20 text-amethyst",
-  teal: "border-teal/20 text-teal",
-  gold: "border-gold/20 text-gold",
-  "rose-ember": "border-rose-ember/20 text-rose-ember",
+const STAT_COLORS: Record<string, { border: string; text: string; bg: string }> = {
+  cyan: { border: "border-l-cyan", text: "text-cyan", bg: "bg-cyan/5" },
+  amethyst: { border: "border-l-amethyst", text: "text-amethyst", bg: "bg-amethyst/5" },
+  teal: { border: "border-l-teal", text: "text-teal", bg: "bg-teal/5" },
+  gold: { border: "border-l-gold", text: "text-gold", bg: "bg-gold/5" },
+  "rose-ember": { border: "border-l-rose-ember", text: "text-rose-ember", bg: "bg-rose-ember/5" },
 };
 
 function StatCard({ label, value, color = "cyan", badge }: { label: string; value: string | number; color?: string; badge?: string }) {
+  const c = STAT_COLORS[color] || STAT_COLORS.cyan;
   return (
-    <div className={`glass-card p-4 border-l-2 transition-transform duration-200 hover:scale-[1.02] ${STAT_COLORS[color] || STAT_COLORS.cyan}`}>
-      <p className="text-sm text-fg-muted">{label}</p>
-      <div className="flex items-center gap-2 mt-1">
-        <p className={`text-2xl font-bold ${STAT_COLORS[color]?.split(" ")[1] || "text-cyan"}`}>{value}</p>
+    <div className={`glass-card p-5 border-l-[3px] ${c.border} ${c.bg} transition-all duration-200 hover:translate-y-[-1px] hover:shadow-lg`}>
+      <p className="text-xs font-medium text-fg-muted uppercase tracking-wider">{label}</p>
+      <div className="flex items-center gap-2 mt-2">
+        <p className={`text-2xl font-bold tabular-nums ${c.text}`}>{value}</p>
         {badge && (
-          <span className={`px-2 py-0.5 rounded text-xs font-medium ${STAT_COLORS[color]?.split(" ")[1] || "text-cyan"} bg-surface`}>
+          <span className={`px-2 py-0.5 rounded-full text-xs font-medium ${c.text} bg-surface`}>
             {badge}
           </span>
         )}

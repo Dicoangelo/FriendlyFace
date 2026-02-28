@@ -222,7 +222,7 @@ function AppLayout() {
         {/* Mobile backdrop */}
         {mobileMenuOpen && (
           <div
-            className="fixed inset-0 bg-black/50 z-30 md:hidden"
+            className="fixed inset-0 bg-black/40 backdrop-blur-sm z-30 md:hidden transition-opacity"
             onClick={() => setMobileMenuOpen(false)}
           />
         )}
@@ -230,7 +230,7 @@ function AppLayout() {
         {/* Sidebar */}
         <aside
           className={`${sidebarOpen ? "w-56" : "w-14"
-            } bg-sidebar border-r border-border-theme flex flex-col transition-all duration-200 flex-shrink-0
+            } bg-sidebar/95 backdrop-blur-xl border-r border-border-theme/50 flex flex-col transition-all duration-300 ease-out-expo flex-shrink-0
           ${mobileMenuOpen ? "fixed inset-y-0 left-0 z-40 w-56 shadow-2xl animate-slide-in-left" : "hidden md:flex"}
           `}
         >
@@ -277,10 +277,10 @@ function AppLayout() {
                     key={item.to}
                     to={item.to}
                     end={item.to === "/"}
-                    className={({ isActive }) =>
-                      `flex items-center gap-3 px-3 py-2 mx-1 rounded-lg text-sm transition-all ${isActive
-                        ? "bg-cyan/10 text-cyan border border-cyan/20"
-                        : "text-fg-muted hover:bg-fg/5 hover:text-fg border border-transparent"
+                    className={({ isActive }: { isActive: boolean }) =>
+                      `flex items-center gap-3 px-3 py-2 mx-1 rounded-lg text-sm transition-all duration-200 relative ${isActive
+                        ? "bg-cyan/8 text-cyan font-medium"
+                        : "text-fg-muted hover:bg-fg/[0.03] hover:text-fg-secondary"
                       }`
                     }
                   >
@@ -320,9 +320,8 @@ function AppLayout() {
                 )}
               </div>
             </div>
-            <div className="flex items-center gap-2 sm:gap-3">
+            <div className="flex items-center gap-3">
               <ThemeToggle />
-              <HealthBadge />
             </div>
           </header>
 
@@ -353,11 +352,12 @@ function AppLayout() {
           </main>
 
           {/* Footer status bar */}
-          <footer className="bg-sidebar/50 backdrop-blur-sm border-t border-border-theme px-4 md:px-6 py-2 flex items-center justify-between text-xs text-fg-faint flex-shrink-0">
+          <footer className="bg-sidebar/30 backdrop-blur-sm border-t border-border-theme/50 px-4 md:px-6 py-2.5 flex items-center justify-between text-xs text-fg-faint flex-shrink-0">
             <span className="truncate">FriendlyFace v0.1.0</span>
-            <div className="flex items-center gap-3 sm:gap-4 flex-shrink-0">
-              <span className="hidden sm:inline">Hash-chained</span>
-              <span className="hidden sm:inline">Merkle-verified</span>
+            <div className="flex items-center gap-4 flex-shrink-0">
+              <span className="hidden sm:inline opacity-60">Hash-chained</span>
+              <span className="hidden sm:inline text-fg-faint/30">·</span>
+              <span className="hidden sm:inline opacity-60">Merkle-verified</span>
               <HealthBadge />
             </div>
           </footer>
