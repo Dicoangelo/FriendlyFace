@@ -48,12 +48,61 @@ export async function checkBackendHealth(): Promise<boolean> {
         const response = await fetch(`${API_BASE}/api/v1/health`, {
             signal: AbortSignal.timeout(5000),
         });
-        _demoMode = !response.ok;
+        if (!response.ok) {
+            _demoMode = true;
+        } else {
+            // Verify the response is actually JSON (not an SPA HTML fallback)
+            const contentType = response.headers.get("content-type") || "";
+            if (!contentType.includes("application/json")) {
+                _demoMode = true;
+            } else {
+                const data = await response.json();
+                _demoMode = data.status !== "healthy";
+            }
+        }
     } catch {
         _demoMode = true;
     }
     _demoModeChecked = true;
     return !_demoMode;
+}
+
+/**
+ * Demo-aware fetch: returns demo data for known endpoints when in demo mode,
+ * otherwise performs a real fetch. Used by pages that call fetch() directly.
+ */
+export async function demoFetch(path: string, init?: RequestInit): Promise<Response> {
+    if (_demoMode) {
+        const demoData = await getDemoDataForPath(path);
+        if (demoData !== undefined) {
+            return new Response(JSON.stringify(demoData), {
+                status: 200,
+                headers: { "Content-Type": "application/json" },
+            });
+        }
+    }
+    return fetch(`${API_BASE}${path}`, init);
+}
+
+async function getDemoDataForPath(path: string): Promise<unknown | undefined> {
+    const { demoDashboard, demoFLRounds, demoModels, demoGalleryCount,
+            demoCompliance, demoEvents, demoBundles, demoFairnessStatus,
+            demoFairnessAudits, demoMerkleRoot, demoHealth } = await import("./demoData");
+    const p = path.split("?")[0]; // strip query params
+    const map: Record<string, unknown> = {
+        "/api/v1/dashboard": demoDashboard,
+        "/api/v1/health": demoHealth,
+        "/api/v1/fl/rounds": demoFLRounds,
+        "/api/v1/recognition/models": demoModels,
+        "/api/v1/gallery/count": demoGalleryCount,
+        "/api/v1/governance/compliance": demoCompliance,
+        "/api/v1/events": demoEvents,
+        "/api/v1/bundles": demoBundles,
+        "/api/v1/fairness/status": demoFairnessStatus,
+        "/api/v1/fairness/audits": demoFairnessAudits,
+        "/api/v1/merkle/root": demoMerkleRoot,
+    };
+    return map[p];
 }
 
 /**

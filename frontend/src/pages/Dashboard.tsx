@@ -3,6 +3,7 @@ import { SkeletonDashboard } from "../components/Skeleton";
 import EmptyState from "../components/EmptyState";
 import ProgressRing from "../components/ProgressRing";
 import { eventBarColor, eventBadgeColor } from "../constants/eventColors";
+import { demoFetch } from "../services/apiClient";
 
 interface DashboardData {
   uptime_seconds: number;
@@ -54,7 +55,7 @@ export default function Dashboard() {
   const [error, setError] = useState("");
 
   const fetchData = () => {
-    fetch("/api/v1/dashboard")
+    demoFetch("/api/v1/dashboard")
       .then((r) => {
         if (!r.ok) throw new Error(`${r.status}`);
         return r.json();
@@ -67,22 +68,22 @@ export default function Dashboard() {
     fetchData();
     const id = setInterval(fetchData, 10_000);
 
-    fetch("/api/v1/fl/rounds")
+    demoFetch("/api/v1/fl/rounds")
       .then((r) => r.json())
       .then((data) => setFlRounds(Array.isArray(data) ? data : []))
       .catch(() => {});
 
-    fetch("/api/v1/recognition/models")
+    demoFetch("/api/v1/recognition/models")
       .then((r) => r.json())
       .then((data) => setModels(Array.isArray(data) ? data : []))
       .catch(() => {});
 
-    fetch("/api/v1/gallery/count")
+    demoFetch("/api/v1/gallery/count")
       .then((r) => r.json())
       .then((data) => setGalleryCount(data.total ?? data.count ?? 0))
       .catch(() => {});
 
-    fetch("/api/v1/governance/compliance")
+    demoFetch("/api/v1/governance/compliance")
       .then((r) => r.json())
       .then(setCompliance)
       .catch(() => {});
