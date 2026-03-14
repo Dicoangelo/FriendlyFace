@@ -145,6 +145,75 @@ This is the foundational paper. It defines the 6-layer forensic architecture tha
 
 ---
 
+## Research Refresh — March 2026
+
+*Last scanned: 2026-03-14. Covers developments since Feb 6, 2026.*
+
+### Mohammed's Latest Work
+
+Mohammed & Ngom published **"Toward Forensic-Friendly AI: Integrating Blockchain with Federated Learning to Enhance AI Trustworthiness"** (Springer, 2025) — this is the ICDF2C 2024 paper now published in the Springer proceedings (Lecture Notes, Vol. 578). This is the paper FriendlyFace implements. Safiia Mohammed remains a PhD candidate at University of Windsor; no additional publications found beyond this one.
+
+**Action:** Update paper reference [1] with the Springer DOI once available. Consider reaching out to Mohammed about FriendlyFace as a reference implementation.
+
+### EU AI Act — Critical August 2026 Deadline
+
+The **August 2, 2026** deadline is now confirmed as the most consequential enforcement date:
+- Annex III high-risk AI requirements become enforceable (facial recognition is explicitly high-risk)
+- Real-time remote biometric identification in public spaces **banned** (narrow law enforcement exceptions)
+- Untargeted facial image scraping from internet/CCTV **prohibited absolutely** (no exceptions)
+- Retrospective facial recognition requires judicial authorization, strict necessity, and documentation
+- Penalties: up to **€35M or 7% global turnover** for prohibited practices
+- Required: quality management systems, risk management frameworks, technical documentation, conformity assessments, EU database registration
+
+**FriendlyFace relevance:** Our compliance reporter (`governance/compliance.py`) already covers consent coverage, bias audit pass rates, explanation coverage, and bundle integrity — directly mapping to the required documentation. The forensic bundle is exactly the "technical documentation" the Act requires. **This is our strongest differentiator — no competitor has automated EU AI Act compliance documentation.**
+
+**Action:** Update compliance reporter to explicitly reference August 2026 deadline. Add Annex III high-risk classification checks. Consider adding conformity assessment generation.
+
+### New Papers to Integrate
+
+#### CryptoFair-FL (arXiv:2601.12447) — Verifiable Fairness in FL
+- Combines homomorphic encryption + secure MPC + differential privacy for **cryptographically verifiable fairness guarantees** in federated learning
+- **Relevance:** Extends FedFDP's fairness-aware DP with cryptographic verification — could enhance our FL layer with verifiable fairness proofs
+- **Priority:** Medium — would strengthen the patent's Claim 14 (federated fairness with forensic provenance)
+
+#### Privacy-Fairness-Accuracy Trade-offs (arXiv:2503.16233) — Empirical Analysis
+- First unified large-scale empirical evaluation of DP, HE, and SMPC under fairness-aware optimizers
+- Reveals inverse relationship: stricter privacy fundamentally limits bias detection
+- **Relevance:** Provides empirical backing for our design choice of configurable epsilon/delta in DP-FL
+- **Priority:** Low — cite in paper, no code changes needed
+
+#### Deepfake Mitigation with Blockchain (Nature Scientific Reports, 2026)
+- "An integrated framework for proactive deepfake mitigation via attention-driven watermarking and blockchain-based authenticity verification"
+- **Relevance:** Adjacent — our forensic bundles could integrate deepfake detection scores as additional evidence
+- **Priority:** Low — future work section in paper
+
+#### GAN-Blockchain Privacy-Enhanced Recognition (ScienceDirect, 2024)
+- SHA-256 blockchain ledgers for preserving GAN-generated synthetic face integrity
+- **Relevance:** Validates our SHA-256 hash chain approach for biometric data integrity
+- **Priority:** Low — cite as supporting evidence
+
+### Competitor Landscape — No Forensic Bundles
+
+Scanned top 20 facial recognition systems (2025-2026):
+- **Clearview AI** — 50B+ images, law enforcement focus, **no forensic provenance, no audit trail**
+- **NEC NeoFace Reveal** — forensic face matching (1:N), **no hash chain, no explainability**
+- **Cognitec FaceVACS** — enterprise-grade, used for border control, **no consent tracking**
+- **Amazon Rekognition** — cloud API, **no provenance DAG, no bundle export**
+- **Innefu Argus** — forensic platform with metadata linking, **no blockchain verification**
+
+**No competitor combines:** forensic events + Merkle proofs + ZK verification + DID credentials + provenance DAG + bias audit + explainability + consent + compliance reporting into a unified, self-verifiable bundle.
+
+**FriendlyFace remains the only complete implementation of a forensic-friendly AI architecture.**
+
+### Market Context
+
+- Facial recognition market: **$8.1B (2025) → $36.2B (2035)**, 16.1% CAGR
+- Accuracy: 98-99% across demographics for leading algorithms
+- NIST recommends immutable logging and automated provenance in forensic-readiness guidelines
+- Dubai Police piloting blockchain for investigative file documentation (World Police Summit)
+
+---
+
 ## Citation Guide
 
 If referencing FriendlyFace in academic work:

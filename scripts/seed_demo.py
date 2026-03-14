@@ -10,11 +10,23 @@ Fairness groups need: group_name, true_positives, false_positives,
 true_negatives, false_negatives
 """
 
+import argparse
 import requests
 import time
 import json
+import sys
 
-BASE = "https://friendlyface.metaventionsai.com/api/v1"
+parser = argparse.ArgumentParser(description="Seed FriendlyFace with demo data")
+parser.add_argument("--local", action="store_true", help="Target localhost:3849 instead of production")
+parser.add_argument("--base-url", type=str, help="Custom base URL")
+_args = parser.parse_args()
+
+if _args.base_url:
+    BASE = _args.base_url.rstrip("/")
+elif _args.local:
+    BASE = "http://localhost:3849/api/v1"
+else:
+    BASE = "https://friendlyface.metaventionsai.com/api/v1"
 
 def post(path, data):
     r = requests.post(f"{BASE}{path}", json=data, timeout=30)

@@ -278,6 +278,9 @@ _broadcaster = EventBroadcaster()
 _gallery: Any = None
 _recognition_pipeline: Any = None
 
+# Compliance proxy (initialized in lifespan)
+_proxy: Any = None
+
 
 async def _load_persisted_caches() -> None:
     """Load persisted data from DB into in-memory caches on startup."""
@@ -359,7 +362,7 @@ async def _persist_compliance_report(report_id: str, created_at: str, data: dict
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    global _STARTUP_TIME, _gallery, _recognition_pipeline
+    global _STARTUP_TIME, _gallery, _recognition_pipeline, _proxy
     _STARTUP_TIME = time.monotonic()
     setup_logging()
     await _db.connect(db_key=settings.db_key, require_encryption=settings.require_encryption)
@@ -386,6 +389,12 @@ async def lifespan(app: FastAPI):
         extractor.model_version,
     )
 
+    # Initialize compliance proxy
+    from friendlyface.proxy.middleware import ComplianceProxy
+
+    _proxy = ComplianceProxy(forensic_service=_service, db=_db)
+    logger.info("Compliance proxy initialized")
+
     # Load persisted caches from DB into memory (write-through cache)
     await _load_persisted_caches()
 
@@ -397,6 +406,8 @@ async def lifespan(app: FastAPI):
     # Graceful shutdown: drain SSE subscribers, flush logs, close DB
     logger.info("Shutting down — draining SSE subscribers")
     _broadcaster.shutdown()
+    if _proxy is not None:
+        await _proxy.close()
     logger.info("Closing database connection")
     await _db.close()
     logger.info("Shutdown complete")
@@ -422,6 +433,7 @@ _OPENAPI_TAGS = [
     {"name": "Governance", "description": "Compliance reporting"},
     {"name": "DID/VC", "description": "Decentralized Identifiers and Verifiable Credentials"},
     {"name": "ZK", "description": "Schnorr zero-knowledge proofs"},
+    {"name": "Proxy", "description": "Compliance proxy for upstream recognition APIs"},
     {"name": "Metrics", "description": "Prometheus metrics endpoint"},
     {"name": "Admin", "description": "Backup, migrations, and administrative operations"},
     {"name": "billing", "description": "Stripe billing, checkout, and subscription management"},
@@ -850,6 +862,30 @@ async def get_merkle_root():
     return {"merkle_root": root, "leaf_count": _service.merkle.leaf_count}
 
 
+@app.post(
+    "/merkle/rebuild",
+    tags=["Merkle"],
+    summary="Rebuild Merkle tree",
+    dependencies=[Depends(require_role("admin"))],
+)
+async def rebuild_merkle_tree():
+    """Rebuild the Merkle tree from all persisted events."""
+    from friendlyface.core.merkle import MerkleTree
+
+    _service.merkle = MerkleTree()
+    _service._event_index = {}
+    events = await _db.get_all_events()
+    for event in events:
+        leaf_idx = _service.merkle.leaf_count
+        _service.merkle.add_leaf(event.event_hash)
+        _service._event_index[event.id] = leaf_idx
+    return {
+        "rebuilt": True,
+        "leaf_count": _service.merkle.leaf_count,
+        "root": _service.merkle.root,
+    }
+
+
 @app.get("/merkle/proof/{event_id}", tags=["Merkle"], summary="Merkle inclusion proof")
 async def get_merkle_proof(event_id: UUID):
     proof = _service.get_merkle_proof(event_id)
@@ -1108,6 +1144,46 @@ async def get_provenance_chain(node_id: UUID):
     if not chain:
         raise HTTPException(status_code=404, detail="Provenance node not found")
     return [n.model_dump(mode="json") for n in chain]
+
+
+@app.get("/provenance/{node_id}/lineage", tags=["Provenance"], summary="Trace lineage from root")
+async def get_provenance_lineage(node_id: UUID):
+    """Alias for provenance chain — traces lineage from root to this node."""
+    chain = _service.get_provenance_chain(node_id)
+    if not chain:
+        raise HTTPException(status_code=404, detail="Provenance node not found")
+    return [n.model_dump(mode="json") for n in chain]
+
+
+@app.get("/provenance-stats", tags=["Provenance"], summary="Provenance statistics")
+async def get_provenance_stats():
+    """Return total provenance node and edge counts."""
+    total_nodes = await _db.get_provenance_count()
+    # Edges = sum of all parent relationships
+    try:
+        cursor = await _db.db.execute(
+            "SELECT COUNT(*) FROM provenance_nodes WHERE parents != '[]' AND parents IS NOT NULL"
+        )
+        row = await cursor.fetchone()
+        total_edges = row[0] if row else 0
+    except Exception:
+        total_edges = 0
+    return {"total_nodes": total_nodes, "total_edges": total_edges}
+
+
+@app.get("/provenance-recent", tags=["Provenance"], summary="Recent provenance nodes")
+async def get_provenance_recent(limit: int = Query(default=10, ge=1, le=50)):
+    """Return the most recent provenance nodes."""
+    try:
+        cursor = await _db.db.execute(
+            "SELECT * FROM provenance_nodes ORDER BY created_at DESC LIMIT ?",
+            (limit,),
+        )
+        rows = await cursor.fetchall()
+        nodes = [_db._row_to_provenance(r) for r in rows]
+        return {"nodes": [n.model_dump(mode="json") for n in nodes]}
+    except Exception:
+        return {"nodes": []}
 
 
 # ---------------------------------------------------------------------------
@@ -1541,6 +1617,20 @@ async def check_liveness_endpoint(image: UploadFile = File(...), threshold: floa
 async def list_models():
     """List all available trained models with metadata."""
     return list(_model_registry.values())
+
+
+@app.delete(
+    "/recognition/models/{model_id}",
+    tags=["Recognition"],
+    summary="Delete a trained model",
+    dependencies=[Depends(require_role("admin"))],
+)
+async def delete_model(model_id: str):
+    """Remove a model from the in-memory registry."""
+    if model_id not in _model_registry:
+        raise HTTPException(status_code=404, detail="Model not found")
+    del _model_registry[model_id]
+    return {"deleted": True, "model_id": model_id}
 
 
 # ---------------------------------------------------------------------------
@@ -2335,6 +2425,260 @@ async def generate_compliance_report():
 
 
 # ---------------------------------------------------------------------------
+# Conformity Assessment — EU AI Act Annex IV
+# ---------------------------------------------------------------------------
+
+
+@app.post(
+    "/governance/conformity-assessment",
+    status_code=201,
+    tags=["Governance"],
+    summary="Generate EU AI Act Annex IV conformity assessment",
+    dependencies=[Depends(require_role("admin"))],
+)
+async def generate_conformity_assessment(
+    system_id: str = Query(default="friendlyface"),
+    system_name: str = Query(default="FriendlyFace"),
+    format: str = Query(default="json", description="Output format: json or html"),
+):
+    """Generate a complete EU AI Act Annex IV technical documentation assessment.
+
+    Auto-populates 10 sections from FriendlyFace forensic data and identifies
+    gaps requiring action before the August 2, 2026 enforcement deadline.
+    """
+    from fastapi.responses import HTMLResponse
+
+    from friendlyface.governance.conformity import ConformityAssessmentGenerator
+
+    seal_svc = None
+    try:
+        from friendlyface.governance.compliance import ComplianceReporter
+        from friendlyface.seal.service import ForensicSealService
+
+        reporter = ComplianceReporter(_db, _service)
+        seal_svc = ForensicSealService(_db, _service, reporter)
+    except Exception:
+        pass
+
+    generator = ConformityAssessmentGenerator(_db, _service, seal_service=seal_svc)
+    document = await generator.generate(system_id=system_id, system_name=system_name)
+
+    if format == "html":
+        html_content = generator.render_html(document)
+        return HTMLResponse(content=html_content, status_code=201)
+
+    return JSONResponse(content=document, status_code=201)
+
+
+# ---------------------------------------------------------------------------
+# ForensicSeal — issuance, retrieval, listing
+# ---------------------------------------------------------------------------
+
+
+class SealIssueRequest(BaseModel):
+    """Request body for POST /seal/issue."""
+
+    system_id: str = Field(min_length=1, max_length=256)
+    system_name: str = Field(min_length=1, max_length=512)
+    assessment_scope: str = Field(default="full", max_length=256)
+    bundle_ids: list[str] = Field(default_factory=list)
+    threshold: float = Field(default=80.0, ge=0, le=100)
+    expiry_days: int = Field(default=90, ge=7, le=365)
+
+
+@app.post(
+    "/seal/issue",
+    status_code=201,
+    tags=["ForensicSeal"],
+    summary="Issue a ForensicSeal compliance certificate",
+    dependencies=[Depends(require_role("admin"))],
+)
+async def issue_seal(req: SealIssueRequest):
+    """Run 6-layer compliance checks and issue a ForensicSeal if passing."""
+    from friendlyface.governance.compliance import ComplianceReporter
+    from friendlyface.seal.service import ForensicSealService
+
+    reporter = ComplianceReporter(_db, _service)
+    seal_service = ForensicSealService(_db, _service, reporter)
+    try:
+        seal = await seal_service.issue_seal(
+            system_id=req.system_id,
+            system_name=req.system_name,
+            assessment_scope=req.assessment_scope,
+            bundle_ids=req.bundle_ids,
+            threshold=req.threshold,
+            expiry_days=req.expiry_days,
+        )
+        return seal
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+class SealVerifyRequest(BaseModel):
+    """Request body for POST /seal/verify."""
+
+    credential: dict = Field(description="Full W3C Verifiable Credential JSON")
+
+
+@app.post(
+    "/seal/verify",
+    tags=["ForensicSeal"],
+    summary="Verify a ForensicSeal credential",
+)
+async def verify_seal_by_credential(req: SealVerifyRequest):
+    """Verify a ForensicSeal — NO AUTH REQUIRED. Anyone can verify."""
+    from friendlyface.governance.compliance import ComplianceReporter
+    from friendlyface.seal.service import ForensicSealService
+
+    reporter = ComplianceReporter(_db, _service)
+    seal_service = ForensicSealService(_db, _service, reporter)
+    try:
+        result = await seal_service.verify_seal(credential=req.credential)
+        return result
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+@app.get(
+    "/seal/verify/{seal_id}",
+    tags=["ForensicSeal"],
+    summary="Verify a seal by ID",
+)
+async def verify_seal_by_id(seal_id: str):
+    """Verify a ForensicSeal by looking it up — NO AUTH REQUIRED."""
+    from friendlyface.governance.compliance import ComplianceReporter
+    from friendlyface.seal.service import ForensicSealService
+
+    reporter = ComplianceReporter(_db, _service)
+    seal_service = ForensicSealService(_db, _service, reporter)
+    try:
+        result = await seal_service.verify_seal(seal_id=seal_id)
+        return result
+    except LookupError:
+        raise HTTPException(status_code=404, detail=f"Seal {seal_id} not found")
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+@app.get("/seal/{seal_id}", tags=["ForensicSeal"], summary="Get seal details")
+async def get_seal(seal_id: str):
+    """Retrieve a ForensicSeal by ID."""
+    seal = await _db.get_seal(seal_id)
+    if seal is None:
+        raise HTTPException(status_code=404, detail=f"Seal {seal_id} not found")
+    # Parse JSON fields for response
+    try:
+        seal["credential"] = json.loads(seal["credential"])
+    except (json.JSONDecodeError, TypeError):
+        pass
+    try:
+        seal["compliance_summary"] = json.loads(seal["compliance_summary"])
+    except (json.JSONDecodeError, TypeError):
+        pass
+    try:
+        seal["bundle_ids"] = json.loads(seal["bundle_ids"])
+    except (json.JSONDecodeError, TypeError):
+        pass
+    return seal
+
+
+@app.get("/seals", tags=["ForensicSeal"], summary="List all seals")
+async def list_seals(system_id: str | None = None, limit: int = 50, offset: int = 0):
+    """List ForensicSeals with optional system_id filter and pagination."""
+    items, total = await _db.list_seals(system_id=system_id, limit=limit, offset=offset)
+    # Parse JSON fields for each item
+    for item in items:
+        try:
+            item["credential"] = json.loads(item["credential"])
+        except (json.JSONDecodeError, TypeError):
+            pass
+        try:
+            item["compliance_summary"] = json.loads(item["compliance_summary"])
+        except (json.JSONDecodeError, TypeError):
+            pass
+        try:
+            item["bundle_ids"] = json.loads(item["bundle_ids"])
+        except (json.JSONDecodeError, TypeError):
+            pass
+    return {"items": items, "total": total, "limit": limit, "offset": offset}
+
+
+# ---------------------------------------------------------------------------
+# ForensicSeal — status, renewal, revocation (US-003, US-004)
+# ---------------------------------------------------------------------------
+
+
+@app.get(
+    "/seal/status/{seal_id}",
+    tags=["ForensicSeal"],
+    summary="Get seal status",
+)
+async def get_seal_status(seal_id: str):
+    """Get current seal status including days until expiry. No auth required."""
+    from friendlyface.governance.compliance import ComplianceReporter
+    from friendlyface.seal.service import ForensicSealService
+
+    reporter = ComplianceReporter(_db, _service)
+    seal_service = ForensicSealService(_db, _service, reporter)
+    try:
+        result = await seal_service.get_seal_status(seal_id)
+        return result
+    except LookupError:
+        raise HTTPException(status_code=404, detail=f"Seal {seal_id} not found")
+
+
+@app.post(
+    "/seal/renew/{seal_id}",
+    status_code=201,
+    tags=["ForensicSeal"],
+    summary="Renew an expiring seal",
+    dependencies=[Depends(require_role("admin"))],
+)
+async def renew_seal(seal_id: str):
+    """Re-run compliance checks and issue a new seal linked to the previous one."""
+    from friendlyface.governance.compliance import ComplianceReporter
+    from friendlyface.seal.service import ForensicSealService
+
+    reporter = ComplianceReporter(_db, _service)
+    seal_service = ForensicSealService(_db, _service, reporter)
+    try:
+        result = await seal_service.renew_seal(seal_id)
+        return result
+    except LookupError:
+        raise HTTPException(status_code=404, detail=f"Seal {seal_id} not found")
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc))
+
+
+class SealRevokeRequest(BaseModel):
+    """Request body for POST /seal/revoke/{seal_id}."""
+
+    reason: str = Field(min_length=1, max_length=4096, description="Reason for revocation")
+
+
+@app.post(
+    "/seal/revoke/{seal_id}",
+    tags=["ForensicSeal"],
+    summary="Revoke a ForensicSeal",
+    dependencies=[Depends(require_role("admin"))],
+)
+async def revoke_seal(seal_id: str, req: SealRevokeRequest):
+    """Revoke a seal. Irreversible. Records a forensic event in the hash chain."""
+    from friendlyface.governance.compliance import ComplianceReporter
+    from friendlyface.seal.service import ForensicSealService
+
+    reporter = ComplianceReporter(_db, _service)
+    seal_service = ForensicSealService(_db, _service, reporter)
+    try:
+        result = await seal_service.revoke_seal(seal_id, req.reason)
+        return result
+    except LookupError:
+        raise HTTPException(status_code=404, detail=f"Seal {seal_id} not found")
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc))
+
+
+# ---------------------------------------------------------------------------
 # Consent -- grant, revoke, status, history, check
 # ---------------------------------------------------------------------------
 
@@ -2456,6 +2800,17 @@ async def get_consent_history(subject_id: str, purpose: str | None = None):
     mgr = _get_consent_manager()
     records = await mgr.get_history(subject_id, purpose)
     return {"subject_id": subject_id, "total": len(records), "records": records}
+
+
+@app.get("/consent/list", tags=["Consent"], summary="List all consent records")
+async def list_consents(
+    status: str | None = None, limit: int = 100, offset: int = 0
+):
+    """List latest consent record per subject+purpose pair with optional status filter."""
+    if status is not None and status not in ("granted", "revoked"):
+        raise HTTPException(status_code=400, detail="status must be 'granted' or 'revoked'")
+    items, total = await _db.list_all_consents(status=status, limit=limit, offset=offset)
+    return {"items": items, "total": total, "limit": limit, "offset": offset}
 
 
 @app.post(
@@ -3300,6 +3655,20 @@ async def compare_explanations(event_id: UUID):
 # ---------------------------------------------------------------------------
 
 
+@app.get("/did/list", tags=["DID/VC"], summary="List DID keys")
+async def list_dids():
+    """List all stored DID keys."""
+    keys = await _db.list_did_keys()
+    return [
+        {
+            "did": k["did"],
+            "public_key_hex": k["public_key"].hex() if isinstance(k["public_key"], bytes) else k["public_key"],
+            "created_at": k["created_at"],
+        }
+        for k in keys
+    ]
+
+
 @app.post("/did/create", status_code=201, tags=["DID/VC"], summary="Create Ed25519 DID:key")
 @limiter.limit("10/minute")
 async def create_did(request: Request, req: CreateDIDRequest):
@@ -3540,6 +3909,28 @@ async def evaluate_retention():
     return await engine.evaluate()
 
 
+@app.get("/retention/evaluate/history", tags=["Governance"], summary="Retention evaluation history")
+async def retention_history():
+    """Return recent retention policy evaluation runs."""
+    # Return from forensic events of type retention_evaluation
+    try:
+        cursor = await _db.db.execute(
+            "SELECT content, timestamp FROM forensic_events WHERE event_type = 'retention_evaluation' ORDER BY timestamp DESC LIMIT 20"
+        )
+        rows = await cursor.fetchall()
+        runs = []
+        for row in rows:
+            try:
+                data = json.loads(row[0]) if isinstance(row[0], str) else row[0]
+                data["timestamp"] = row[1]
+                runs.append(data)
+            except Exception:
+                runs.append({"timestamp": row[1]})
+        return {"runs": runs}
+    except Exception:
+        return {"runs": []}
+
+
 # ---------------------------------------------------------------------------
 # Backup — Admin backup/restore (US-043)
 # ---------------------------------------------------------------------------
@@ -3640,6 +4031,23 @@ async def migration_status():
     from friendlyface.storage.migrations import get_migration_status
 
     return await get_migration_status(_db._db)
+
+
+@app.post(
+    "/admin/migrations/run",
+    tags=["Admin"],
+    summary="Run pending migrations",
+    dependencies=[Depends(require_role("admin"))],
+)
+async def run_migrations():
+    """Apply all pending database migrations."""
+    from friendlyface.storage.migrations import apply_migrations
+
+    try:
+        result = await apply_migrations(_db._db)
+        return result
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.post(
@@ -3880,6 +4288,103 @@ async def export_compliance(format: str = "oscal"):
 
 
 # ---------------------------------------------------------------------------
+# Proxy — Compliance proxy for upstream recognition APIs (US-005)
+# ---------------------------------------------------------------------------
+
+import hashlib as _hashlib_mod  # noqa: E402
+
+
+@app.post(
+    "/proxy/recognize",
+    tags=["Proxy"],
+    summary="Forward recognition request through compliance proxy",
+)
+@limiter.limit("50/minute")
+async def proxy_recognize(
+    request: Request,
+    image: UploadFile = File(...),
+    upstream_url: str | None = Query(default=None),
+    subject_id: str | None = Query(default=None),
+    metadata_json: str | None = Query(default=None, description="JSON metadata string"),
+):
+    """Forward a recognition request to an upstream API while logging forensic events.
+
+    The proxy:
+    1. Checks consent (if subject_id provided)
+    2. Logs inference_request forensic event
+    3. Forwards image to upstream recognition API
+    4. Logs inference_result forensic event
+    5. Returns upstream response + forensic event IDs
+    """
+    if _proxy is None:
+        raise HTTPException(status_code=503, detail="Compliance proxy not initialized")
+
+    # Resolve upstream URL
+    resolved_url = upstream_url or settings.proxy_upstream_url
+    if not resolved_url:
+        raise HTTPException(
+            status_code=400,
+            detail="No upstream URL provided. Set FF_PROXY_UPSTREAM_URL or pass upstream_url param.",
+        )
+
+    # Build metadata
+    metadata: dict[str, Any] = {}
+    if metadata_json:
+        try:
+            metadata = json.loads(metadata_json)
+        except json.JSONDecodeError:
+            raise HTTPException(status_code=400, detail="Invalid metadata_json")
+    if subject_id:
+        metadata["subject_id"] = subject_id
+
+    # Build upstream headers
+    upstream_headers: dict[str, str] = {}
+    if settings.proxy_upstream_key:
+        upstream_headers["Authorization"] = f"Bearer {settings.proxy_upstream_key}"
+
+    image_bytes = await image.read()
+
+    result = await _proxy.recognize(
+        image_bytes=image_bytes,
+        upstream_url=resolved_url,
+        upstream_headers=upstream_headers,
+        metadata=metadata,
+    )
+    return result
+
+
+@app.post("/proxy/echo", tags=["Proxy"], summary="Echo endpoint for proxy testing")
+async def proxy_echo(request: Request, image: UploadFile | None = File(default=None)):
+    """Test endpoint that echoes back image metadata (for proxy testing without upstream).
+
+    Accepts either multipart file upload (field name ``image``) or raw body bytes.
+    The proxy forwards raw bytes, while interactive clients may use form upload.
+    """
+    if image is not None:
+        image_bytes = await image.read()
+    else:
+        image_bytes = await request.body()
+    input_hash = _hashlib_mod.sha256(image_bytes).hexdigest()
+    return {
+        "matches": [{"label": "echo_test", "confidence": 0.99}],
+        "input_hash": input_hash,
+        "image_size": len(image_bytes),
+    }
+
+
+# ---------------------------------------------------------------------------
+# Blockchain Anchoring (US-008)
+# ---------------------------------------------------------------------------
+
+
+@app.get("/anchor/history", tags=["Anchoring"], summary="List anchored Merkle roots")
+async def anchor_history(limit: int = 50, offset: int = 0):
+    """Return a paginated list of blockchain-anchored Merkle roots."""
+    items, total = await _db.list_anchors(limit=limit, offset=offset)
+    return {"items": items, "total": total, "limit": limit, "offset": offset}
+
+
+# ---------------------------------------------------------------------------
 # API Versioning — /api/v1 prefix (US-050)
 # ---------------------------------------------------------------------------
 
@@ -3903,6 +4408,7 @@ v1_router.add_api_route("/events/{event_id}", get_event, methods=["GET"])
 # Merkle
 v1_router.add_api_route("/merkle/root", get_merkle_root, methods=["GET"])
 v1_router.add_api_route("/merkle/proof/{event_id}", get_merkle_proof, methods=["GET"])
+v1_router.add_api_route("/merkle/rebuild", rebuild_merkle_tree, methods=["POST"])
 
 # Bundles
 v1_router.add_api_route("/bundles/import", import_bundle, methods=["POST"], status_code=201)
@@ -3917,6 +4423,9 @@ v1_router.add_api_route("/chain/integrity", verify_chain_integrity, methods=["GE
 
 # Provenance
 v1_router.add_api_route("/provenance", add_provenance_node, methods=["POST"], status_code=201)
+v1_router.add_api_route("/provenance/stats", get_provenance_stats, methods=["GET"])
+v1_router.add_api_route("/provenance/recent", get_provenance_recent, methods=["GET"])
+v1_router.add_api_route("/provenance/{node_id}/lineage", get_provenance_lineage, methods=["GET"])
 v1_router.add_api_route("/provenance/{node_id}", get_provenance_chain, methods=["GET"])
 
 # Recognition
@@ -3926,6 +4435,7 @@ v1_router.add_api_route("/recognize", recognize, methods=["POST"])
 v1_router.add_api_route("/recognition/liveness", check_liveness_endpoint, methods=["POST"])
 v1_router.add_api_route("/recognition/models", list_models, methods=["GET"])
 v1_router.add_api_route("/recognition/models/{model_id}", get_model, methods=["GET"])
+v1_router.add_api_route("/recognition/models/{model_id}", delete_model, methods=["DELETE"])
 
 # Gallery
 v1_router.add_api_route("/gallery/enroll", gallery_enroll, methods=["POST"], status_code=201)
@@ -3967,6 +4477,25 @@ v1_router.add_api_route(
     status_code=201,
 )
 v1_router.add_api_route("/governance/compliance/export", export_compliance, methods=["GET"])
+v1_router.add_api_route(
+    "/governance/conformity-assessment",
+    generate_conformity_assessment,
+    methods=["POST"],
+    status_code=201,
+)
+
+# ForensicSeal
+v1_router.add_api_route("/seal/issue", issue_seal, methods=["POST"], status_code=201)
+v1_router.add_api_route("/seal/verify", verify_seal_by_credential, methods=["POST"])
+v1_router.add_api_route("/seal/verify/{seal_id}", verify_seal_by_id, methods=["GET"])
+v1_router.add_api_route("/seal/{seal_id}", get_seal, methods=["GET"])
+v1_router.add_api_route("/seals", list_seals, methods=["GET"])
+v1_router.add_api_route("/seal/status/{seal_id}", get_seal_status, methods=["GET"])
+v1_router.add_api_route("/seal/renew/{seal_id}", renew_seal, methods=["POST"], status_code=201)
+v1_router.add_api_route("/seal/revoke/{seal_id}", revoke_seal, methods=["POST"])
+
+# Anchoring
+v1_router.add_api_route("/anchor/history", anchor_history, methods=["GET"])
 
 # Consent
 v1_router.add_api_route("/consent/grant", grant_consent, methods=["POST"], status_code=201)
@@ -3974,6 +4503,7 @@ v1_router.add_api_route("/consent/revoke", revoke_consent, methods=["POST"])
 v1_router.add_api_route("/consent/status/{subject_id}", get_consent_status, methods=["GET"])
 v1_router.add_api_route("/consent/history/{subject_id}", get_consent_history, methods=["GET"])
 v1_router.add_api_route("/consent/check", check_consent, methods=["POST"])
+v1_router.add_api_route("/consent/list", list_consents, methods=["GET"])
 
 # Fairness
 v1_router.add_api_route("/fairness/audit", trigger_bias_audit, methods=["POST"], status_code=201)
@@ -4001,6 +4531,7 @@ v1_router.add_api_route(
 v1_router.add_api_route("/explainability/compare/{event_id}", compare_explanations, methods=["GET"])
 
 # DID / VC
+v1_router.add_api_route("/did/list", list_dids, methods=["GET"])
 v1_router.add_api_route("/did/create", create_did, methods=["POST"], status_code=201)
 v1_router.add_api_route("/did/{did_id:path}/resolve", resolve_did, methods=["GET"])
 v1_router.add_api_route("/vc/issue", issue_vc, methods=["POST"], status_code=201)
@@ -4025,6 +4556,11 @@ v1_router.add_api_route(
     "/retention/policies/{policy_id}", delete_retention_policy, methods=["DELETE"]
 )
 v1_router.add_api_route("/retention/evaluate", evaluate_retention, methods=["POST"])
+v1_router.add_api_route("/retention/evaluate/history", retention_history, methods=["GET"])
+
+# Proxy
+v1_router.add_api_route("/proxy/recognize", proxy_recognize, methods=["POST"])
+v1_router.add_api_route("/proxy/echo", proxy_echo, methods=["POST"])
 
 # Demo
 v1_router.add_api_route("/demo/seed", seed_demo_data, methods=["POST"])
@@ -4039,6 +4575,7 @@ v1_router.add_api_route("/admin/backup/stats", backup_stats, methods=["GET"])
 
 # Admin — Migrations
 v1_router.add_api_route("/admin/migrations/status", migration_status, methods=["GET"])
+v1_router.add_api_route("/admin/migrations/run", run_migrations, methods=["POST"])
 v1_router.add_api_route("/admin/migrations/rollback", rollback_migration, methods=["POST"])
 
 # Billing, Auth, and API Keys routers

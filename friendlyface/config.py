@@ -75,6 +75,15 @@ class Settings(BaseSettings):
     # Migrations
     migrations_enabled: bool = Field(default=False, description="Run SQL migrations on startup")
 
+    # Blockchain anchoring
+    anchor_chain: str = Field(
+        default="none",
+        description="Blockchain anchor chain: none, polygon, or base",
+    )
+    anchor_key: str | None = Field(
+        default=None, description="Private key for blockchain anchoring"
+    )
+
     # Merkle
     merkle_checkpoint_interval: int = Field(
         default=100, ge=1, description="Save Merkle checkpoint every N events"
@@ -110,10 +119,11 @@ class Settings(BaseSettings):
 
     # Recognition engine
     recognition_engine: str = Field(
-        default="auto",
+        default="fallback",
         description=(
-            "Recognition backend: 'fallback' (PCA+SVM only), 'deep' (detection+embedding pipeline), "
-            "'auto' (deep when available, else fallback), 'mediapipe', or 'onnx'"
+            "Recognition backend: 'fallback' (PCA+SVM), 'onnx' (ArcFace/AdaFace ONNX), "
+            "'proxy' (compliance proxy to external API), 'deep' (detection+embedding pipeline), "
+            "'auto' (deep when available, else fallback), or 'mediapipe'"
         ),
     )
 
@@ -129,6 +139,14 @@ class Settings(BaseSettings):
     store_inference_artifacts: bool = Field(
         default=True,
         description="Store image bytes + features after inference for LIME/SHAP/SDD computation",
+    )
+
+    # Compliance proxy
+    proxy_upstream_url: str = Field(
+        default="", description="Default upstream recognition API URL for compliance proxy"
+    )
+    proxy_upstream_key: str = Field(
+        default="", description="API key for upstream recognition API"
     )
 
     # Supabase

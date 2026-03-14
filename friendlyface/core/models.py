@@ -56,6 +56,8 @@ class EventType(str, Enum):
     FL_ROUND = "fl_round"
     SECURITY_ALERT = "security_alert"
     COMPLIANCE_REPORT = "compliance_report"
+    SEAL_ISSUED = "seal_issued"
+    SEAL_REVOKED = "seal_revoked"
 
 
 class ProvenanceRelation(str, Enum):

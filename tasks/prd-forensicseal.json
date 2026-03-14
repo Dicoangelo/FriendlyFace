@@ -1,0 +1,249 @@
+{
+  "name": "FriendlyFace ForensicSeal",
+  "branchName": "ralph/forensicseal",
+  "description": "Verifiable AI Compliance Certificates — the SSL certificate for AI systems. Cryptographically signed, publicly verifiable compliance credentials backed by real forensic evidence, targeting EU AI Act enforcement August 2, 2026.",
+  "userStories": [
+    {
+      "id": "US-001",
+      "title": "ForensicSeal Issuance Endpoint",
+      "description": "As a compliance officer, I want to request a ForensicSeal for my AI system so that I have a cryptographically verifiable proof of compliance.",
+      "acceptanceCriteria": [
+        "POST /seal/issue accepts {system_id, system_name, assessment_scope, bundle_ids[]}",
+        "Endpoint runs compliance checks across all 6 layers: consent coverage, bias audit recency, explanation coverage, hash chain integrity, bundle verification, provenance completeness",
+        "Each check produces a pass/fail with score (0-100) and evidence references",
+        "If all checks pass threshold (configurable, default 80%), issues a ForensicSeal",
+        "ForensicSeal is a W3C Verifiable Credential signed with the platform's Ed25519 DID:key",
+        "Credential contains: issuer DID, subject system ID, issuance timestamp, expiry (default 90 days), compliance score, ZK proof of underlying evidence, Merkle root at time of issuance",
+        "Seal is persisted to DB with unique seal_id via new seals table migration",
+        "Returns JSON with seal_id, credential, verification_url, expires_at, compliance_summary",
+        "If checks fail, returns 422 with detailed failure report and remediation steps",
+        "pytest tests/ -v passes",
+        "ruff check friendlyface/ tests/ passes"
+      ],
+      "priority": 1,
+      "passes": true,
+      "notes": "Core product endpoint. Reuses existing crypto/did.py, crypto/vc.py, crypto/schnorr.py, governance/compliance.py. Add new seals table to DB via migration. Add new ForensicSeal OpenAPI tag.",
+      "dependsOn": []
+    },
+    {
+      "id": "US-002",
+      "title": "ForensicSeal Public Verification",
+      "description": "As a regulator or auditor, I want to verify a ForensicSeal without needing an account so that I can independently confirm an AI system's compliance status.",
+      "acceptanceCriteria": [
+        "POST /seal/verify accepts {credential} (the full VC JSON)",
+        "GET /seal/verify/{seal_id} verifies by seal ID (public, no auth)",
+        "Verification checks: DID signature valid, credential not expired, credential not revoked, ZK proof valid, Merkle root matches chain state at issuance time",
+        "Returns {valid: bool, checks: {signature, expiry, revocation, zk_proof, merkle}, issuer, issued_at, expires_at, compliance_score}",
+        "No API key required — these endpoints are fully public",
+        "Verification works offline with just the credential JSON (DID + ZK proof are self-contained)",
+        "pytest tests/ -v passes",
+        "ruff check friendlyface/ tests/ passes"
+      ],
+      "priority": 2,
+      "passes": true,
+      "notes": "Public-facing verification. Must work without auth. Critical for trust model — anyone can verify a seal.",
+      "dependsOn": ["US-001"]
+    },
+    {
+      "id": "US-003",
+      "title": "Seal Expiry and Continuous Compliance",
+      "description": "As a compliance officer, I want seals to expire and require re-issuance so that compliance is continuous, not point-in-time.",
+      "acceptanceCriteria": [
+        "Seals have configurable expiry (default 90 days, min 7, max 365)",
+        "GET /seal/status/{seal_id} returns current status including days until expiry",
+        "Expired seals automatically marked as expired on access",
+        "POST /seal/renew/{seal_id} re-runs compliance checks and issues a new seal if passing",
+        "Renewal links to previous seal via previous_seal_id, creating a compliance chain",
+        "SSE event emitted when seal is within 30 days of expiry: seal_expiring",
+        "pytest tests/ -v passes",
+        "ruff check friendlyface/ tests/ passes"
+      ],
+      "priority": 3,
+      "passes": true,
+      "notes": "Continuous compliance is the business model — recurring value from re-issuance.",
+      "dependsOn": ["US-001"]
+    },
+    {
+      "id": "US-004",
+      "title": "Seal Revocation",
+      "description": "As an admin, I want to revoke a seal if compliance is breached so that the public verification endpoint reflects current reality.",
+      "acceptanceCriteria": [
+        "POST /seal/revoke/{seal_id} with {reason} marks seal as revoked",
+        "Revocation is itself a forensic event in the hash chain (event_type: seal_revoked)",
+        "Public verification endpoint returns valid: false with revocation_reason for revoked seals",
+        "Revocation is irreversible — no un-revoke",
+        "Admin role required via require_role('admin') dependency",
+        "pytest tests/ -v passes",
+        "ruff check friendlyface/ tests/ passes"
+      ],
+      "priority": 4,
+      "passes": true,
+      "notes": "Completes the seal lifecycle: issue -> verify -> renew -> revoke.",
+      "dependsOn": ["US-002", "US-003"]
+    },
+    {
+      "id": "US-005",
+      "title": "Compliance Proxy Middleware",
+      "description": "As an enterprise running NEC/Cognitec/Amazon Rekognition, I want to route my API calls through FriendlyFace so that every recognition request is automatically forensically logged without changing my integration.",
+      "acceptanceCriteria": [
+        "New endpoint POST /proxy/recognize accepts {upstream_url, upstream_headers, image, metadata}",
+        "Proxy forwards the image to the upstream recognition API using httpx.AsyncClient",
+        "Before forwarding: checks consent for subject (if subject_id in metadata), logs inference_request forensic event",
+        "After response: logs inference_result forensic event with upstream response, input image hash, latency_ms",
+        "Accumulated results feed into bias audits and compliance scoring",
+        "Configuration via FF_PROXY_UPSTREAM_URL and FF_PROXY_UPSTREAM_KEY env vars for default upstream",
+        "Works with any REST-based recognition API (vendor-agnostic)",
+        "pytest tests/ -v passes",
+        "ruff check friendlyface/ tests/ passes"
+      ],
+      "priority": 5,
+      "passes": true,
+      "notes": "This is 'you keep your recognition engine, we make it compliant'. Uses httpx.AsyncClient (already a dependency).",
+      "dependsOn": []
+    },
+    {
+      "id": "US-006",
+      "title": "EU AI Act Annex IV Conformity Document Generator",
+      "description": "As a compliance officer, I want to generate a full Annex IV technical documentation package so that I can demonstrate conformity before the August 2, 2026 deadline.",
+      "acceptanceCriteria": [
+        "POST /governance/conformity-assessment generates a structured document",
+        "Document covers all Annex IV requirements: system description, intended purpose, risk classification, training data provenance, bias testing records, performance metrics, human oversight measures, cybersecurity measures, quality management procedures",
+        "Each section auto-populated from FriendlyFace data: provenance DAG for training data, bias audits for fairness, forensic bundles for integrity, consent records for data protection, compliance reports for risk management",
+        "Output formats: JSON (structured) and HTML (human-readable) via Accept header or format query param",
+        "Gaps identified and flagged: missing sections listed with action items",
+        "Document references specific ForensicSeal IDs as evidence when available",
+        "pytest tests/ -v passes",
+        "ruff check friendlyface/ tests/ passes"
+      ],
+      "priority": 6,
+      "passes": true,
+      "notes": "The document enterprises need to file before August 2, 2026. Extends existing governance/compliance.py.",
+      "dependsOn": ["US-001"]
+    },
+    {
+      "id": "US-007",
+      "title": "Pluggable Recognition Engine Interface",
+      "description": "As a developer, I want to swap the recognition engine without touching the forensic layer so that we can support production-grade models alongside the demo PCA+SVM.",
+      "acceptanceCriteria": [
+        "Define RecognitionEngine ABC in friendlyface/recognition/engine.py with train(), predict(), get_model_info() methods",
+        "FallbackEngine wraps existing PCA+SVM pipeline — current behavior fully preserved",
+        "ONNXEngine loads ArcFace/AdaFace ONNX models for production inference",
+        "ProxyEngine delegates to the compliance proxy (US-005) for external APIs",
+        "Engine selection via FF_RECOGNITION_ENGINE=fallback|onnx|proxy env var",
+        "All engines produce identical forensic events — forensic layer is engine-agnostic",
+        "Existing tests pass with fallback engine (default)",
+        "pytest tests/ -v passes",
+        "ruff check friendlyface/ tests/ passes"
+      ],
+      "priority": 7,
+      "passes": true,
+      "notes": "Decouples recognition from forensics. The forensic layer wraps any engine.",
+      "dependsOn": ["US-005"]
+    },
+    {
+      "id": "US-008",
+      "title": "Blockchain Merkle Root Anchoring",
+      "description": "As a platform operator, I want to periodically anchor Merkle roots to a public blockchain so that the forensic chain has immutable, externally verifiable timestamps.",
+      "acceptanceCriteria": [
+        "New module friendlyface/crypto/anchor.py with BlockchainAnchor ABC",
+        "PolygonAnchor implementation: publishes Merkle root hash to a Polygon smart contract",
+        "BaseAnchor implementation: publishes to Base L2",
+        "NullAnchor (default): no-op for local/demo deployments",
+        "Anchoring triggered on configurable interval (default: every 100 events or 24 hours)",
+        "Anchor transaction hash stored in DB via new anchors table",
+        "GET /anchor/history returns list of anchored roots with tx hashes and block numbers",
+        "ForensicSeal includes latest anchor tx hash as external proof reference",
+        "Configuration via FF_ANCHOR_CHAIN=none|polygon|base and FF_ANCHOR_KEY env vars",
+        "pytest tests/ -v passes",
+        "ruff check friendlyface/ tests/ passes"
+      ],
+      "priority": 8,
+      "passes": true,
+      "notes": "Optional module — system works fully without it. Keep blockchain deps (web3) in optional dependency group in pyproject.toml.",
+      "dependsOn": ["US-001"]
+    },
+    {
+      "id": "US-009",
+      "title": "Python SDK for Enterprise Integration",
+      "description": "As an enterprise developer, I want a pip-installable SDK so that I can add forensic logging to my existing pipeline in 5 lines of code.",
+      "acceptanceCriteria": [
+        "New package in sdk/ directory with its own pyproject.toml (name: friendlyface-sdk)",
+        "Core class: FriendlyFaceClient(base_url, api_key)",
+        "Methods: log_event(), check_consent(), grant_consent(), create_bundle(), issue_seal(), verify_seal(), run_audit(), proxy_recognize()",
+        "Decorator: @forensic_trace wraps any function, logs inputs/outputs as forensic events",
+        "Context manager: with client.forensic_session() as session: auto-bundles all events on exit",
+        "Returns typed dataclasses, not raw dicts",
+        "README.md with quickstart showing 5-line integration example",
+        "90%+ test coverage on SDK (pytest sdk/tests/ -v)",
+        "Zero required dependencies beyond requests",
+        "ruff check sdk/ passes"
+      ],
+      "priority": 9,
+      "passes": true,
+      "notes": "Thin HTTP wrapper — the SDK is the distribution mechanism for enterprise adoption. Separate package, separate tests.",
+      "dependsOn": ["US-001", "US-002", "US-005"]
+    },
+    {
+      "id": "US-010",
+      "title": "ForensicSeal Dashboard Page",
+      "description": "As a platform user, I want a dashboard showing all issued seals, their status, and expiry so that I can manage my compliance posture.",
+      "acceptanceCriteria": [
+        "New /seals page in React frontend added to sidebar navigation",
+        "Shows table of all issued seals: seal_id (truncated+copy), system_name, issued_at, expires_at, status, compliance_score",
+        "Status badges: green (active >30 days), yellow (expiring <30 days), red (expired/revoked)",
+        "Click seal row to see full compliance breakdown with per-layer scores and evidence links",
+        "Issue New Seal button opens inline form triggering POST /seal/issue",
+        "Verify External Seal input field for pasting credential JSON with verify button",
+        "Seal history chart showing compliance score over time (inline CSS bars, no chart library)",
+        "Skeleton loading states and empty state when no seals exist",
+        "cd frontend && npm run build && npm run lint passes",
+        "pytest tests/ -v passes",
+        "ruff check friendlyface/ tests/ passes"
+      ],
+      "priority": 10,
+      "passes": true,
+      "notes": "UI story. Must be responsive, dark theme consistent with existing dashboard pages.",
+      "dependsOn": ["US-001", "US-002", "US-003", "US-004"]
+    },
+    {
+      "id": "US-011",
+      "title": "ForensicSeal Landing Page",
+      "description": "As a potential customer, I want a compelling landing page explaining ForensicSeal so that I understand the value and can request a demo.",
+      "acceptanceCriteria": [
+        "New route /seal in React frontend serves a public landing page",
+        "Hero section: 'The compliance certificate your AI system needs before August 2, 2026'",
+        "Sections: What is ForensicSeal, How it works (3-step visual), Why you need it (EU AI Act penalties), Competitive comparison vs manual audits, Pricing placeholder, Demo request form",
+        "Live verification demo: paste any seal credential JSON, see verification result in real-time via POST /seal/verify",
+        "Responsive layout, dark theme consistent with existing dashboard",
+        "SEO meta tags for 'EU AI Act compliance', 'AI compliance certificate', 'forensic AI'",
+        "cd frontend && npm run build && npm run lint passes",
+        "pytest tests/ -v passes",
+        "ruff check friendlyface/ tests/ passes"
+      ],
+      "priority": 11,
+      "passes": true,
+      "notes": "UI story. Customer-facing landing page. Must be compelling enough to drive demo requests.",
+      "dependsOn": ["US-002", "US-010"]
+    },
+    {
+      "id": "US-012",
+      "title": "ICDF2C 2026 Paper Submission Package",
+      "description": "As a researcher, I want to finalize the academic paper with real benchmarks from the activated pipeline so that we can submit to ICDF2C 2026.",
+      "acceptanceCriteria": [
+        "Run scripts/full_pipeline_demo.py with timing instrumentation added, collect latency metrics for each step",
+        "Benchmarks collected: event recording latency, bundle creation time, ZK proof generation time, seal issuance time, verification time, Merkle proof time",
+        "Update docs/PAPER_DRAFT.md Table 3 (Performance) with real measured numbers",
+        "Add ForensicSeal as a new contribution in Section 4 (Implementation)",
+        "Generate comparison table vs 5 commercial systems with ForensicSeal column added",
+        "Export paper as LaTeX (.tex) file in docs/ for conference submission",
+        "Prepare supplementary materials: architecture diagrams, API documentation link, demo URL",
+        "pytest tests/ -v passes",
+        "ruff check friendlyface/ tests/ passes"
+      ],
+      "priority": 12,
+      "passes": true,
+      "notes": "Depends on ForensicSeal being implemented so benchmarks include real seal issuance/verification times.",
+      "dependsOn": ["US-001", "US-002"]
+    }
+  ]
+}

@@ -283,6 +283,38 @@ CREATE INDEX IF NOT EXISTS idx_recognition_results_group
 
 CREATE INDEX IF NOT EXISTS idx_recognition_results_created
     ON recognition_results (created_at DESC);
+
+CREATE TABLE IF NOT EXISTS seals (
+    id TEXT PRIMARY KEY,
+    system_id TEXT NOT NULL,
+    system_name TEXT NOT NULL,
+    assessment_scope TEXT DEFAULT 'full',
+    credential TEXT NOT NULL,
+    compliance_score REAL NOT NULL,
+    compliance_summary TEXT NOT NULL,
+    merkle_root TEXT NOT NULL,
+    issued_at TEXT NOT NULL,
+    expires_at TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'active',
+    revocation_reason TEXT,
+    previous_seal_id TEXT,
+    bundle_ids TEXT NOT NULL,
+    created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_seals_system_id ON seals(system_id);
+CREATE INDEX IF NOT EXISTS idx_seals_status ON seals(status);
+
+CREATE TABLE IF NOT EXISTS anchors (
+    id TEXT PRIMARY KEY,
+    merkle_root TEXT NOT NULL,
+    chain TEXT NOT NULL,
+    tx_hash TEXT NOT NULL,
+    block_number INTEGER NOT NULL,
+    anchored_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_anchors_merkle_root ON anchors(merkle_root);
 """
 
 
@@ -760,6 +792,55 @@ class Database:
             "revocation_reason": row["revocation_reason"],
             "event_id": row["event_id"],
         }
+
+    async def list_all_consents(
+        self,
+        status: str | None = None,
+        limit: int = 100,
+        offset: int = 0,
+    ) -> tuple[list[dict[str, Any]], int]:
+        """List latest consent record per subject+purpose pair.
+
+        Args:
+            status: Filter by status: 'granted', 'revoked', or None for all.
+            limit: Max records to return.
+            offset: Pagination offset.
+
+        Returns:
+            Tuple of (records, total_count).
+        """
+        # Get latest record per subject+purpose using window function
+        base_query = (
+            "SELECT * FROM ("
+            "  SELECT *, ROW_NUMBER() OVER ("
+            "    PARTITION BY subject_id, purpose ORDER BY timestamp DESC"
+            "  ) AS rn FROM consent_records"
+            ") WHERE rn = 1"
+        )
+        count_query = (
+            "SELECT COUNT(*) FROM ("
+            "  SELECT *, ROW_NUMBER() OVER ("
+            "    PARTITION BY subject_id, purpose ORDER BY timestamp DESC"
+            "  ) AS rn FROM consent_records"
+            ") WHERE rn = 1"
+        )
+        params: list[Any] = []
+        if status == "granted":
+            base_query += " AND granted = 1"
+            count_query += " AND granted = 1"
+        elif status == "revoked":
+            base_query += " AND granted = 0"
+            count_query += " AND granted = 0"
+
+        cursor = await self.db.execute(count_query, params)
+        row = await cursor.fetchone()
+        total = row[0] if row else 0
+
+        base_query += " ORDER BY timestamp DESC LIMIT ? OFFSET ?"
+        params.extend([limit, offset])
+        cursor = await self.db.execute(base_query, params)
+        rows = await cursor.fetchall()
+        return [self._row_to_consent(r) for r in rows], total
 
     # --- Compliance query helpers ---
 
@@ -1285,4 +1366,155 @@ class Database:
             "false_negatives": fn,
             "true_negatives": tn,
             "false_positives": fp,
+        }
+
+    # ------------------------------------------------------------------
+    # Seals (US-001)
+    # ------------------------------------------------------------------
+
+    async def save_seal(self, seal_data: dict) -> None:
+        """Insert a forensic seal record."""
+        await self.db.execute(
+            "INSERT INTO seals "
+            "(id, system_id, system_name, assessment_scope, credential, "
+            "compliance_score, compliance_summary, merkle_root, issued_at, "
+            "expires_at, status, revocation_reason, previous_seal_id, bundle_ids, created_at) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (
+                seal_data["id"],
+                seal_data["system_id"],
+                seal_data["system_name"],
+                seal_data.get("assessment_scope", "full"),
+                seal_data["credential"],
+                seal_data["compliance_score"],
+                seal_data["compliance_summary"],
+                seal_data["merkle_root"],
+                seal_data["issued_at"],
+                seal_data["expires_at"],
+                seal_data.get("status", "active"),
+                seal_data.get("revocation_reason"),
+                seal_data.get("previous_seal_id"),
+                seal_data["bundle_ids"],
+                seal_data.get(
+                    "created_at",
+                    __import__("datetime")
+                    .datetime.now(__import__("datetime").timezone.utc)
+                    .isoformat(),
+                ),
+            ),
+        )
+        await self.db.commit()
+
+    async def get_seal(self, seal_id: str) -> dict | None:
+        """Get a seal by ID."""
+        cursor = await self.db.execute("SELECT * FROM seals WHERE id = ?", (seal_id,))
+        row = await cursor.fetchone()
+        if row is None:
+            return None
+        return self._row_to_seal(row)
+
+    async def list_seals(
+        self, system_id: str | None = None, limit: int = 50, offset: int = 0
+    ) -> tuple[list[dict], int]:
+        """List seals with optional system_id filter and pagination."""
+        if system_id is not None:
+            count_cursor = await self.db.execute(
+                "SELECT COUNT(*) FROM seals WHERE system_id = ?", (system_id,)
+            )
+            total = (await count_cursor.fetchone())[0]
+            cursor = await self.db.execute(
+                "SELECT * FROM seals WHERE system_id = ? ORDER BY created_at DESC LIMIT ? OFFSET ?",
+                (system_id, limit, offset),
+            )
+        else:
+            count_cursor = await self.db.execute("SELECT COUNT(*) FROM seals")
+            total = (await count_cursor.fetchone())[0]
+            cursor = await self.db.execute(
+                "SELECT * FROM seals ORDER BY created_at DESC LIMIT ? OFFSET ?",
+                (limit, offset),
+            )
+        rows = await cursor.fetchall()
+        return [self._row_to_seal(r) for r in rows], total
+
+    async def update_seal_status(
+        self, seal_id: str, status: str, reason: str | None = None
+    ) -> None:
+        """Update a seal's status and optional revocation reason."""
+        await self.db.execute(
+            "UPDATE seals SET status = ?, revocation_reason = ? WHERE id = ?",
+            (status, reason, seal_id),
+        )
+        await self.db.commit()
+
+    async def update_seal_previous(
+        self, seal_id: str, previous_seal_id: str
+    ) -> None:
+        """Update a seal's previous_seal_id (compliance chain link)."""
+        await self.db.execute(
+            "UPDATE seals SET previous_seal_id = ? WHERE id = ?",
+            (previous_seal_id, seal_id),
+        )
+        await self.db.commit()
+
+    def _row_to_seal(self, row: Any) -> dict:
+        return {
+            "id": row[0],
+            "system_id": row[1],
+            "system_name": row[2],
+            "assessment_scope": row[3],
+            "credential": row[4],
+            "compliance_score": row[5],
+            "compliance_summary": row[6],
+            "merkle_root": row[7],
+            "issued_at": row[8],
+            "expires_at": row[9],
+            "status": row[10],
+            "revocation_reason": row[11],
+            "previous_seal_id": row[12],
+            "bundle_ids": row[13],
+            "created_at": row[14],
+        }
+
+    # ------------------------------------------------------------------
+    # Anchors (US-008)
+    # ------------------------------------------------------------------
+
+    async def save_anchor(self, anchor_data: dict) -> None:
+        """Insert a blockchain anchor record."""
+        await self.db.execute(
+            "INSERT INTO anchors (id, merkle_root, chain, tx_hash, block_number, anchored_at) "
+            "VALUES (?, ?, ?, ?, ?, ?)",
+            (
+                anchor_data["id"],
+                anchor_data["merkle_root"],
+                anchor_data["chain"],
+                anchor_data["tx_hash"],
+                anchor_data["block_number"],
+                anchor_data["anchored_at"],
+            ),
+        )
+        await self.db.commit()
+
+    async def list_anchors(
+        self, limit: int = 50, offset: int = 0
+    ) -> tuple[list[dict], int]:
+        """List anchors with pagination, newest first."""
+        count_cursor = await self.db.execute("SELECT COUNT(*) FROM anchors")
+        total = (await count_cursor.fetchone())[0]
+        cursor = await self.db.execute(
+            "SELECT * FROM anchors ORDER BY anchored_at DESC LIMIT ? OFFSET ?",
+            (limit, offset),
+        )
+        rows = await cursor.fetchall()
+        items = [self._row_to_anchor(row) for row in rows]
+        return items, total
+
+    def _row_to_anchor(self, row: Any) -> dict:
+        return {
+            "id": row[0],
+            "merkle_root": row[1],
+            "chain": row[2],
+            "tx_hash": row[3],
+            "block_number": row[4],
+            "anchored_at": row[5],
         }

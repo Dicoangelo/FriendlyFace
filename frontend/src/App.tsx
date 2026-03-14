@@ -26,6 +26,8 @@ import LoginPage from "./pages/LoginPage";
 import SignupPage from "./pages/SignupPage";
 import PricingPage from "./pages/PricingPage";
 import APIKeysPage from "./pages/APIKeysPage";
+import Seals from "./pages/Seals";
+import SealLanding from "./pages/SealLanding";
 
 interface NavItem {
   to: string;
@@ -53,6 +55,7 @@ const NAV_SECTIONS: NavSection[] = [
       { to: "/bundles", label: "Bundles", icon: "package" },
       { to: "/merkle", label: "Merkle Tree", icon: "hash" },
       { to: "/provenance", label: "Provenance", icon: "gitbranch" },
+      { to: "/seals", label: "Seals", icon: "shield" },
     ],
   },
   {
@@ -108,6 +111,7 @@ const PAGE_TITLES: Record<string, string> = {
   "/merkle": "Merkle Tree",
   "/provenance": "Provenance Explorer",
   "/api-keys": "API Keys",
+  "/seals": "ForensicSeal Dashboard",
 };
 
 const PAGE_DESCRIPTIONS: Record<string, string> = {
@@ -129,6 +133,7 @@ const PAGE_DESCRIPTIONS: Record<string, string> = {
   "/merkle": "Append-only Merkle tree root and cryptographic inclusion proofs",
   "/provenance": "Trace artifact lineage: dataset → training → model → inference → explanation",
   "/api-keys": "Create, list, and revoke API keys for programmatic access",
+  "/seals": "Issue, verify, and manage ForensicSeal compliance credentials",
 };
 
 const NAV_ICONS: Record<string, React.ReactNode> = {
@@ -195,6 +200,7 @@ export default function App() {
           <Route path="/login" element={<LoginPage />} />
           <Route path="/signup" element={<SignupPage />} />
           <Route path="/pricing" element={<PricingPage />} />
+          <Route path="/seal" element={<SealLanding />} />
           <Route path="/*" element={<AppLayout />} />
         </Routes>
       </BrowserRouter>
@@ -346,6 +352,7 @@ function AppLayout() {
               <Route path="/merkle" element={<MerkleExplorer />} />
               <Route path="/provenance" element={<ProvenanceExplorer />} />
               <Route path="/api-keys" element={<APIKeysPage />} />
+              <Route path="/seals" element={<Seals />} />
               <Route path="/index.html" element={<Navigate to="/" replace />} />
               <Route path="*" element={<NotFound />} />
             </Routes>

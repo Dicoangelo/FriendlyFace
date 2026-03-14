@@ -676,14 +676,14 @@ class TestLegacyRecognize:
 
 
 class TestResolveEngine:
-    def test_default_is_auto(self, monkeypatch):
+    def test_default_is_fallback(self, monkeypatch):
         monkeypatch.delenv("FF_RECOGNITION_ENGINE", raising=False)
         from friendlyface.config import settings
 
-        assert settings.recognition_engine == "auto"
+        assert settings.recognition_engine == "fallback"
 
     def test_auto_resolves_to_deep_with_pipeline(self, monkeypatch):
-        monkeypatch.delenv("FF_RECOGNITION_ENGINE", raising=False)
+        monkeypatch.setenv("FF_RECOGNITION_ENGINE", "auto")
         original = app_module._recognition_pipeline
         app_module._recognition_pipeline = object()  # truthy sentinel
         try:
@@ -692,7 +692,7 @@ class TestResolveEngine:
             app_module._recognition_pipeline = original
 
     def test_auto_resolves_to_fallback_without_pipeline(self, monkeypatch):
-        monkeypatch.delenv("FF_RECOGNITION_ENGINE", raising=False)
+        monkeypatch.setenv("FF_RECOGNITION_ENGINE", "auto")
         original = app_module._recognition_pipeline
         app_module._recognition_pipeline = None
         try:

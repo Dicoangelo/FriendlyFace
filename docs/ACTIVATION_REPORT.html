@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>FriendlyFace — Power Law Activation Report</title>
+<style>
+  :root {
+    --bg-primary: #0d1117;
+    --bg-secondary: #161b22;
+    --bg-card: #1c2333;
+    --bg-card-hover: #222d3f;
+    --border: #30363d;
+    --text-primary: #e6edf3;
+    --text-secondary: #8b949e;
+    --text-muted: #6e7681;
+    --accent: #4FC3F7;
+    --accent-dim: rgba(79,195,247,0.15);
+    --green: #66BB6A;
+    --green-dim: rgba(102,187,106,0.15);
+    --red: #EF5350;
+    --red-dim: rgba(239,83,80,0.15);
+    --orange: #FFA726;
+    --purple: #AB47BC;
+  }
+
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  html { scroll-behavior: smooth; font-size: 16px; }
+
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+    background: var(--bg-primary);
+    color: var(--text-primary);
+    line-height: 1.6;
+    overflow-x: hidden;
+  }
+
+  /* ── NAV ── */
+  nav {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    z-index: 100;
+    background: rgba(13,17,23,0.92);
+    backdrop-filter: blur(12px);
+    border-bottom: 1px solid var(--border);
+    padding: 0 2rem;
+  }
+  nav .nav-inner {
+    max-width: 1200px;
+    margin: 0 auto;
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+    height: 56px;
+    overflow-x: auto;
+  }
+  nav a {
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 0.82rem;
+    font-weight: 500;
+    white-space: nowrap;
+    transition: color 0.2s;
+    letter-spacing: 0.02em;
+  }
+  nav a:hover, nav a:focus { color: var(--accent); }
+  nav .brand {
+    color: var(--accent);
+    font-weight: 700;
+    font-size: 0.95rem;
+    margin-right: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+  }
+  nav .brand .shield {
+    width: 24px; height: 24px;
+    background: var(--accent);
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z'/%3E%3C/svg%3E") center/contain no-repeat;
+  }
+
+  /* ── LAYOUT ── */
+  main { max-width: 1200px; margin: 0 auto; padding: 80px 2rem 4rem; }
+  section { margin-bottom: 4rem; }
+
+  h1 { font-size: 2.8rem; font-weight: 800; letter-spacing: -0.03em; line-height: 1.15; }
+  h2 {
+    font-size: 1.6rem;
+    font-weight: 700;
+    margin-bottom: 1.5rem;
+    padding-bottom: 0.5rem;
+    border-bottom: 2px solid var(--border);
+    display: flex;
+    align-items: center;
+    gap: 0.6rem;
+  }
+  h2 .num {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 32px; height: 32px;
+    border-radius: 8px;
+    background: var(--accent-dim);
+    color: var(--accent);
+    font-size: 0.85rem;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+  h3 { font-size: 1.15rem; font-weight: 600; margin: 1.2rem 0 0.6rem; color: var(--accent); }
+  p { margin-bottom: 1rem; color: var(--text-secondary); }
+
+  /* ── HEADER ── */
+  .hero {
+    text-align: center;
+    padding: 5rem 1rem 3rem;
+  }
+  .hero .shield-lg {
+    width: 72px; height: 72px;
+    margin: 0 auto 1.5rem;
+    background: var(--accent);
+    mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cpath d='M12 1L3 5v6c0 5.55 3.84 10.74 9 12 5.16-1.26 9-6.45 9-12V5l-9-4zm0 10.99h7c-.53 4.12-3.28 7.79-7 8.94V12H5V6.3l7-3.11v8.8z'/%3E%3C/svg%3E") center/contain no-repeat;
+  }
+  .hero h1 span { color: var(--accent); }
+  .hero .subtitle {
+    font-size: 1.15rem;
+    color: var(--text-secondary);
+    margin-top: 0.5rem;
+    font-weight: 400;
+  }
+  .hero .subtitle em { color: var(--accent); font-style: normal; font-weight: 600; }
+
+  /* ── STAT GRID ── */
+  .stats {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin: 2rem 0;
+  }
+  .stat-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    text-align: center;
+    transition: transform 0.2s, border-color 0.2s;
+  }
+  .stat-card:hover { transform: translateY(-2px); border-color: var(--accent); }
+  .stat-card .value {
+    font-size: 2rem;
+    font-weight: 800;
+    color: var(--accent);
+    line-height: 1.1;
+  }
+  .stat-card .label {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    margin-top: 0.4rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 600;
+  }
+
+  /* ── CARDS ── */
+  .card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem 1.8rem;
+    margin-bottom: 1.2rem;
+    transition: border-color 0.2s;
+  }
+  .card:hover { border-color: var(--accent); }
+  .card-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.8rem;
+  }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.3rem;
+    padding: 0.2rem 0.7rem;
+    border-radius: 999px;
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+  }
+  .badge-pass { background: var(--green-dim); color: var(--green); }
+  .badge-accent { background: var(--accent-dim); color: var(--accent); }
+  .card h3 { margin-top: 0; }
+  .card ul { list-style: none; padding: 0; }
+  .card ul li {
+    padding: 0.35rem 0;
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+    display: flex;
+    align-items: baseline;
+    gap: 0.5rem;
+  }
+  .card ul li::before { content: ""; }
+  .bullet { color: var(--accent); flex-shrink: 0; }
+
+  .output-box {
+    background: var(--bg-primary);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1rem 1.2rem;
+    margin-top: 0.8rem;
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+    font-size: 0.85rem;
+    color: var(--green);
+    line-height: 1.7;
+  }
+
+  /* ── ARCHITECTURE LAYERS ── */
+  .layers {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+  .layer {
+    display: grid;
+    grid-template-columns: 48px 1fr;
+    align-items: center;
+    gap: 1rem;
+    padding: 1rem 1.5rem;
+    border-radius: 10px;
+    border: 1px solid var(--border);
+    transition: transform 0.2s, border-color 0.2s;
+  }
+  .layer:hover { transform: translateX(6px); }
+  .layer .ln {
+    font-size: 1.5rem;
+    font-weight: 800;
+    text-align: center;
+  }
+  .layer .lbl { font-weight: 600; }
+  .layer .desc { font-size: 0.88rem; color: var(--text-secondary); }
+  .l6 { background: linear-gradient(135deg, rgba(171,71,188,0.12), transparent); border-color: #AB47BC55; }
+  .l6 .ln { color: #AB47BC; }
+  .l6:hover { border-color: #AB47BC; }
+  .l5 { background: linear-gradient(135deg, rgba(255,167,38,0.12), transparent); border-color: #FFA72655; }
+  .l5 .ln { color: #FFA726; }
+  .l5:hover { border-color: #FFA726; }
+  .l4 { background: linear-gradient(135deg, rgba(239,83,80,0.12), transparent); border-color: #EF535055; }
+  .l4 .ln { color: #EF5350; }
+  .l4:hover { border-color: #EF5350; }
+  .l3 { background: linear-gradient(135deg, rgba(79,195,247,0.12), transparent); border-color: #4FC3F755; }
+  .l3 .ln { color: #4FC3F7; }
+  .l3:hover { border-color: #4FC3F7; }
+  .l2 { background: linear-gradient(135deg, rgba(102,187,106,0.12), transparent); border-color: #66BB6A55; }
+  .l2 .ln { color: #66BB6A; }
+  .l2:hover { border-color: #66BB6A; }
+  .l1 { background: linear-gradient(135deg, rgba(255,255,255,0.06), transparent); border-color: #ffffff22; }
+  .l1 .ln { color: #e6edf3; }
+  .l1:hover { border-color: #e6edf3; }
+
+  /* ── TABLE ── */
+  .table-wrap { overflow-x: auto; margin: 1rem 0; border-radius: 12px; border: 1px solid var(--border); }
+  table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+  thead { background: var(--bg-secondary); }
+  th {
+    text-align: left;
+    padding: 0.8rem 1rem;
+    font-weight: 700;
+    color: var(--text-primary);
+    font-size: 0.82rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+  }
+  th:first-child { border-radius: 11px 0 0 0; }
+  th:last-child { border-radius: 0 11px 0 0; }
+  td {
+    padding: 0.7rem 1rem;
+    border-top: 1px solid var(--border);
+    color: var(--text-secondary);
+    white-space: nowrap;
+  }
+  tr:hover td { background: rgba(79,195,247,0.04); }
+  .yes { color: var(--green); font-weight: 700; }
+  .no { color: var(--red); font-weight: 700; }
+  .partial { color: var(--orange); font-weight: 700; }
+  .ff-col { color: var(--accent); font-weight: 700; }
+
+  /* ── IP CARDS ── */
+  .ip-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 1rem;
+  }
+  .ip-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    transition: transform 0.2s, border-color 0.2s;
+  }
+  .ip-card:hover { transform: translateY(-3px); border-color: var(--accent); }
+  .ip-card .ip-icon {
+    font-size: 2rem;
+    margin-bottom: 0.5rem;
+  }
+  .ip-card h4 { font-size: 1.05rem; margin-bottom: 0.5rem; }
+  .ip-card p { font-size: 0.88rem; margin-bottom: 0; }
+
+  /* ── BLOCKQUOTE ── */
+  blockquote {
+    border-left: 4px solid var(--accent);
+    padding: 1.2rem 1.5rem;
+    margin: 1.5rem 0;
+    background: var(--accent-dim);
+    border-radius: 0 10px 10px 0;
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    font-style: italic;
+  }
+
+  /* ── STEPS LIST ── */
+  .steps-list {
+    list-style: none;
+    padding: 0;
+    counter-reset: steps;
+  }
+  .steps-list li {
+    counter-increment: steps;
+    display: flex;
+    align-items: baseline;
+    gap: 0.75rem;
+    padding: 0.6rem 0;
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+  }
+  .steps-list li::before {
+    content: counter(steps);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 28px; height: 28px;
+    border-radius: 50%;
+    background: var(--accent-dim);
+    color: var(--accent);
+    font-size: 0.8rem;
+    font-weight: 700;
+    flex-shrink: 0;
+  }
+
+  /* ── MARKET HIGHLIGHT ── */
+  .market-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 1rem;
+    margin: 1.5rem 0;
+  }
+  .market-card {
+    background: var(--bg-card);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 1.5rem;
+    position: relative;
+    overflow: hidden;
+  }
+  .market-card::before {
+    content: "";
+    position: absolute;
+    top: 0; left: 0; right: 0;
+    height: 3px;
+  }
+  .market-card.mc-blue::before { background: var(--accent); }
+  .market-card.mc-red::before { background: var(--red); }
+  .market-card.mc-green::before { background: var(--green); }
+  .market-card .mc-val {
+    font-size: 1.8rem;
+    font-weight: 800;
+    line-height: 1.1;
+  }
+  .market-card .mc-lbl {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    margin-top: 0.3rem;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    font-weight: 600;
+  }
+  .market-card p { font-size: 0.88rem; margin-top: 0.6rem; margin-bottom: 0; }
+
+  /* ── FOOTER ── */
+  footer {
+    text-align: center;
+    padding: 3rem 1rem 2rem;
+    border-top: 1px solid var(--border);
+    color: var(--text-muted);
+    font-size: 0.85rem;
+  }
+  footer a { color: var(--accent); text-decoration: none; }
+  footer a:hover { text-decoration: underline; }
+
+  /* ── PRINT ── */
+  @media print {
+    nav { display: none; }
+    body { background: #fff; color: #111; }
+    .card, .stat-card, .layer, .ip-card, .market-card { border-color: #ccc; background: #f9f9f9; }
+    .stat-card .value, .layer .ln, h2 .num, .badge-pass, .bullet, blockquote { color: #111 !important; }
+    h2 { border-bottom-color: #ccc; }
+    .hero .shield-lg { background: #333; }
+    nav .brand .shield { background: #333; }
+    .table-wrap { border-color: #ccc; }
+    th { background: #eee; }
+    td { border-color: #ddd; }
+    footer { border-color: #ccc; }
+    main { padding-top: 1rem; }
+  }
+
+  @media (max-width: 768px) {
+    h1 { font-size: 1.8rem; }
+    main { padding: 70px 1rem 2rem; }
+    nav .nav-inner { gap: 1rem; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ─── NAV ─── -->
+<nav>
+  <div class="nav-inner">
+    <span class="brand"><span class="shield"></span>FriendlyFace</span>
+    <a href="#summary">Summary</a>
+    <a href="#activation">Activation</a>
+    <a href="#architecture">Architecture</a>
+    <a href="#competitive">Competitive</a>
+    <a href="#market">Market</a>
+    <a href="#ip">IP Portfolio</a>
+    <a href="#positioning">Positioning</a>
+    <a href="#next">Next Steps</a>
+  </div>
+</nav>
+
+<!-- ─── HERO ─── -->
+<main>
+<section class="hero">
+  <div class="shield-lg"></div>
+  <h1>FriendlyFace &mdash; <span>Power Law Activation Report</span></h1>
+  <p class="subtitle">Forensic-Friendly AI Platform &nbsp;|&nbsp; <em>March 2026</em></p>
+</section>
+
+<!-- ─── 1. EXECUTIVE SUMMARY ─── -->
+<section id="summary">
+  <h2><span class="num">1</span>Executive Summary</h2>
+  <p>
+    The FriendlyFace platform implements Mohammed's ICDF2C 2024 forensic-friendly AI schema as a
+    <strong>6-layer architecture</strong>. After 11 development phases and 65 commits, we activated the
+    full pipeline end-to-end and proved the system works. Every layer &mdash; from recognition to
+    consent governance &mdash; is operational, tested, and deployed.
+  </p>
+
+  <div class="stats">
+    <div class="stat-card">
+      <div class="value">44,500</div>
+      <div class="label">LOC Python Backend</div>
+    </div>
+    <div class="stat-card">
+      <div class="value">7,500</div>
+      <div class="label">LOC React Frontend</div>
+    </div>
+    <div class="stat-card">
+      <div class="value">1,422</div>
+      <div class="label">Tests</div>
+    </div>
+    <div class="stat-card">
+      <div class="value">93%</div>
+      <div class="label">Coverage</div>
+    </div>
+    <div class="stat-card">
+      <div class="value">20</div>
+      <div class="label">DB Tables</div>
+    </div>
+    <div class="stat-card">
+      <div class="value">84+</div>
+      <div class="label">API Endpoints</div>
+    </div>
+    <div class="stat-card">
+      <div class="value">65</div>
+      <div class="label">Commits</div>
+    </div>
+    <div class="stat-card">
+      <div class="value">11</div>
+      <div class="label">Dev Phases</div>
+    </div>
+  </div>
+
+  <p style="text-align:center; margin-top:0.5rem;">
+    <span class="badge badge-pass">DEPLOYED</span>&nbsp;
+    <a href="https://friendlyface.metaventionsai.com" style="color:var(--accent); text-decoration:none; font-weight:600;">friendlyface.metaventionsai.com</a>
+  </p>
+</section>
+
+<!-- ─── 2. ACTIVATION PROCESS ─── -->
+<section id="activation">
+  <h2><span class="num">2</span>Activation Process</h2>
+  <p>Five sequential activation steps validated the entire system from end-to-end pipeline execution through production data seeding, IP documentation, and competitive research refresh.</p>
+
+  <!-- Step 1 -->
+  <div class="card">
+    <div class="card-header">
+      <span class="badge badge-pass">PASSED</span>
+      <h3>Step 1: Full Pipeline Demo (E2E Heartbeat)</h3>
+    </div>
+    <ul>
+      <li><span class="bullet">&#9654;</span> Created <code>scripts/full_pipeline_demo.py</code> &mdash; 611 lines</li>
+      <li><span class="bullet">&#9654;</span> 11 sequential steps: Train &rarr; Consent &rarr; Predict &rarr; LIME &rarr; SHAP &rarr; Bias Audit &rarr; Provenance DAG &rarr; Bundle &rarr; ZK Proof + Verify &rarr; Compliance &rarr; JSON-LD Export</li>
+      <li><span class="bullet">&#9654;</span> <strong style="color:var(--green)">ALL 11 STEPS PASSED</strong> on first run</li>
+    </ul>
+    <div class="output-box">
+Events created: 10<br>
+Provenance nodes: 7<br>
+Bundle verified: True<br>
+JSON-LD export: 21,518 bytes<br>
+<br>
+========================================<br>
+&nbsp;&nbsp;ALL 11 STEPS PASSED<br>
+========================================
+    </div>
+  </div>
+
+  <!-- Step 2 -->
+  <div class="card">
+    <div class="card-header">
+      <span class="badge badge-pass">SEEDED</span>
+      <h3>Step 2: Scenario Seeding (Production Data)</h3>
+    </div>
+    <ul>
+      <li><span class="bullet">&#9654;</span> Created <code>scripts/seed_scenarios.py</code> &mdash; 1,431 lines</li>
+      <li><span class="bullet">&#9654;</span> 3 scenarios seeded on production:</li>
+    </ul>
+    <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(260px,1fr)); gap:0.75rem; margin-top:0.8rem;">
+      <div style="background:var(--bg-primary); border:1px solid var(--border); border-radius:8px; padding:1rem;">
+        <h4 style="color:var(--accent); font-size:0.95rem; margin-bottom:0.5rem;">Airport Security &mdash; Heathrow T5</h4>
+        <p style="font-size:0.85rem; margin:0; color:var(--text-secondary);">20 travelers, 50 inferences, 5 cameras, FL rounds, 3 verified bundles</p>
+      </div>
+      <div style="background:var(--bg-primary); border:1px solid var(--border); border-radius:8px; padding:1rem;">
+        <h4 style="color:var(--orange); font-size:0.95rem; margin-bottom:0.5rem;">Missing Persons Cold Case</h4>
+        <p style="font-size:0.85rem; margin:0; color:var(--text-secondary);">8 reference photos, 30 surveillance captures, 5 matches with LIME/SHAP/SDD explanations, 2 bundles</p>
+      </div>
+      <div style="background:var(--bg-primary); border:1px solid var(--border); border-radius:8px; padding:1rem;">
+        <h4 style="color:var(--red); font-size:0.95rem; margin-bottom:0.5rem;">Adversarial Attack Detection</h4>
+        <p style="font-size:0.85rem; margin:0; color:var(--text-secondary);">5 deepfakes blocked, FL poisoning detected &amp; excluded, data exfiltration blocked, model rollback + recovery, 3 bundles</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Step 3 -->
+  <div class="card">
+    <div class="card-header">
+      <span class="badge badge-pass">DRAFTED</span>
+      <h3>Step 3: Patent Draft</h3>
+    </div>
+    <ul>
+      <li><span class="bullet">&#9654;</span> Created <code>docs/PATENT_DRAFT.md</code> &mdash; 571 lines</li>
+      <li><span class="bullet">&#9654;</span> <strong>25 claims</strong> (4 independent)</li>
+    </ul>
+    <div style="margin-top:0.6rem; display:grid; gap:0.5rem;">
+      <div style="display:flex; gap:0.5rem; align-items:baseline; color:var(--text-secondary); font-size:0.9rem;">
+        <span style="color:var(--green); font-weight:700;">1.</span> Unified forensic bundle (hash chain + Merkle + ZK + DID + provenance + bias + explainability)
+      </div>
+      <div style="display:flex; gap:0.5rem; align-items:baseline; color:var(--text-secondary); font-size:0.9rem;">
+        <span style="color:var(--green); font-weight:700;">2.</span> Consent-gated recognition pipeline with forensic logging
+      </div>
+      <div style="display:flex; gap:0.5rem; align-items:baseline; color:var(--text-secondary); font-size:0.9rem;">
+        <span style="color:var(--green); font-weight:700;">3.</span> Federated fairness-aware training with forensic provenance
+      </div>
+      <div style="display:flex; gap:0.5rem; align-items:baseline; color:var(--text-secondary); font-size:0.9rem;">
+        <span style="color:var(--green); font-weight:700;">4.</span> Multi-layer explainability with blockchain verification
+      </div>
+    </div>
+    <p style="font-size:0.85rem; margin-top:0.8rem;">8 figure descriptions &middot; 16 prior art references</p>
+  </div>
+
+  <!-- Step 4 -->
+  <div class="card">
+    <div class="card-header">
+      <span class="badge badge-pass">WRITTEN</span>
+      <h3>Step 4: Academic Paper Draft</h3>
+    </div>
+    <ul>
+      <li><span class="bullet">&#9654;</span> Created <code>docs/PAPER_DRAFT.md</code> &mdash; 652 lines (~7,500 words)</li>
+      <li><span class="bullet">&#9654;</span> Target venue: <strong>ICDF2C 2026</strong> (Mohammed's conference)</li>
+      <li><span class="bullet">&#9654;</span> 7-system comparison table, 8 evaluation tables, 26 references</li>
+      <li><span class="bullet">&#9654;</span> All technical details verified against source code</li>
+    </ul>
+  </div>
+
+  <!-- Step 5 -->
+  <div class="card">
+    <div class="card-header">
+      <span class="badge badge-pass">UPDATED</span>
+      <h3>Step 5: Research Refresh</h3>
+    </div>
+    <ul>
+      <li><span class="bullet">&#9654;</span> Updated <code>docs/RESEARCH_LINEAGE.md</code> with March 2026 scan</li>
+      <li><span class="bullet">&#9654;</span> <strong style="color:var(--red);">EU AI Act high-risk enforcement: August 2, 2026</strong></li>
+      <li><span class="bullet">&#9654;</span> Mohammed's paper published in Springer proceedings</li>
+      <li><span class="bullet">&#9654;</span> New papers integrated: CryptoFair-FL, Privacy-Fairness-Accuracy Trade-offs</li>
+      <li><span class="bullet">&#9654;</span> Competitor scan: <strong style="color:var(--green);">NO competitor has forensic bundles &mdash; FriendlyFace is unique</strong></li>
+    </ul>
+  </div>
+</section>
+
+<!-- ─── 3. ARCHITECTURE ─── -->
+<section id="architecture">
+  <h2><span class="num">3</span>6-Layer Architecture</h2>
+  <p>Each layer builds on the one below, creating an end-to-end forensic chain from recognition through governance.</p>
+
+  <div class="layers">
+    <div class="layer l6">
+      <div class="ln">6</div>
+      <div>
+        <div class="lbl">Consent &amp; Governance</div>
+        <div class="desc">EU AI Act compliance engine, consent lifecycle management, conformity assessment</div>
+      </div>
+    </div>
+    <div class="layer l5">
+      <div class="ln">5</div>
+      <div>
+        <div class="lbl">Explainability</div>
+        <div class="desc">LIME perturbation-based, SHAP game-theoretic, SDD saliency visualization</div>
+      </div>
+    </div>
+    <div class="layer l4">
+      <div class="ln">4</div>
+      <div>
+        <div class="lbl">Fairness Auditor</div>
+        <div class="desc">Demographic parity, equalized odds, disparate impact ratio, continuous bias monitoring</div>
+      </div>
+    </div>
+    <div class="layer l3">
+      <div class="ln">3</div>
+      <div>
+        <div class="lbl">Blockchain Forensic</div>
+        <div class="desc">SHA-256 hash chain, Merkle tree verification, provenance DAG, ZK proofs, DID credentials</div>
+      </div>
+    </div>
+    <div class="layer l2">
+      <div class="ln">2</div>
+      <div>
+        <div class="lbl">Federated Learning</div>
+        <div class="desc">FedAvg aggregation, DP-FedAvg differential privacy, Byzantine poisoning detection</div>
+      </div>
+    </div>
+    <div class="layer l1">
+      <div class="ln">1</div>
+      <div>
+        <div class="lbl">Recognition Engine</div>
+        <div class="desc">PCA + SVM face recognition, voice MFCC analysis, multi-modal fusion pipeline</div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ─── 4. COMPETITIVE ANALYSIS ─── -->
+<section id="competitive">
+  <h2><span class="num">4</span>Competitive Analysis</h2>
+  <p>FriendlyFace is the only platform that combines recognition with a complete forensic evidence chain. No competitor offers even half of these capabilities.</p>
+
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>Capability</th>
+          <th class="ff-col">FriendlyFace</th>
+          <th>Clearview AI</th>
+          <th>NEC NeoFace</th>
+          <th>Amazon Rekognition</th>
+          <th>Cognitec FaceVACS</th>
+          <th>Innefu Argus</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td>Forensic Event Chain</td>
+          <td class="yes">&#10003;</td>
+          <td class="no">&#10007;</td>
+          <td class="no">&#10007;</td>
+          <td class="no">&#10007;</td>
+          <td class="no">&#10007;</td>
+          <td class="no">&#10007;</td>
+        </tr>
+        <tr>
+          <td>Merkle Tree Verification</td>
+          <td class="yes">&#10003;</td>
+          <td class="no">&#10007;</td>
+          <td class="no">&#10007;</td>
+          <td class="no">&#10007;</td>
+          <td class="no">&#10007;</td>
+          <td class="no">&#10007;</td>
+        </tr>
+        <tr>
+          <td>ZK Proofs</td>
+          <td class="yes">&#10003;</td>
+          <td class="no">&#10007;</td>
+          <td class="no">&#10007;</td>
+          <td class="no">&#10007;</td>
+          <td class="no">&#10007;</td>
+          <td class="no">&#10007;</td>
+        </tr>
+        <tr>
+          <td>DID / Verifiable Credentials</td>
+          <td class="yes">&#10003;</td>
+          <td class="no">&#10007;</td>
+          <td class="no">&#10007;</td>
+          <td class="no">&#10007;</td>
+          <td class="no">&#10007;</td>
+          <td class="no">&#10007;</td>
+        </tr>
+        <tr>
+          <td>Provenance DAG</td>
+          <td class="yes">&#10003;</td>
+          <td class="no">&#10007;</td>
+          <td class="no">&#10007;</td>
+          <td class="no">&#10007;</td>
+          <td class="no">&#10007;</td>
+          <td class="no">&#10007;</td>
+        </tr>
+        <tr>
+          <td>Bias Audit</td>
+          <td class="yes">&#10003;</td>
+          <td class="no">&#10007;</td>
+          <td class="no">&#10007;</td>
+          <td class="partial">Partial</td>
+          <td class="no">&#10007;</td>
+          <td class="no">&#10007;</td>
+        </tr>
+        <tr>
+          <td>Explainability (LIME/SHAP)</td>
+          <td class="yes">&#10003;</td>
+          <td class="no">&#10007;</td>
+          <td class="no">&#10007;</td>
+          <td class="no">&#10007;</td>
+          <td class="no">&#10007;</td>
+          <td class="no">&#10007;</td>
+        </tr>
+        <tr>
+          <td>Consent Tracking</td>
+          <td class="yes">&#10003;</td>
+          <td class="no">&#10007;</td>
+          <td class="no">&#10007;</td>
+          <td class="no">&#10007;</td>
+          <td class="no">&#10007;</td>
+          <td class="no">&#10007;</td>
+        </tr>
+        <tr>
+          <td>EU AI Act Compliance</td>
+          <td class="yes">&#10003;</td>
+          <td class="no">&#10007;</td>
+          <td class="no">&#10007;</td>
+          <td class="no">&#10007;</td>
+          <td class="no">&#10007;</td>
+          <td class="no">&#10007;</td>
+        </tr>
+        <tr>
+          <td>Forensic Bundle Export</td>
+          <td class="yes">&#10003;</td>
+          <td class="no">&#10007;</td>
+          <td class="no">&#10007;</td>
+          <td class="no">&#10007;</td>
+          <td class="no">&#10007;</td>
+          <td class="no">&#10007;</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+  <p style="text-align:center; font-size:0.85rem; color:var(--text-muted); margin-top:0.5rem;">
+    <span class="yes">&#10003;</span> = Full support &nbsp;&middot;&nbsp;
+    <span class="partial">Partial</span> = Limited capability &nbsp;&middot;&nbsp;
+    <span class="no">&#10007;</span> = Not available
+  </p>
+</section>
+
+<!-- ─── 5. MARKET OPPORTUNITY ─── -->
+<section id="market">
+  <h2><span class="num">5</span>Market Opportunity</h2>
+
+  <div class="market-grid">
+    <div class="market-card mc-blue">
+      <div class="mc-val" style="color:var(--accent);">$36.2B</div>
+      <div class="mc-lbl">Facial Recognition Market by 2035</div>
+      <p>Growing from $8.1B (2025) at a 16.1% CAGR. Every deployment will need compliance tooling.</p>
+    </div>
+    <div class="market-card mc-red">
+      <div class="mc-val" style="color:var(--red);">Aug 2, 2026</div>
+      <div class="mc-lbl">EU AI Act High-Risk Enforcement</div>
+      <p>5 months away. Companies deploying facial recognition in Europe must demonstrate compliance or face penalties.</p>
+    </div>
+    <div class="market-card mc-green">
+      <div class="mc-val" style="color:var(--orange);">&euro;35M</div>
+      <div class="mc-lbl">Maximum Penalty</div>
+      <p>Or 7% of global annual turnover &mdash; whichever is higher. Non-compliance is an existential risk.</p>
+    </div>
+  </div>
+
+  <blockquote>
+    Every company deploying facial recognition in Europe needs compliance documentation. FriendlyFace is the only system that automates this.
+  </blockquote>
+</section>
+
+<!-- ─── 6. IP PORTFOLIO ─── -->
+<section id="ip">
+  <h2><span class="num">6</span>IP Portfolio</h2>
+
+  <div class="ip-grid">
+    <div class="ip-card">
+      <div class="ip-icon" style="color:var(--purple);">&#9878;</div>
+      <h4>Patent</h4>
+      <p>25 claims (4 independent). Provisional filing ready. Covers unified forensic bundles, consent-gated pipelines, federated fairness training, and multi-layer explainability.</p>
+    </div>
+    <div class="ip-card">
+      <div class="ip-icon" style="color:var(--accent);">&#9998;</div>
+      <h4>Academic Paper</h4>
+      <p>~7,500-word systems paper. ICDF2C 2026 submission ready. 7-system comparison, 8 evaluation tables, 26 references. All claims verified against source.</p>
+    </div>
+    <div class="ip-card">
+      <div class="ip-icon" style="color:var(--green);">&#9783;</div>
+      <h4>Codebase</h4>
+      <p>52,000+ LOC across Python backend and React frontend. 1,422 tests at 93% coverage. 20 database tables, 84+ API endpoints.</p>
+    </div>
+    <div class="ip-card">
+      <div class="ip-icon" style="color:var(--orange);">&#9881;</div>
+      <h4>Research</h4>
+      <p>6 papers integrated into the architecture. 16 prior art references cataloged. Builds on Mohammed's ICDF2C 2024 forensic-friendly AI framework.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ─── 7. STRATEGIC POSITIONING ─── -->
+<section id="positioning">
+  <h2><span class="num">7</span>Strategic Positioning</h2>
+
+  <blockquote>
+    "You keep your recognition engine. We make it court-admissible and EU-compliant."
+  </blockquote>
+
+  <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(280px,1fr)); gap:1rem; margin-top:1.5rem;">
+    <div class="card">
+      <h3 style="color:var(--green);">Not Competing &mdash; Wrapping</h3>
+      <p style="margin-bottom:0;">FriendlyFace does not compete with Clearview, NEC, or Amazon. It wraps any recognition engine with the forensic evidence chain required for legal admissibility and regulatory compliance.</p>
+    </div>
+    <div class="card">
+      <h3 style="color:var(--orange);">Compliance-as-a-Service</h3>
+      <p style="margin-bottom:0;">Revenue model: per-inference forensic bundling, annual compliance subscriptions, and enterprise SDK licensing. Every facial recognition API call becomes a compliance event.</p>
+    </div>
+    <div class="card">
+      <h3 style="color:var(--accent);">SDK Integration</h3>
+      <p style="margin-bottom:0;">Drop-in SDK for existing pipelines. Three lines of code to add forensic bundles, bias auditing, explainability, and consent tracking to any recognition system.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ─── 8. NEXT STEPS ─── -->
+<section id="next">
+  <h2><span class="num">8</span>Next Steps</h2>
+
+  <ol class="steps-list">
+    <li>Production recognition engine &mdash; ArcFace/AdaFace ONNX integration for state-of-the-art accuracy</li>
+    <li>Blockchain anchoring &mdash; Polygon/Base L2 for immutable forensic event anchoring at low cost</li>
+    <li>EU AI Act Conformity Assessment Generator &mdash; automated compliance report generation</li>
+    <li>Compliance-as-a-Service API &mdash; hosted forensic bundling endpoint for third-party integrations</li>
+    <li>Enterprise SDK &mdash; drop-in library for wrapping existing recognition pipelines</li>
+    <li>ICDF2C 2026 paper submission &mdash; academic validation at Mohammed's conference</li>
+  </ol>
+</section>
+
+</main>
+
+<!-- ─── FOOTER ─── -->
+<footer>
+  <p><strong>FriendlyFace</strong> &mdash; Metaventions AI &nbsp;|&nbsp; March 2026</p>
+  <p><a href="https://friendlyface.metaventionsai.com">friendlyface.metaventionsai.com</a></p>
+</footer>
+
+</body>
+</html>
