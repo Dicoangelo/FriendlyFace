@@ -27,3 +27,7 @@ models/*.onnx
 
 # Benchmark results
 benchmarks/*.json
+.claude/
+FRIENDLYFACE-PRD-AUDIT.md
+sdk/dist/
+sdk/*.egg-info/
