@@ -458,6 +458,7 @@
     <a href="#market">Market</a>
     <a href="#ip">IP Portfolio</a>
     <a href="#positioning">Positioning</a>
+    <a href="#thesis">Core Thesis</a>
     <a href="#next">Next Steps</a>
   </div>
 </nav>
@@ -928,6 +929,65 @@ JSON-LD export: 21,518 bytes<br>
   </div>
 </section>
 
+<!-- ─── 7b. CORE THESIS ─── -->
+<section id="thesis">
+  <h2><span class="num">7b</span>Core Thesis &mdash; Evidence Generation, Not Recognition</h2>
+
+  <blockquote style="border-left: 3px solid var(--accent); padding: 1rem 1.5rem; margin: 1.5rem 0; background: var(--accent-dim); border-radius: 0 8px 8px 0;">
+    <strong style="color: var(--text-primary); font-size: 1.1rem;">FriendlyFace is not a facial recognition system with compliance bolted on. It is a forensic evidence generation system that happens to do facial recognition.</strong>
+    <br><span style="color: var(--text-secondary); font-size: 0.9rem;">The recognition is the trigger. The evidence chain is the product.</span>
+  </blockquote>
+
+  <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(340px,1fr)); gap:1rem; margin-top:1.5rem;">
+
+    <div class="card">
+      <h3 style="color:var(--accent);">The ForensicSeal is the Real Invention</h3>
+      <p style="margin-bottom:0;">Not the face recognition, not the federated learning &mdash; those are table stakes. The ForensicSeal is a <em>compliance primitive</em>: a W3C Verifiable Credential that cryptographically binds six independent verification dimensions into one publicly-verifiable artifact. A court can verify a seal without access to FriendlyFace. That is sovereignty by design.</p>
+    </div>
+
+    <div class="card">
+      <h3 style="color:var(--green);">Compliance Proxy = Trojan Horse Business Model</h3>
+      <p style="margin-bottom:0;">The proxy is not a technical wrapper. It is the <em>only path</em> for existing FR deployments (NEC, Rekognition, Cognitec) to achieve EU AI Act compliance without ripping out their recognition stack. FriendlyFace does not compete with Rekognition &mdash; it wraps it. Every police force, border agency, and enterprise using a third-party FR API is the addressable market.</p>
+    </div>
+
+    <div class="card">
+      <h3 style="color:var(--orange);">The Triple Data Structure Advantage</h3>
+      <p>Three orthogonal cryptographic structures, each answering a different forensic question:</p>
+      <div style="display:grid; gap:0.4rem; font-size:0.88rem;">
+        <div style="display:flex; gap:0.5rem; align-items:baseline;">
+          <strong style="color:var(--accent); min-width:100px;">Hash Chain</strong>
+          <span style="color:var(--text-secondary);">Temporal ordering &mdash; did event B occur after event A?</span>
+        </div>
+        <div style="display:flex; gap:0.5rem; align-items:baseline;">
+          <strong style="color:var(--accent); min-width:100px;">Merkle Tree</strong>
+          <span style="color:var(--text-secondary);">Set membership &mdash; is this event in the evidence set?</span>
+        </div>
+        <div style="display:flex; gap:0.5rem; align-items:baseline;">
+          <strong style="color:var(--accent); min-width:100px;">Provenance DAG</strong>
+          <span style="color:var(--text-secondary);">Lineage &mdash; which dataset trained the model that made this decision?</span>
+        </div>
+      </div>
+      <p style="margin-top:0.6rem; margin-bottom:0; font-size:0.88rem; color:var(--text-muted);">Most forensic systems implement one. Having all three means any question a court might ask is answerable with cryptographic proof.</p>
+    </div>
+
+    <div class="card">
+      <h3 style="color:var(--purple);">Training-as-Evidence (Novel)</h3>
+      <p style="margin-bottom:0;">Every FL paper treats training as a black box that produces a model. FriendlyFace treats <em>the training process itself</em> as forensic evidence. When DP-FedAvg detects a Byzantine poisoning attack ($\|\Delta_c\|_2 > \tau \cdot \text{median}$), the forensic event chain proves <em>when</em> it happened, <em>which</em> client was flagged, and <em>what</em> threshold was exceeded. That is not just academic &mdash; that is courtroom-admissible evidence of model integrity.</p>
+    </div>
+
+    <div class="card">
+      <h3 style="color:var(--red);">Explainability-as-Evidence</h3>
+      <p style="margin-bottom:0;">LIME, SHAP, and SDD outputs are not &ldquo;nice-to-have XAI.&rdquo; They are <strong>forensic artifacts with provenance links</strong>. Each explanation is hash-chained to the exact inference event, model version, and training data lineage. Explanations cannot be tampered with after the fact. This is a direct, enforceable response to EU AI Act Article 13 (transparency) &mdash; with cryptographic teeth.</p>
+    </div>
+
+    <div class="card" style="border-color: var(--accent); background: linear-gradient(135deg, var(--bg-card) 0%, var(--accent-dim) 100%);">
+      <h3 style="color:var(--accent);">The Paradigm Shift</h3>
+      <p style="margin-bottom:0; color:var(--text-primary);">This reframing changes everything about market positioning. FriendlyFace is not entering a crowded FR market. It is creating a new category: <strong>forensic compliance infrastructure for biometric AI</strong>. The competition is not NEC or Clearview &mdash; the competition is non-compliance. And as of August 2025, non-compliance carries fines up to 7% of global annual turnover under the EU AI Act.</p>
+    </div>
+
+  </div>
+</section>
+
 <!-- ─── 8. NEXT STEPS ─── -->
 <section id="next">
   <h2><span class="num">8</span>Next Steps</h2>
@@ -955,13 +1015,24 @@ JSON-LD export: 21,518 bytes<br>
     <div style="display:flex; align-items:center; gap:0.6rem; padding:0.5rem 1rem; background:var(--green-dim); border-radius:8px; font-size:0.9rem;">
       <span class="yes">&#10003;</span> <span style="color:var(--text-secondary);">Publication-quality architecture diagrams (4 figures via PaperBanana pipeline)</span>
     </div>
+    <div style="display:flex; align-items:center; gap:0.6rem; padding:0.5rem 1rem; background:var(--green-dim); border-radius:8px; font-size:0.9rem;">
+      <span class="yes">&#10003;</span> <span style="color:var(--text-secondary);">ArcFace R100 ONNX model weights &mdash; 512-dim embeddings, verified inference pipeline</span>
+    </div>
+    <div style="display:flex; align-items:center; gap:0.6rem; padding:0.5rem 1rem; background:var(--green-dim); border-radius:8px; font-size:0.9rem;">
+      <span class="yes">&#10003;</span> <span style="color:var(--text-secondary);">Stripe billing integration &mdash; live products ($99/$299/$999), webhook, Fly.io secrets deployed</span>
+    </div>
+    <div style="display:flex; align-items:center; gap:0.6rem; padding:0.5rem 1rem; background:var(--green-dim); border-radius:8px; font-size:0.9rem;">
+      <span class="yes">&#10003;</span> <span style="color:var(--text-secondary);">SDK build pipeline &mdash; <code>friendlyface-sdk</code> validated, GitHub Actions for PyPI trusted publishing</span>
+    </div>
+    <div style="display:flex; align-items:center; gap:0.6rem; padding:0.5rem 1rem; background:var(--green-dim); border-radius:8px; font-size:0.9rem;">
+      <span class="yes">&#10003;</span> <span style="color:var(--text-secondary);">ICDF2C 2026 paper compiled &mdash; 10 publication-quality figures, LaTeX to PDF via Tectonic</span>
+    </div>
   </div>
 
   <h3 style="color:var(--accent); margin-bottom:1rem;">Remaining</h3>
   <ol class="steps-list">
-    <li>ArcFace/AdaFace ONNX model weights &mdash; production-grade recognition accuracy via ONNX engine slot</li>
-    <li>SDK PyPI publishing &mdash; public release after pricing model is finalized</li>
-    <li>ICDF2C 2026 paper submission &mdash; academic validation at Mohammed's conference</li>
+    <li>SDK PyPI publishing &mdash; push <code>sdk-v*</code> tag to trigger trusted publishing workflow</li>
+    <li>ICDF2C 2026 paper submission &mdash; final review and submit to Mohammed's conference</li>
     <li>Patent provisional filing &mdash; 25 claims ready, needs attorney review</li>
     <li>Enterprise pilot &mdash; first customer integration via Compliance Proxy</li>
   </ol>
