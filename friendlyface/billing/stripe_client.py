@@ -11,9 +11,9 @@ logger = logging.getLogger("friendlyface.billing.stripe")
 
 # Plan price IDs — set via environment or use test defaults
 PLAN_PRICES = {
-    "starter": os.environ.get("FF_STRIPE_PRICE_STARTER", "price_1TB3zMLImATYj4zMVRGONkOW"),
-    "professional": os.environ.get("FF_STRIPE_PRICE_PROFESSIONAL", "price_1TB3zTLImATYj4zMaFmyoyqd"),
-    "enterprise": os.environ.get("FF_STRIPE_PRICE_ENTERPRISE", "price_1TB3zULImATYj4zMwEMTHaSi"),
+    "starter": os.environ.get("FF_STRIPE_PRICE_STARTER", "price_1TB44cLImATYj4zMY51DjAxk"),
+    "professional": os.environ.get("FF_STRIPE_PRICE_PROFESSIONAL", "price_1TB44mLImATYj4zM1ZAb7GPO"),
+    "enterprise": os.environ.get("FF_STRIPE_PRICE_ENTERPRISE", "price_1TB44nLImATYj4zMyBVt7Imn"),
 }
 
 PLAN_AMOUNTS = {
