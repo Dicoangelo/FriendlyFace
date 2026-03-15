@@ -3,7 +3,7 @@
 [![CI](https://github.com/Dicoangelo/FriendlyFace/actions/workflows/ci.yml/badge.svg)](https://github.com/Dicoangelo/FriendlyFace/actions/workflows/ci.yml)
 [![Python 3.11+](https://img.shields.io/badge/python-3.11%2B-blue.svg)](https://www.python.org/downloads/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Tests](https://img.shields.io/badge/tests-1375%20passing-brightgreen.svg)](#testing)
+[![Tests](https://img.shields.io/badge/tests-1545%20passing-brightgreen.svg)](#testing)
 [![Coverage](https://img.shields.io/badge/coverage-93%25-brightgreen.svg)](#testing)
 [![Live Demo](https://img.shields.io/badge/demo-friendlyface.metaventionsai.com-blue.svg)](https://friendlyface.metaventionsai.com)
 
@@ -39,6 +39,21 @@ Every recognition event is hash-chained, Merkle-verified, bias-audited, explaina
 
 **Core principle:** Every operation across all 6 layers produces an immutable `ForensicEvent` linked into a hash chain, Merkle tree, and provenance DAG.
 
+## ForensicSeal -- Verifiable AI Compliance Certificates
+
+ForensicSeal is the centerpiece product: cryptographically signed, publicly verifiable AI compliance certificates backed by real forensic evidence. The SSL certificate for AI systems.
+
+- **Issue:** `POST /seal/issue` -- automated 6-layer compliance check -> W3C Verifiable Credential
+- **Verify:** `POST /seal/verify` -- public, no auth required, works offline
+- **Renew:** `POST /seal/renew/{seal_id}` -- continuous compliance via expiry + re-issuance
+- **Revoke:** `POST /seal/revoke/{seal_id}` -- irreversible, cryptographically recorded
+- **Proxy:** `POST /proxy/recognize` -- wrap any recognition API with forensic logging
+- **Conformity:** `POST /governance/conformity-assessment` -- EU AI Act Annex IV documentation
+
+**Market trigger:** EU AI Act high-risk enforcement begins August 2, 2026. Penalties up to 35M EUR / 7% global turnover.
+
+**SDK:** `pip install friendlyface-sdk` -- 5-line enterprise integration
+
 ## Quick Start
 
 ```bash
@@ -60,7 +75,7 @@ cd frontend && npm install && npm run build
 
 ## Dashboard
 
-FriendlyFace includes a React 19 + Vite + TailwindCSS dashboard with 9 pages:
+FriendlyFace includes a React 19 + Vite + TailwindCSS dashboard with 10 pages:
 
 - **Dashboard** — Platform health overview with auto-refresh
 - **Event Stream** — Live SSE forensic event feed with type filtering
@@ -71,12 +86,13 @@ FriendlyFace includes a React 19 + Vite + TailwindCSS dashboard with 9 pages:
 - **FL Simulations** — Run FedAvg + DP-FedAvg simulations
 - **Bias Audits** — Fairness reports and compliance status
 - **Consent** — Grant, check, revoke consent records
+- **ForensicSeal** — Issue, verify, renew, and revoke compliance certificates
 
 The dashboard is served as static files from FastAPI — single deployment.
 
 ## API Reference
 
-**62+ endpoints** across 12 domains. All available at both `/` and `/api/v1/` prefix. All endpoints require API key auth (header `X-API-Key`) except `/health` and `/metrics`.
+**100+ endpoints** across 12 domains. All available at both `/` and `/api/v1/` prefix. All endpoints require API key auth (header `X-API-Key`) except `/health` and `/metrics`.
 
 > **Pagination:** List endpoints (`/events`, `/fairness/audits`, `/explainability/explanations`) accept `limit` (default 50, max 500) and `offset` query params. Responses use `{items, total, limit, offset}` envelope.
 >
@@ -203,6 +219,22 @@ The dashboard is served as static files from FastAPI — single deployment.
 | GET | `/governance/compliance` | Latest compliance report |
 | POST | `/governance/compliance/generate` | Generate new report |
 
+### ForensicSeal
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/seal/issue` | Issue a ForensicSeal compliance certificate |
+| POST | `/seal/verify` | Verify a credential (public, no auth) |
+| GET | `/seal/verify/{seal_id}` | Verify by seal ID (public, no auth) |
+| GET | `/seal/status/{seal_id}` | Seal status with days until expiry |
+| POST | `/seal/renew/{seal_id}` | Renew an expiring seal |
+| POST | `/seal/revoke/{seal_id}` | Revoke a seal (admin, irreversible) |
+| GET | `/seals` | List all issued seals |
+| GET | `/seal/{seal_id}` | Get seal details |
+| POST | `/proxy/recognize` | Compliance proxy for upstream APIs |
+| POST | `/governance/conformity-assessment` | EU AI Act Annex IV document |
+| GET | `/anchor/history` | Blockchain anchor history |
+
 ### Dashboard
 
 | Method | Endpoint | Description |
@@ -246,10 +278,25 @@ When `FF_API_KEYS` is unset, auth is disabled (dev mode).
 
 > All `FF_*` variables are validated at startup via Pydantic `BaseSettings` (`friendlyface/config.py`). Invalid values cause a fast failure with a clear error message.
 
+## Python SDK
+
+```bash
+pip install friendlyface-sdk
+```
+
+```python
+from friendlyface_sdk import FriendlyFaceClient
+
+client = FriendlyFaceClient("https://your-instance.com", api_key="key")
+seal = client.issue_seal("system-1", "My AI System")
+result = client.verify_seal(seal_id=seal.seal_id)
+print(f"Valid: {result.valid}, Score: {result.compliance_score}")
+```
+
 ## Testing
 
 ```bash
-# Full test suite (1375 tests, 93% coverage)
+# Full test suite (1545 tests, 93% coverage)
 pytest tests/ -v
 
 # Specific layer
@@ -301,7 +348,7 @@ fly deploy
 ```
 friendlyface/
 ├── api/
-│   ├── app.py              # FastAPI application (62+ endpoints, /api/v1/ versioned)
+│   ├── app.py              # FastAPI application (100+ endpoints, /api/v1/ versioned)
 │   └── sse.py              # Server-Sent Events broadcaster
 ├── auth.py                  # API key authentication
 ├── core/
@@ -330,6 +377,9 @@ friendlyface/
 ├── governance/
 │   ├── consent.py           # Consent management (append-only)
 │   └── compliance.py        # EU AI Act compliance reporting
+├── seal/                    # ForensicSeal issuance, verification, renewal, revocation
+├── proxy/                   # Compliance proxy for upstream recognition APIs
+├── sdk/                     # Python SDK (friendlyface-sdk) for enterprise integration
 ├── config.py                # Pydantic BaseSettings (all FF_* env vars)
 ├── exceptions.py            # Custom exception hierarchy + error middleware
 ├── storage/
