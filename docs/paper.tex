@@ -184,7 +184,7 @@ and calibrated Gaussian noise with $\sigma = \sqrt{2 \ln(1.25/\delta)} / (\epsil
 
 \begin{figure}[h]
 \centering
-\includegraphics[width=\columnwidth]{fig7-fl-dp-pipeline.png}
+\includegraphics[width=\columnwidth]{fig7-fl-dp-pipeline.jpg}
 \caption{Differentially-private federated learning pipeline. Client updates are gradient-clipped ($C$), Gaussian noise ($\sigma$) is added, Byzantine poisoning is detected via norm threshold ($\tau = 3.0$), and each FL round produces forensic events linked in the provenance DAG.}
 \label{fig:fl-dp-pipeline}
 \end{figure}
@@ -216,7 +216,7 @@ All methods produce \texttt{ForensicEvent(EXPLANATION\_GENERATED)} records with 
 
 \begin{figure}[h]
 \centering
-\includegraphics[width=\columnwidth]{fig9-explainability-methods.png}
+\includegraphics[width=\columnwidth]{fig9-explainability-methods.jpg}
 \caption{Triple explainability methods for forensic facial recognition. LIME perturbs superpixel regions and fits a sparse linear model; KernelSHAP computes Shapley values via cooperative game theory; SDD applies guided backpropagation with frequency-band decomposition. All outputs are hash-chained as forensic artifacts.}
 \label{fig:explainability-methods}
 \end{figure}
@@ -230,7 +230,7 @@ S_{\text{compliance}} = 0.30 C_{\text{consent}} + 0.25 C_{\text{bias}} + 0.25 C_
 
 \begin{figure}[h]
 \centering
-\includegraphics[width=\columnwidth]{fig10-compliance-scoring.png}
+\includegraphics[width=\columnwidth]{fig10-compliance-scoring.jpg}
 \caption{EU AI Act compliance scoring breakdown. Six weighted dimensions---forensic logging (25\%), consent management (20\%), bias \& fairness (20\%), explainability (15\%), provenance (10\%), and technical robustness (10\%)---each decompose into sub-component scores. Thresholds: $\geq 80$ compliant (ForensicSeal issued), $60$--$79$ partial, $< 60$ non-compliant.}
 \label{fig:compliance-scoring}
 \end{figure}
@@ -270,7 +270,7 @@ The \texttt{ForensicEvent} model contains seven hashable fields: \texttt{id}, \t
 
 \begin{figure}[h]
 \centering
-\includegraphics[width=\columnwidth]{fig5-hash-chain.png}
+\includegraphics[width=\columnwidth]{fig5-hash-chain.jpg}
 \caption{SHA-256 hash chain construction. Each forensic event $e_i$ produces $H_i = \text{SHA-256}(\text{canonical}(e_i) \| H_{i-1})$, creating a tamper-evident append-only log where modification of any event invalidates all subsequent hashes.}
 \label{fig:hash-chain}
 \end{figure}
@@ -281,7 +281,7 @@ The append-only Merkle tree supports: append ($O(1)$ amortized), root computatio
 
 \begin{figure}[h]
 \centering
-\includegraphics[width=\columnwidth]{fig6-merkle-tree.png}
+\includegraphics[width=\columnwidth]{fig6-merkle-tree.jpg}
 \caption{Append-only Merkle tree with $O(\log n)$ inclusion proofs. Leaf nodes are SHA-256 hashes of forensic events; internal nodes are $H_{\text{parent}} = \text{SHA-256}(H_{\text{left}} \| H_{\text{right}})$. The proof path (shaded) enables verification of event membership without revealing the full tree.}
 \label{fig:merkle-tree}
 \end{figure}
@@ -308,7 +308,7 @@ The ForensicSeal is a composite cryptographic attestation that binds all six lay
 
 \begin{figure}[h]
 \centering
-\includegraphics[width=\columnwidth]{fig8-forensicseal-vc.png}
+\includegraphics[width=\columnwidth]{fig8-forensicseal-vc.jpg}
 \caption{ForensicSeal W3C Verifiable Credential structure. The JSON-LD envelope contains the credential subject with compliance scoring across 6 dimensions, signed with an Ed25519 DID:key proof block. Public verification resolves the issuer DID, canonicalizes via JCS, and validates signature, expiry, revocation, and score threshold.}
 \label{fig:forensicseal-vc}
 \end{figure}
