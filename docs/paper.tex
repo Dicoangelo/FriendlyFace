@@ -5,6 +5,7 @@
 \usepackage{amsmath,amssymb,amsfonts}
 \usepackage{algorithmic}
 \usepackage{graphicx}
+\graphicspath{{figures/}}
 \usepackage{textcomp}
 \usepackage{xcolor}
 \usepackage{hyperref}
@@ -128,23 +129,8 @@ FriendlyFace implements Mohammed's six-layer schema as a monolithic Python appli
 
 \begin{figure}[h]
 \centering
-\fbox{\parbox{0.95\columnwidth}{\small
-\textbf{React Frontend (L6)} --- Dashboard, Consent UI, Audit Views \\[2pt]
-\textbf{FastAPI REST Layer} --- 84+ endpoints, SSE, Auth, RBAC \\[2pt]
-\begin{tabular}{|c|c|c|c|c|}
-\hline
-L1 Recog. & L2 FL & L4 Fair. & L5 XAI & L6 Gov. \\
-PCA+SVM & FedAvg & DP+EO & LIME & Consent \\
-Voice & DP-Fed & Auto & SHAP & Comply \\
- & Poison & Audit & SDD & OSCAL \\
-\hline
-\end{tabular} \\[2pt]
-\textbf{L3: Blockchain Forensic Layer} \\
-ForensicEvent $\to$ Hash Chain $\to$ Merkle Tree $\to$ Prov.\ DAG \\
-Schnorr ZK Proofs $\cdot$ Ed25519 DID:key $\cdot$ VCs $\cdot$ ForensicSeal \\[2pt]
-\textbf{Storage:} SQLite (default) $|$ Supabase (cloud)
-}}
-\caption{FriendlyFace six-layer architecture with ForensicSeal.}
+\includegraphics[width=\columnwidth]{figures/fig1-architecture.png}
+\caption{FriendlyFace six-layer architecture with ForensicSeal. Layer~3 (Blockchain Forensic Layer) serves as the central backbone receiving forensic events from all other layers.}
 \label{fig:architecture}
 \end{figure}
 
@@ -170,6 +156,13 @@ Relations follow the W3C PROV ontology~\cite{moreau2013prov}: \texttt{DERIVED\_F
 \begin{equation}
 H_{\text{bundle}} = \text{SHA-256}(\text{canonical}(\text{id}, \text{created\_at}, \text{event\_ids}, \ldots))
 \end{equation}
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\columnwidth]{figures/fig3-data-structures.png}
+\caption{Forensic data structures: SHA-256 hash chain for tamper detection, Merkle tree for efficient inclusion proofs, and provenance DAG for lineage tracking, aggregated into self-verifiable forensic bundles.}
+\label{fig:data-structures}
+\end{figure}
 
 \subsection{Layer 1: Recognition Engine}
 
@@ -294,7 +287,23 @@ The ForensicSeal is a composite cryptographic attestation that binds all six lay
 
 \textbf{Public Verification.} ForensicSeals are verified without authentication via \texttt{POST /verify/\{bundle\_id\}}. Measured verification latency: 6.0\,ms.
 
-\textbf{Continuous Compliance.} Seals carry expiry timestamps (default 365 days). Renewal triggers fresh six-layer compliance checks. Seal issuance completes in 3.3\,ms.
+\textbf{Continuous Compliance.} Seals carry expiry timestamps (default 90 days, configurable 7--365). Renewal triggers fresh six-layer compliance checks and links to the previous seal via \texttt{previous\_seal\_id}, creating a verifiable compliance chain. Revocation is irreversible and cryptographically recorded in the hash chain. Seal issuance completes in 3.3\,ms.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\columnwidth]{figures/fig2-seal-lifecycle.png}
+\caption{ForensicSeal lifecycle: issuance with 6-layer compliance checks (threshold $\geq 80\%$), public verification without authentication, continuous compliance via expiry and renewal, and irreversible revocation.}
+\label{fig:seal-lifecycle}
+\end{figure}
+
+\textbf{Compliance Proxy.} FriendlyFace includes a compliance proxy (\texttt{POST /proxy/recognize}) that transparently wraps third-party recognition APIs (NEC NeoFace, Amazon Rekognition, Cognitec FaceVACS) with forensic logging. Before forwarding, the proxy checks consent and logs an \texttt{inference\_request} event. After receiving the upstream response, it logs an \texttt{inference\_result} event with the response hash and latency. Accumulated proxy events feed into bias audits and ForensicSeal compliance scoring.
+
+\begin{figure}[h]
+\centering
+\includegraphics[width=\columnwidth]{figures/fig4-compliance-proxy.png}
+\caption{Compliance proxy architecture: FriendlyFace transparently wraps third-party recognition APIs with forensic logging, consent checking, and compliance scoring.}
+\label{fig:compliance-proxy}
+\end{figure}
 
 %===================================================================
 \section{Evaluation}
@@ -302,7 +311,7 @@ The ForensicSeal is a composite cryptographic attestation that binds all six lay
 
 \subsection{Test Coverage}
 
-FriendlyFace includes 1,415 test functions across 40+ test files, achieving 93\% line coverage.
+FriendlyFace includes 1,545 test functions across 50+ test files, achieving 93\% line coverage.
 
 \subsection{API Performance}
 
