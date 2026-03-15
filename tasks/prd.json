@@ -42,9 +42,10 @@
         "Screenshot verification: start dev server and take Chrome DevTools screenshot of /events tab"
       ],
       "priority": 2,
-      "passes": false,
+      "passes": true,
       "notes": "",
-      "dependsOn": []
+      "dependsOn": [],
+      "completionNotes": "Completed by agent"
     },
     {
       "id": "US-003",
@@ -65,9 +66,10 @@
         "Screenshot verification: start dev server and take Chrome DevTools screenshot of /bundles tab"
       ],
       "priority": 3,
-      "passes": false,
+      "passes": true,
       "notes": "",
-      "dependsOn": []
+      "dependsOn": [],
+      "completionNotes": "Completed by agent"
     },
     {
       "id": "US-004",
@@ -87,9 +89,10 @@
         "Screenshot verification: start dev server and take Chrome DevTools screenshot of /did tab"
       ],
       "priority": 4,
-      "passes": false,
+      "passes": true,
       "notes": "",
-      "dependsOn": []
+      "dependsOn": [],
+      "completionNotes": "Completed by agent"
     },
     {
       "id": "US-005",
@@ -109,9 +112,10 @@
         "Screenshot verification: start dev server and take Chrome DevTools screenshot of /zk tab"
       ],
       "priority": 5,
-      "passes": false,
+      "passes": true,
       "notes": "",
-      "dependsOn": []
+      "dependsOn": [],
+      "completionNotes": "Completed by agent"
     },
     {
       "id": "US-006",
@@ -132,9 +136,10 @@
         "Screenshot verification: start dev server and take Chrome DevTools screenshot of /merkle tab"
       ],
       "priority": 6,
-      "passes": false,
+      "passes": true,
       "notes": "",
-      "dependsOn": []
+      "dependsOn": [],
+      "completionNotes": "Completed by agent"
     },
     {
       "id": "US-007",
@@ -154,9 +159,10 @@
         "Screenshot verification: start dev server and take Chrome DevTools screenshot of /bias tab"
       ],
       "priority": 7,
-      "passes": false,
+      "passes": true,
       "notes": "",
-      "dependsOn": []
+      "dependsOn": [],
+      "completionNotes": "Completed by agent"
     },
     {
       "id": "US-008",
@@ -177,9 +183,10 @@
         "Screenshot verification: start dev server and take Chrome DevTools screenshot of /fl tab"
       ],
       "priority": 8,
-      "passes": false,
+      "passes": true,
       "notes": "",
-      "dependsOn": []
+      "dependsOn": [],
+      "completionNotes": "Completed by agent"
     },
     {
       "id": "US-009",
@@ -200,9 +207,10 @@
         "Screenshot verification: start dev server and take Chrome DevTools screenshot of /explainability tab"
       ],
       "priority": 9,
-      "passes": false,
+      "passes": true,
       "notes": "",
-      "dependsOn": []
+      "dependsOn": [],
+      "completionNotes": "Completed by agent"
     },
     {
       "id": "US-010",
@@ -223,9 +231,10 @@
         "Screenshot verification: start dev server and take Chrome DevTools screenshot of /compliance tab"
       ],
       "priority": 10,
-      "passes": false,
+      "passes": true,
       "notes": "",
-      "dependsOn": []
+      "dependsOn": [],
+      "completionNotes": "Completed by agent"
     },
     {
       "id": "US-011",
@@ -245,9 +254,10 @@
         "Screenshot verification: start dev server and take Chrome DevTools screenshot of /consent tab"
       ],
       "priority": 11,
-      "passes": false,
+      "passes": true,
       "notes": "",
-      "dependsOn": []
+      "dependsOn": [],
+      "completionNotes": "Completed by agent"
     },
     {
       "id": "US-012",
@@ -265,9 +275,10 @@
         "Screenshot verification: start dev server and take Chrome DevTools screenshot of /erasure tab"
       ],
       "priority": 12,
-      "passes": false,
+      "passes": true,
       "notes": "",
-      "dependsOn": []
+      "dependsOn": [],
+      "completionNotes": "Rewritten: erasure request form with subject_id, reason textarea, confirmation checkbox (submit disabled until checked), LoadingButton, success card with request_id/subject_id/erasure_event_id/timestamp, history from /api/v1/governance/erasure/requests with skeleton loader, warning banner about forensic chain, error banner."
     },
     {
       "id": "US-013",
@@ -286,9 +297,10 @@
         "Screenshot verification: start dev server and take Chrome DevTools screenshot of /retention tab"
       ],
       "priority": 13,
-      "passes": false,
+      "passes": true,
       "notes": "",
-      "dependsOn": []
+      "dependsOn": [],
+      "completionNotes": "Rewritten: active policy card with max_age_days/max_events/action + skeleton, inline edit form with archive/delete/flag select, Apply Policy Now LoadingButton with summary card (events_processed/retained/expired), dry-run toggle, policy history with timestamp + counts, error banner."
     },
     {
       "id": "US-014",
@@ -308,9 +320,10 @@
         "Screenshot verification: start dev server and take Chrome DevTools screenshot of /provenance tab"
       ],
       "priority": 14,
-      "passes": false,
+      "passes": true,
       "notes": "",
-      "dependsOn": []
+      "dependsOn": [],
+      "completionNotes": "Rewritten: stats header with total_nodes/total_edges + skeleton, node search with LoadingButton, node card with node_id/node_type badge/timestamp/parent IDs as clickable links, trace-from-root button per node, recent nodes list (last 10), empty state, error banner."
     },
     {
       "id": "US-015",
@@ -329,9 +342,10 @@
         "Screenshot verification: start dev server and take Chrome DevTools screenshot of /recognition tab"
       ],
       "priority": 15,
-      "passes": false,
+      "passes": true,
       "notes": "",
-      "dependsOn": []
+      "dependsOn": [],
+      "completionNotes": "Rewritten: Gallery/Train/Recognize/Models pill tabs (+ Voice/Liveness preserved). Gallery: skeleton, empty state, subject grid with image_count, delete with ConfirmDialog. Train: dynamic class JSON builder (add/remove rows), epochs + components, LoadingButton, result with model_id/accuracy/event_id. Recognize: subject_id + model_id inputs, confidence threshold slider 0-1, ranked predictions with confidence bars. Models: skeleton, accuracy bar, type badge, delete button."
     },
     {
       "id": "US-016",
@@ -350,9 +364,10 @@
         "Screenshot verification: start dev server and take Chrome DevTools screenshot of /admin tab"
       ],
       "priority": 16,
-      "passes": false,
+      "passes": true,
       "notes": "",
-      "dependsOn": []
+      "dependsOn": [],
+      "completionNotes": "Rewritten: 3 sections (Backups/Migrations/System). Backups: skeleton, list with filename/size/created_at, restore with ConfirmDialog, Create Backup LoadingButton. Migrations: current version, applied/pending lists, Run Migrations LoadingButton, Rollback with ConfirmDialog. System: storage backend, event/bundle counts, chain integrity, Rebuild Merkle + Re-check Chain LoadingButtons. Success/error banners per section."
     },
     {
       "id": "US-017",
@@ -371,12 +386,13 @@
         "Screenshot verification: start dev server and take Chrome DevTools screenshot of / (dashboard)"
       ],
       "priority": 17,
-      "passes": false,
+      "passes": true,
       "notes": "",
-      "dependsOn": []
+      "dependsOn": [],
+      "completionNotes": "Polished: manual Refresh button + 'Last updated Xs ago' text, uptime formatted as Xh Ym Zs for >3600s, chain integrity shows last verified timestamp, event type names have title tooltip, 'View all →' link to /events, compliance card shows failing requirements count."
     }
   ],
   "metadata": {
-    "updatedAt": "2026-02-19T13:11:24.277Z"
+    "updatedAt": "2026-03-07T08:30:00.000Z"
   }
 }

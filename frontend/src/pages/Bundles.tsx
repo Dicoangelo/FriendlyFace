@@ -1,6 +1,8 @@
 import { useEffect, useState } from "react";
-import { SkeletonTable } from "../components/Skeleton";
+import { SkeletonCard } from "../components/Skeleton";
 import EmptyState from "../components/EmptyState";
+import LoadingButton from "../components/LoadingButton";
+import { useCopyToClipboard } from "../hooks/useCopyToClipboard";
 
 interface BundleSummary {
   id: string;
@@ -9,233 +11,276 @@ interface BundleSummary {
   bundle_hash: string;
   merkle_root: string;
   event_count: number;
-}
-
-interface BundleVerification {
-  hash_valid: boolean;
-  merkle_valid: boolean;
-  provenance_valid: boolean;
-  zk_valid: boolean;
-  did_valid: boolean;
-}
-
-interface BundleDetail {
-  id: string;
-  created_at: string;
-  status: string;
-  bundle_hash: string;
-  merkle_root: string;
-  event_ids: string[];
   zk_proof_placeholder?: string;
   did_credential_placeholder?: string;
 }
 
 export default function Bundles() {
+  const copy = useCopyToClipboard();
   const [bundles, setBundles] = useState<BundleSummary[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const [detail, setDetail] = useState<BundleDetail | null>(null);
-  const [verification, setVerification] = useState<BundleVerification | null>(null);
   const [error, setError] = useState("");
+  const [successMsg, setSuccessMsg] = useState("");
 
-  useEffect(() => {
+  // Create form state
+  const [showCreate, setShowCreate] = useState(false);
+  const [eventIdsText, setEventIdsText] = useState("");
+  const [description, setDescription] = useState("");
+  const [creating, setCreating] = useState(false);
+
+  // Expand / export state
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [exportData, setExportData] = useState<Record<string, unknown> | null>(null);
+  const [exportLoading, setExportLoading] = useState(false);
+
+  const fetchBundles = () => {
+    setLoading(true);
+    setError("");
     fetch("/api/v1/bundles?limit=50")
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(`Failed to load bundles (${r.status})`);
+        return r.json();
+      })
       .then((data) => {
         setBundles(data.items || []);
         setTotal(data.total || 0);
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch((e) => {
+        setError(e.message);
+        setLoading(false);
+      });
+  };
+
+  useEffect(() => {
+    fetchBundles();
   }, []);
 
-  const selectBundle = (id: string) => {
-    setSelectedId(id);
-    setVerification(null);
+  const handleCreate = () => {
+    const ids = eventIdsText
+      .split(/[\n,]+/)
+      .map((s) => s.trim())
+      .filter(Boolean);
+    if (ids.length === 0) {
+      setError("Please enter at least one event ID");
+      return;
+    }
+    setCreating(true);
     setError("");
-    fetch(`/api/v1/bundles/${id}`)
+    setSuccessMsg("");
+    fetch("/api/v1/bundles", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ event_ids: ids }),
+    })
       .then((r) => {
-        if (!r.ok) throw new Error(`Bundle not found (${r.status})`);
+        if (!r.ok) throw new Error(`Create failed (${r.status})`);
         return r.json();
       })
-      .then(setDetail)
-      .catch((e) => setError(e.message));
-  };
-
-  const verifyBundle = () => {
-    if (!selectedId) return;
-    fetch(`/api/v1/verify/${selectedId}`, { method: "POST" })
-      .then((r) => r.json())
-      .then(setVerification)
-      .catch((e) => setError(e.message));
-  };
-
-  const exportBundle = () => {
-    if (!selectedId) return;
-    fetch(`/api/v1/bundles/${selectedId}/export`)
-      .then((r) => r.json())
       .then((data) => {
-        const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/ld+json" });
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement("a");
-        a.href = url;
-        a.download = `bundle-${selectedId.slice(0, 8)}.jsonld`;
-        a.click();
-        URL.revokeObjectURL(url);
+        setSuccessMsg(`Bundle created: ${data.id}`);
+        setShowCreate(false);
+        setEventIdsText("");
+        setDescription("");
+        fetchBundles();
       })
-      .catch((e) => setError(e.message));
+      .catch((e) => setError(e.message))
+      .finally(() => setCreating(false));
   };
 
-  if (loading) return <SkeletonTable rows={6} />;
+  const toggleExpand = (id: string) => {
+    if (expandedId === id) {
+      setExpandedId(null);
+      setExportData(null);
+      return;
+    }
+    setExpandedId(id);
+    setExportData(null);
+    setExportLoading(true);
+    fetch(`/api/v1/bundles/${id}/export`)
+      .then((r) => {
+        if (!r.ok) throw new Error(`Export failed (${r.status})`);
+        return r.json();
+      })
+      .then(setExportData)
+      .catch((e) => setError(e.message))
+      .finally(() => setExportLoading(false));
+  };
+
+  const downloadBundle = (id: string) => {
+    if (!exportData) return;
+    const blob = new Blob([JSON.stringify(exportData, null, 2)], {
+      type: "application/ld+json",
+    });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `bundle-${id.slice(0, 8)}.jsonld`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  if (loading) {
+    return (
+      <div className="space-y-4">
+        <SkeletonCard className="h-24" />
+        <SkeletonCard className="h-24" />
+        <SkeletonCard className="h-24" />
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-4">
+      {/* Error banner */}
+      {error && (
+        <div className="bg-rose-ember/10 border border-rose-ember/30 text-rose-ember rounded-lg px-4 py-3 text-sm flex items-center justify-between">
+          <span>{error}</span>
+          <button onClick={() => setError("")} className="text-rose-ember/70 hover:text-rose-ember ml-4">
+            &times;
+          </button>
+        </div>
+      )}
+
+      {/* Success banner */}
+      {successMsg && (
+        <div className="bg-teal/10 border border-teal/30 text-teal rounded-lg px-4 py-3 text-sm flex items-center justify-between">
+          <span>{successMsg}</span>
+          <button onClick={() => setSuccessMsg("")} className="text-teal/70 hover:text-teal ml-4">
+            &times;
+          </button>
+        </div>
+      )}
+
+      {/* Header */}
       <div className="flex items-center justify-between">
         <span className="text-sm text-fg-muted font-medium">{total} bundles</span>
+        <button
+          onClick={() => setShowCreate(!showCreate)}
+          className="btn-primary"
+        >
+          {showCreate ? "Cancel" : "Create Bundle"}
+        </button>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        {/* Bundle list */}
-        <div className="lg:col-span-1 space-y-2">
-          {bundles.length === 0 ? (
-            <div className="glass-card">
-              <EmptyState title="No bundles created yet" subtitle="Create a forensic bundle via the API to see it here" />
-            </div>
-          ) : (
-            bundles.map((b) => (
-              <button
-                key={b.id}
-                onClick={() => selectBundle(b.id)}
-                className={`w-full text-left glass-card p-3 transition-all hover:scale-[1.01] ${
-                  selectedId === b.id
-                    ? "border-cyan/40 bg-cyan/5"
-                    : "hover:border-fg-faint/30"
-                }`}
-              >
-                <div className="flex items-center justify-between">
-                  <span className="font-mono text-sm text-fg-secondary">
-                    {b.id.slice(0, 12)}...
-                  </span>
-                  <StatusBadge status={b.status} />
-                </div>
-                <div className="flex items-center justify-between mt-1">
-                  <span className="text-xs text-fg-faint">
-                    {new Date(b.created_at).toLocaleString()}
-                  </span>
-                  <span className="text-xs text-fg-muted">
-                    {b.event_count} event{b.event_count !== 1 ? "s" : ""}
-                  </span>
-                </div>
-              </button>
-            ))
-          )}
+      {/* Inline create form */}
+      {showCreate && (
+        <div className="glass-card p-4 space-y-3 animate-fade-in">
+          <h3 className="text-sm font-semibold text-fg-secondary">New Bundle</h3>
+          <div>
+            <label className="block text-xs text-fg-muted mb-1">Event IDs (one per line or comma-separated)</label>
+            <textarea
+              value={eventIdsText}
+              onChange={(e) => setEventIdsText(e.target.value)}
+              rows={4}
+              className="w-full bg-surface border border-border-theme rounded-lg px-3 py-2 text-sm font-mono text-fg-secondary placeholder:text-fg-faint/50 focus:outline-none focus:ring-1 focus:ring-cyan/40"
+              placeholder="e.g. 550e8400-e29b-41d4-a716-446655440000"
+            />
+          </div>
+          <div>
+            <label className="block text-xs text-fg-muted mb-1">Description (optional)</label>
+            <input
+              type="text"
+              value={description}
+              onChange={(e) => setDescription(e.target.value)}
+              className="w-full bg-surface border border-border-theme rounded-lg px-3 py-2 text-sm text-fg-secondary placeholder:text-fg-faint/50 focus:outline-none focus:ring-1 focus:ring-cyan/40"
+              placeholder="Bundle description..."
+            />
+          </div>
+          <LoadingButton
+            onClick={handleCreate}
+            loading={creating}
+            loadingText="Creating..."
+          >
+            Create Bundle
+          </LoadingButton>
         </div>
+      )}
 
-        {/* Bundle detail panel */}
-        <div className="lg:col-span-2">
-          {error && <div className="text-rose-ember text-sm mb-2">{error}</div>}
-
-          {!selectedId && (
-            <div className="glass-card p-12 text-center text-fg-faint">
-              Select a bundle to inspect
-            </div>
-          )}
-
-          {detail && selectedId && (
-            <div className="space-y-4 animate-fade-in">
-              <div className="glass-card p-4 space-y-3">
-                <div className="flex items-center justify-between">
-                  <h3 className="font-semibold text-fg-secondary">
-                    Bundle: {detail.id.slice(0, 12)}...
-                  </h3>
-                  <div className="flex gap-2">
-                    <button onClick={verifyBundle} className="btn-success">
-                      Verify
-                    </button>
-                    <button onClick={exportBundle} className="btn-accent">
-                      Export JSON-LD
-                    </button>
-                  </div>
+      {/* Bundle list or empty state */}
+      {bundles.length === 0 ? (
+        <div className="glass-card">
+          <EmptyState
+            title="No bundles created yet"
+            subtitle="Package forensic events into cryptographically signed bundles"
+            action={
+              <button onClick={() => setShowCreate(true)} className="btn-primary">
+                Create your first bundle
+              </button>
+            }
+          />
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {bundles.map((b) => (
+            <div key={b.id} className="glass-card p-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => copy(b.id, "Bundle ID copied")}
+                    className="font-mono text-sm text-fg-secondary hover:text-cyan transition-colors cursor-pointer"
+                    title="Click to copy full ID"
+                  >
+                    {b.id.slice(0, 12)}...
+                  </button>
+                  <StatusBadge status={b.status} />
+                  {b.did_credential_placeholder && (
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-violet-500/10 text-violet-400">
+                      DID
+                    </span>
+                  )}
+                  {b.zk_proof_placeholder && (
+                    <span className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-amber-500/10 text-amber-400">
+                      VC
+                    </span>
+                  )}
                 </div>
-                <div className="grid grid-cols-2 gap-2 text-sm">
-                  <p>
-                    <span className="text-fg-muted">Status:</span>{" "}
-                    <StatusBadge status={detail.status} />
-                  </p>
-                  <p>
-                    <span className="text-fg-muted">Events:</span> {detail.event_ids.length}
-                  </p>
-                  <p>
-                    <span className="text-fg-muted">Created:</span>{" "}
-                    {new Date(detail.created_at).toLocaleString()}
-                  </p>
-                  <p className="col-span-2">
-                    <span className="text-fg-muted">Hash:</span>{" "}
-                    <code className="text-xs">{detail.bundle_hash}</code>
-                  </p>
-                  <p className="col-span-2">
-                    <span className="text-fg-muted">Merkle Root:</span>{" "}
-                    <code className="text-xs">{detail.merkle_root}</code>
-                  </p>
-                </div>
-
-                {detail.event_ids.length > 0 && (
-                  <div>
-                    <h4 className="text-sm font-medium text-fg-secondary mb-1">Event IDs</h4>
-                    <div className="bg-surface rounded-lg p-2 max-h-32 overflow-y-auto">
-                      {detail.event_ids.map((eid) => (
-                        <p key={eid} className="text-xs font-mono text-fg-muted py-0.5">
-                          {eid}
-                        </p>
-                      ))}
-                    </div>
-                  </div>
-                )}
-
-                {detail.zk_proof_placeholder && (
-                  <div>
-                    <h4 className="text-sm font-medium text-fg-secondary">ZK Proof</h4>
-                    <pre className="text-xs bg-surface rounded-lg p-2 overflow-x-auto">
-                      {detail.zk_proof_placeholder}
-                    </pre>
-                  </div>
-                )}
-
-                {detail.did_credential_placeholder && (
-                  <div>
-                    <h4 className="text-sm font-medium text-fg-secondary">DID Credential</h4>
-                    <pre className="text-xs bg-surface rounded-lg p-2 overflow-x-auto">
-                      {detail.did_credential_placeholder}
-                    </pre>
-                  </div>
-                )}
+                <button
+                  onClick={() => toggleExpand(b.id)}
+                  className="text-xs text-fg-muted hover:text-fg-secondary transition-colors"
+                >
+                  {expandedId === b.id ? "Hide" : "View"}
+                </button>
+              </div>
+              <div className="flex items-center justify-between mt-1">
+                <span className="text-xs text-fg-faint">
+                  {new Date(b.created_at).toLocaleString()}
+                </span>
+                <span className="text-xs text-fg-muted">
+                  {b.event_count} event{b.event_count !== 1 ? "s" : ""}
+                </span>
               </div>
 
-              {verification && (
-                <div className="glass-card p-4">
-                  <h3 className="font-semibold text-fg-secondary mb-2">Verification Results</h3>
-                  <div className="grid grid-cols-2 md:grid-cols-5 gap-2">
-                    {Object.entries(verification).map(([key, val]) => (
-                      <div
-                        key={key}
-                        className={`rounded p-2 text-center text-sm ${
-                          val
-                            ? "bg-teal/10 text-teal"
-                            : "bg-rose-ember/10 text-rose-ember"
-                        }`}
-                      >
-                        <span className="block font-medium">{val ? "\u2713" : "\u2717"}</span>
-                        {key.replace(/_/g, " ")}
+              {/* Expanded JSON-LD preview */}
+              {expandedId === b.id && (
+                <div className="mt-3 pt-3 border-t border-border-theme animate-fade-in">
+                  {exportLoading ? (
+                    <div className="text-xs text-fg-faint py-4 text-center">Loading export...</div>
+                  ) : exportData ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
+                        <span className="text-xs font-medium text-fg-muted">JSON-LD Export</span>
+                        <button
+                          onClick={() => downloadBundle(b.id)}
+                          className="btn-accent text-xs px-2 py-1"
+                        >
+                          Download
+                        </button>
                       </div>
-                    ))}
-                  </div>
+                      <pre className="bg-surface rounded-lg p-3 text-xs font-mono text-fg-secondary max-h-64 overflow-auto whitespace-pre-wrap">
+                        {JSON.stringify(exportData, null, 2)}
+                      </pre>
+                    </div>
+                  ) : (
+                    <div className="text-xs text-fg-faint py-2">Failed to load export data</div>
+                  )}
                 </div>
               )}
             </div>
-          )}
+          ))}
         </div>
-      </div>
+      )}
     </div>
   );
 }

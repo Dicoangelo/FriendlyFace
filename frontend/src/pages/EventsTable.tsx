@@ -1,5 +1,6 @@
 import { Fragment, useEffect, useState } from "react";
 import { SkeletonTable } from "../components/Skeleton";
+import EmptyState from "../components/EmptyState";
 import { useCopyToClipboard } from "../hooks/useCopyToClipboard";
 import { eventTypeColor } from "../constants/eventColors";
 
@@ -19,6 +20,7 @@ export default function EventsTable() {
   const [events, setEvents] = useState<ForensicEvent[]>([]);
   const [total, setTotal] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState("");
   const [search, setSearch] = useState("");
   const [activeType, setActiveType] = useState<string | null>(null);
   const [expandedId, setExpandedId] = useState<string | null>(null);
@@ -28,19 +30,26 @@ export default function EventsTable() {
 
   const fetchEvents = (offset: number) => {
     setLoading(true);
+    setError("");
     const params = new URLSearchParams();
     params.set("limit", String(PAGE_SIZE));
     params.set("offset", String(offset));
 
     fetch(`/api/v1/events?${params.toString()}`)
-      .then((r) => r.json())
+      .then((r) => {
+        if (!r.ok) throw new Error(`HTTP ${r.status}`);
+        return r.json();
+      })
       .then((data) => {
         const items: ForensicEvent[] = data.items || data;
         setEvents(items);
         setTotal(data.total ?? items.length);
         setLoading(false);
       })
-      .catch(() => setLoading(false));
+      .catch((e) => {
+        setError(e.message || "Failed to load events");
+        setLoading(false);
+      });
   };
 
   useEffect(() => {
@@ -69,10 +78,32 @@ export default function EventsTable() {
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
 
-  if (loading && events.length === 0) return <SkeletonTable rows={8} />;
+  if (loading && events.length === 0) return <SkeletonTable rows={5} />;
+
+  if (!loading && total === 0 && !error) {
+    return (
+      <EmptyState
+        title="No forensic events recorded"
+        subtitle="Events will appear here as they are recorded via the API"
+      />
+    );
+  }
 
   return (
     <div className="space-y-4">
+      {/* Error banner */}
+      {error && (
+        <div className="bg-rose-ember/10 border border-rose-ember/30 text-rose-ember rounded-lg px-4 py-3 flex items-center justify-between">
+          <span className="text-sm">Failed to load events: {error}</span>
+          <button
+            onClick={() => fetchEvents(page * PAGE_SIZE)}
+            className="text-xs font-medium hover:underline"
+          >
+            Retry
+          </button>
+        </div>
+      )}
+
       {/* Controls row */}
       <div className="flex flex-wrap items-center justify-between gap-3">
         <span className="text-sm text-fg-muted font-medium">

@@ -1,670 +1,429 @@
 import { useState } from "react";
-import { useFetch } from "../hooks/useFetch";
 import LoadingButton from "../components/LoadingButton";
-import EmptyState from "../components/EmptyState";
+import { SkeletonCard } from "../components/Skeleton";
+import { useCopyToClipboard } from "../hooks/useCopyToClipboard";
 
-interface ExplanationRecord {
+type Tab = "lime" | "shap" | "sdd";
+
+interface LimeRegion {
+  region: number;
+  weight: number;
+}
+
+interface LimeResult {
   explanation_id: string;
   method: string;
-  event_id: string;
-  inference_event_id: string;
-  timestamp: string;
-  num_superpixels?: number;
-  num_samples?: number;
-  top_k?: number;
-  random_state?: number;
-  num_regions?: number;
+  top_regions?: LimeRegion[];
   computed?: boolean;
+  [key: string]: unknown;
 }
 
-interface ExplanationList {
-  items: ExplanationRecord[];
-  total: number;
-  limit: number;
-  offset: number;
+interface ShapFeature {
+  feature: string;
+  value: number;
 }
 
-interface CompareResult {
-  inference_event_id: string;
-  lime_explanations: ExplanationRecord[];
-  shap_explanations: ExplanationRecord[];
-  sdd_explanations: ExplanationRecord[];
-  total_lime: number;
-  total_shap: number;
-  total_sdd: number;
+interface ShapResult {
+  explanation_id: string;
+  method: string;
+  base_value?: number;
+  top_features?: ShapFeature[];
+  computed?: boolean;
+  [key: string]: unknown;
 }
 
-export default function Explainability() {
-  const { data: explanations, error: fetchError, retry: refreshExplanations } = useFetch<ExplanationList>("/api/v1/explainability/explanations");
-  const [selectedDetail, setSelectedDetail] = useState<Record<string, unknown> | null>(null);
-  const [comparison, setComparison] = useState<CompareResult | null>(null);
+interface SddResult {
+  explanation_id: string;
+  method: string;
+  dominant_region?: string;
+  regions?: Array<{ region: string; saliency: number }>;
+  gradient_magnitude?: number;
+  class_label?: string;
+  confidence?: number;
+  computed?: boolean;
+  [key: string]: unknown;
+}
+
+function ErrorBanner({ message, onDismiss }: { message: string; onDismiss: () => void }) {
+  return (
+    <div className="bg-rose-ember/10 border border-rose-ember/20 rounded-lg px-4 py-3 text-rose-ember text-sm flex items-center justify-between">
+      <span>{message}</span>
+      <button onClick={onDismiss} className="text-rose-ember/60 hover:text-rose-ember ml-4">&times;</button>
+    </div>
+  );
+}
+
+function CopyJsonButton({ data }: { data: unknown }) {
+  const copy = useCopyToClipboard();
+  return (
+    <button
+      onClick={() => copy(JSON.stringify(data, null, 2), "JSON copied")}
+      className="text-fg-faint hover:text-fg text-xs px-2 py-1 rounded hover:bg-fg/5 transition-colors"
+    >
+      Copy JSON
+    </button>
+  );
+}
+
+function LimeSection() {
+  const [eventId, setEventId] = useState("");
+  const [superpixels, setSuperpixels] = useState(50);
+  const [samples, setSamples] = useState(100);
+  const [topK, setTopK] = useState(5);
+  const [result, setResult] = useState<LimeResult | null>(null);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // LIME form state
-  const [limeEventId, setLimeEventId] = useState("");
-  const [limeSuperpixels, setLimeSuperpixels] = useState(50);
-  const [limeSamples, setLimeSamples] = useState(100);
-  const [limeTopK, setLimeTopK] = useState(5);
-  const [limeResult, setLimeResult] = useState<Record<string, unknown> | null>(null);
-
-  // SHAP form state
-  const [shapEventId, setShapEventId] = useState("");
-  const [shapSamples, setShapSamples] = useState(128);
-  const [shapRandomState, setShapRandomState] = useState(42);
-  const [shapResult, setShapResult] = useState<Record<string, unknown> | null>(null);
-
-  // SDD form state
-  const [sddEventId, setSddEventId] = useState("");
-  const [sddResult, setSddResult] = useState<Record<string, unknown> | null>(null);
-
-  // Compare form state
-  const [compareEventId, setCompareEventId] = useState("");
-
-  // Loading states
-  const [limeLoading, setLimeLoading] = useState(false);
-  const [shapLoading, setShapLoading] = useState(false);
-  const [sddLoading, setSddLoading] = useState(false);
-  const [compareLoading, setCompareLoading] = useState(false);
-
-  // fetchError from useFetch is displayed below
-
-  const triggerLime = () => {
+  const generate = () => {
     setError("");
-    setLimeResult(null);
-    if (!limeEventId.trim()) {
-      setError("LIME: event_id is required");
-      return;
-    }
-    setLimeLoading(true);
+    setResult(null);
+    if (!eventId.trim()) { setError("Event ID is required"); return; }
+    setLoading(true);
     fetch("/api/v1/explainability/lime", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        event_id: limeEventId.trim(),
-        num_superpixels: limeSuperpixels,
-        num_samples: limeSamples,
-        top_k: limeTopK,
+        event_id: eventId.trim(),
+        num_superpixels: superpixels,
+        num_samples: samples,
+        top_k: topK,
       }),
     })
-      .then((r) => {
-        if (!r.ok) throw new Error(`${r.status}`);
-        return r.json();
-      })
-      .then((data) => {
-        setLimeResult(data);
-        refreshExplanations();
-      })
+      .then((r) => { if (!r.ok) throw new Error(`${r.status}`); return r.json(); })
+      .then(setResult)
       .catch((e) => setError(`LIME error: ${e.message}`))
-      .finally(() => setLimeLoading(false));
+      .finally(() => setLoading(false));
   };
 
-  const triggerShap = () => {
-    setError("");
-    setShapResult(null);
-    if (!shapEventId.trim()) {
-      setError("SHAP: event_id is required");
-      return;
-    }
-    setShapLoading(true);
-    fetch("/api/v1/explainability/shap", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        event_id: shapEventId.trim(),
-        num_samples: shapSamples,
-        random_state: shapRandomState,
-      }),
-    })
-      .then((r) => {
-        if (!r.ok) throw new Error(`${r.status}`);
-        return r.json();
-      })
-      .then((data) => {
-        setShapResult(data);
-        refreshExplanations();
-      })
-      .catch((e) => setError(`SHAP error: ${e.message}`))
-      .finally(() => setShapLoading(false));
-  };
-
-  const triggerSdd = () => {
-    setError("");
-    setSddResult(null);
-    if (!sddEventId.trim()) {
-      setError("SDD: event_id is required");
-      return;
-    }
-    setSddLoading(true);
-    fetch("/api/v1/explainability/sdd", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ event_id: sddEventId.trim() }),
-    })
-      .then((r) => {
-        if (!r.ok) throw new Error(`${r.status}`);
-        return r.json();
-      })
-      .then((data) => {
-        setSddResult(data);
-        refreshExplanations();
-      })
-      .catch((e) => setError(`SDD error: ${e.message}`))
-      .finally(() => setSddLoading(false));
-  };
-
-  const loadComparison = () => {
-    setError("");
-    setComparison(null);
-    if (!compareEventId.trim()) {
-      setError("Compare: event_id is required");
-      return;
-    }
-    setCompareLoading(true);
-    fetch(`/api/v1/explainability/compare/${compareEventId.trim()}`)
-      .then((r) => {
-        if (!r.ok) throw new Error(`${r.status}`);
-        return r.json();
-      })
-      .then(setComparison)
-      .catch((e) => setError(`Compare error: ${e.message}`))
-      .finally(() => setCompareLoading(false));
-  };
-
-  const viewDetail = (explanationId: string) => {
-    fetch(`/api/v1/explainability/explanations/${explanationId}`)
-      .then((r) => {
-        if (!r.ok) throw new Error(`${r.status}`);
-        return r.json();
-      })
-      .then(setSelectedDetail)
-      .catch((e) => setError(e.message));
-  };
-
-  const methodColors: Record<string, string> = {
-    lime: "bg-teal/10 text-teal",
-    shap: "bg-amethyst/10 text-amethyst",
-    sdd: "bg-cyan/10 text-cyan",
-  };
+  const regions = result?.top_regions ?? [];
+  const maxWeight = regions.length > 0 ? Math.max(...regions.map((r) => Math.abs(r.weight))) : 0;
 
   return (
-    <div className="space-y-6">
-      {/* Page title shown in header bar */}
-      {(error || fetchError) && (
-        <div className="bg-rose-ember/10 border border-rose-ember/20 rounded-lg px-4 py-2 text-rose-ember text-sm">
-          {error || fetchError}
-        </div>
-      )}
+    <div className="space-y-4">
+      {error && <ErrorBanner message={error} onDismiss={() => setError("")} />}
 
-      {/* Stats cards */}
-      {explanations && (
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-          <div className="glass-card p-4">
-            <p className="text-sm text-fg-muted">Total Explanations</p>
-            <p className="text-2xl font-bold text-fg mt-1">{explanations.total}</p>
-          </div>
-          <div className="glass-card p-4">
-            <p className="text-sm text-fg-muted">LIME</p>
-            <p className="text-2xl font-bold text-teal mt-1">
-              {explanations.items.filter((e) => e.method === "lime").length}
-            </p>
-          </div>
-          <div className="glass-card p-4">
-            <p className="text-sm text-fg-muted">SHAP</p>
-            <p className="text-2xl font-bold text-amethyst mt-1">
-              {explanations.items.filter((e) => e.method === "shap").length}
-            </p>
-          </div>
-          <div className="glass-card p-4">
-            <p className="text-sm text-fg-muted">SDD</p>
-            <p className="text-2xl font-bold text-cyan mt-1">
-              {explanations.items.filter((e) => e.method === "sdd").length}
-            </p>
-          </div>
-        </div>
-      )}
-
-      {/* Explanation list */}
-      {explanations && explanations.items.length > 0 && (
-        <div className="glass-card p-4">
-          <h3 className="font-semibold text-fg-secondary mb-2">Explanation History</h3>
-          <table className="w-full text-sm">
-            <thead className="text-left text-fg-muted border-b border-border-theme">
-              <tr>
-                <th className="pb-2">ID</th>
-                <th className="pb-2">Method</th>
-                <th className="pb-2">Status</th>
-                <th className="pb-2">Inference Event</th>
-                <th className="pb-2">Timestamp</th>
-              </tr>
-            </thead>
-            <tbody>
-              {explanations.items.map((e) => (
-                <tr
-                  key={e.explanation_id}
-                  onClick={() => viewDetail(e.explanation_id)}
-                  className="border-b border-border-theme hover:bg-fg/[0.02] cursor-pointer"
-                >
-                  <td className="py-2 font-mono text-xs">{e.explanation_id.slice(0, 8)}...</td>
-                  <td className="py-2">
-                    <span
-                      className={`px-2 py-0.5 rounded text-xs font-medium ${methodColors[e.method] || "bg-fg/5 text-fg-secondary"}`}
-                    >
-                      {e.method.toUpperCase()}
-                    </span>
-                  </td>
-                  <td className="py-2">
-                    <ComputedBadge computed={e.computed} />
-                  </td>
-                  <td className="py-2 font-mono text-xs text-fg-muted">
-                    {e.inference_event_id.slice(0, 8)}...
-                  </td>
-                  <td className="py-2 text-fg-muted">{new Date(e.timestamp).toLocaleString()}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
-
-      {/* Detail view */}
-      {selectedDetail && (
-        <div className="glass-card p-4 animate-fade-in">
-          <div className="flex items-center justify-between mb-2">
-            <div className="flex items-center gap-2">
-              <h3 className="font-semibold text-fg-secondary">Explanation Detail</h3>
-              <ComputedBadge computed={(selectedDetail as Record<string, unknown>).computed as boolean | undefined} />
-            </div>
-            <button
-              onClick={() => setSelectedDetail(null)}
-              className="text-fg-faint hover:text-fg-secondary text-sm"
-            >
-              Close
-            </button>
-          </div>
-          <RichDetailView detail={selectedDetail} />
-        </div>
-      )}
-
-      {explanations && explanations.items.length === 0 && (
-        <div className="glass-card">
-          <EmptyState
-            title="No explanations generated yet"
-            subtitle="Use the forms below to generate LIME, SHAP, or SDD explanations for inference events"
+      <div className="flex flex-wrap gap-4 items-end">
+        <label className="text-sm text-fg-secondary">
+          Event ID
+          <input
+            type="text"
+            value={eventId}
+            onChange={(e) => setEventId(e.target.value)}
+            className="ff-input font-mono text-xs w-72 block mt-1"
+            placeholder="Inference event UUID"
           />
-        </div>
-      )}
-
-      {/* Trigger LIME */}
-      <div className="glass-card p-4 space-y-2">
-        <h3 className="font-semibold text-fg-secondary">Generate LIME Explanation</h3>
-        <div className="flex flex-wrap gap-4 items-end">
-          <label className="text-sm text-fg-secondary">
-            Event ID
-            <input
-              type="text"
-              value={limeEventId}
-              onChange={(e) => setLimeEventId(e.target.value)}
-              className="ff-input font-mono text-xs w-72 block mt-1"
-              placeholder="Inference event UUID"
-            />
-          </label>
-          <label className="text-sm text-fg-secondary">
-            Superpixels
-            <input
-              type="number"
-              value={limeSuperpixels}
-              onChange={(e) => setLimeSuperpixels(+e.target.value)}
-              className="ff-input w-20 block mt-1"
-              min={4}
-            />
-          </label>
-          <label className="text-sm text-fg-secondary">
-            Samples
-            <input
-              type="number"
-              value={limeSamples}
-              onChange={(e) => setLimeSamples(+e.target.value)}
-              className="ff-input w-20 block mt-1"
-              min={10}
-            />
-          </label>
-          <label className="text-sm text-fg-secondary">
-            Top K
-            <input
-              type="number"
-              value={limeTopK}
-              onChange={(e) => setLimeTopK(+e.target.value)}
-              className="ff-input w-20 block mt-1"
-              min={1}
-            />
-          </label>
-        </div>
-        <LoadingButton onClick={triggerLime} loading={limeLoading} className="btn-success" loadingText="Running...">
-          Run LIME
-        </LoadingButton>
-        {limeResult && (
-          <pre className="text-xs bg-surface rounded-lg p-2 overflow-x-auto">
-            {JSON.stringify(limeResult, null, 2)}
-          </pre>
-        )}
+        </label>
+        <label className="text-sm text-fg-secondary">
+          Superpixels
+          <input type="number" value={superpixels} onChange={(e) => setSuperpixels(+e.target.value)}
+            className="ff-input w-20 block mt-1" min={4} />
+        </label>
+        <label className="text-sm text-fg-secondary">
+          Samples
+          <input type="number" value={samples} onChange={(e) => setSamples(+e.target.value)}
+            className="ff-input w-20 block mt-1" min={10} />
+        </label>
+        <label className="text-sm text-fg-secondary">
+          Top K
+          <input type="number" value={topK} onChange={(e) => setTopK(+e.target.value)}
+            className="ff-input w-20 block mt-1" min={1} />
+        </label>
       </div>
 
-      {/* Trigger SHAP */}
-      <div className="glass-card p-4 space-y-2">
-        <h3 className="font-semibold text-fg-secondary">Generate SHAP Explanation</h3>
-        <div className="flex flex-wrap gap-4 items-end">
-          <label className="text-sm text-fg-secondary">
-            Event ID
-            <input
-              type="text"
-              value={shapEventId}
-              onChange={(e) => setShapEventId(e.target.value)}
-              className="ff-input font-mono text-xs w-72 block mt-1"
-              placeholder="Inference event UUID"
-            />
-          </label>
-          <label className="text-sm text-fg-secondary">
-            Samples
-            <input
-              type="number"
-              value={shapSamples}
-              onChange={(e) => setShapSamples(+e.target.value)}
-              className="ff-input w-20 block mt-1"
-              min={10}
-            />
-          </label>
-          <label className="text-sm text-fg-secondary">
-            Random State
-            <input
-              type="number"
-              value={shapRandomState}
-              onChange={(e) => setShapRandomState(+e.target.value)}
-              className="ff-input w-20 block mt-1"
-            />
-          </label>
-        </div>
-        <LoadingButton onClick={triggerShap} loading={shapLoading} className="btn-accent" loadingText="Running...">
-          Run SHAP
-        </LoadingButton>
-        {shapResult && (
-          <pre className="text-xs bg-surface rounded-lg p-2 overflow-x-auto">
-            {JSON.stringify(shapResult, null, 2)}
-          </pre>
-        )}
-      </div>
+      <LoadingButton onClick={generate} loading={loading} className="btn-success" loadingText="Generating...">
+        Generate LIME
+      </LoadingButton>
 
-      {/* Trigger SDD */}
-      <div className="glass-card p-4 space-y-2">
-        <h3 className="font-semibold text-fg-secondary">Generate SDD Explanation</h3>
-        <div className="flex gap-4 items-end">
-          <label className="text-sm text-fg-secondary">
-            Event ID
-            <input
-              type="text"
-              value={sddEventId}
-              onChange={(e) => setSddEventId(e.target.value)}
-              className="ff-input font-mono text-xs w-72 block mt-1"
-              placeholder="Inference event UUID"
-            />
-          </label>
-        </div>
-        <LoadingButton onClick={triggerSdd} loading={sddLoading} loadingText="Running...">
-          Run SDD
-        </LoadingButton>
-        {sddResult && (
-          <pre className="text-xs bg-surface rounded-lg p-2 overflow-x-auto">
-            {JSON.stringify(sddResult, null, 2)}
-          </pre>
-        )}
-      </div>
+      {loading && <SkeletonCard className="h-32" />}
 
-      {/* Compare explanations */}
-      <div className="glass-card p-4 space-y-2">
-        <h3 className="font-semibold text-fg-secondary">Compare Explanations</h3>
-        <p className="text-xs text-fg-muted">
-          Compare LIME, SHAP, and SDD explanations side-by-side for the same inference event.
-        </p>
-        <div className="flex gap-4 items-end">
-          <label className="text-sm text-fg-secondary">
-            Inference Event ID
-            <input
-              type="text"
-              value={compareEventId}
-              onChange={(e) => setCompareEventId(e.target.value)}
-              className="ff-input font-mono text-xs w-72 block mt-1"
-              placeholder="Inference event UUID"
-            />
-          </label>
-          <LoadingButton onClick={loadComparison} loading={compareLoading} loadingText="Comparing...">
-            Compare
-          </LoadingButton>
-        </div>
-      </div>
-
-      {/* Comparison results */}
-      {comparison && (
-        <div className="glass-card p-4 animate-fade-in">
-          <h3 className="font-semibold text-fg-secondary mb-3">
-            Comparison for{" "}
-            <span className="font-mono text-xs">{comparison.inference_event_id.slice(0, 12)}...</span>
-          </h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <CompareColumn
-              title="LIME"
-              count={comparison.total_lime}
-              items={comparison.lime_explanations}
-              color="teal"
-            />
-            <CompareColumn
-              title="SHAP"
-              count={comparison.total_shap}
-              items={comparison.shap_explanations}
-              color="amethyst"
-            />
-            <CompareColumn
-              title="SDD"
-              count={comparison.total_sdd}
-              items={comparison.sdd_explanations}
-              color="cyan"
-            />
+      {result && !loading && (
+        <div className="space-y-3 animate-fade-in">
+          <div className="flex items-center justify-between">
+            <h4 className="text-sm font-semibold text-teal">Feature Importance</h4>
+            <CopyJsonButton data={result} />
           </div>
+          {regions.length > 0 ? (
+            <div className="space-y-1">
+              {regions.map((r, i) => {
+                const pct = maxWeight > 0 ? (Math.abs(r.weight) / maxWeight) * 100 : 0;
+                return (
+                  <div key={i} className="flex items-center gap-3">
+                    <span className="text-xs text-fg-muted w-24">Region {r.region}</span>
+                    <div className="flex-1 h-5 bg-surface rounded-md overflow-hidden relative">
+                      <div
+                        className={`h-full rounded-md ${r.weight >= 0 ? "bg-teal/30" : "bg-rose-ember/30"} transition-all`}
+                        style={{ width: `${pct}%` }}
+                      />
+                      <span className={`absolute inset-y-0 right-2 flex items-center text-xs font-semibold ${r.weight >= 0 ? "text-teal" : "text-rose-ember"}`}>
+                        {r.weight.toFixed(4)}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : (
+            <pre className="text-xs bg-surface rounded-lg p-3 overflow-x-auto">{JSON.stringify(result, null, 2)}</pre>
+          )}
         </div>
       )}
     </div>
   );
 }
 
-function ComputedBadge({ computed }: { computed?: boolean }) {
-  if (computed === true) {
-    return (
-      <span className="px-2 py-0.5 rounded text-xs font-medium bg-teal/10 text-teal border border-teal/20">
-        Computed
-      </span>
-    );
-  }
-  return (
-    <span className="px-2 py-0.5 rounded text-xs font-medium bg-fg/5 text-fg-faint border border-fg-faint/20">
-      Stub
-    </span>
-  );
-}
+function ShapSection() {
+  const [eventId, setEventId] = useState("");
+  const [samples, setSamples] = useState(128);
+  const [randomState, setRandomState] = useState(42);
+  const [result, setResult] = useState<ShapResult | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
 
-function RichDetailView({ detail }: { detail: Record<string, unknown> }) {
-  const computed = detail.computed === true;
-  const method = (detail.method as string) || "";
-
-  if (!computed) {
-    return (
-      <pre className="text-xs bg-surface rounded-lg p-2 overflow-x-auto">
-        {JSON.stringify(detail, null, 2)}
-      </pre>
-    );
-  }
-
-  // LIME rich view
-  if (method === "lime" && detail.top_regions) {
-    const regions = detail.top_regions as Array<{ region: number; weight: number }>;
-    return (
-      <div className="space-y-3">
-        <h4 className="text-sm font-semibold text-teal">LIME Top Regions</h4>
-        <div className="space-y-1">
-          {regions.map((r, i) => {
-            const maxWeight = Math.max(...regions.map((x) => Math.abs(x.weight)));
-            const pct = maxWeight > 0 ? (Math.abs(r.weight) / maxWeight) * 100 : 0;
-            return (
-              <div key={i} className="flex items-center gap-3">
-                <span className="text-xs text-fg-muted w-24">Region {r.region}</span>
-                <div className="flex-1 h-5 bg-surface rounded-md overflow-hidden relative">
-                  <div
-                    className={`h-full rounded-md ${r.weight >= 0 ? "bg-teal/30" : "bg-rose-ember/30"} transition-all`}
-                    style={{ width: `${pct}%` }}
-                  />
-                  <span className={`absolute inset-y-0 right-2 flex items-center text-xs font-semibold ${r.weight >= 0 ? "text-teal" : "text-rose-ember"}`}>
-                    {r.weight.toFixed(4)}
-                  </span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-        <details className="text-xs">
-          <summary className="text-fg-faint cursor-pointer">Raw JSON</summary>
-          <pre className="bg-surface rounded-lg p-2 overflow-x-auto mt-1">
-            {JSON.stringify(detail, null, 2)}
-          </pre>
-        </details>
-      </div>
-    );
-  }
-
-  // SHAP rich view
-  if (method === "shap" && detail.top_features) {
-    const features = detail.top_features as Array<{ feature: string; value: number }>;
-    const baseValue = detail.base_value as number | undefined;
-    return (
-      <div className="space-y-3">
-        <h4 className="text-sm font-semibold text-amethyst">SHAP Feature Attributions</h4>
-        {baseValue !== undefined && (
-          <p className="text-xs text-fg-muted">Base value: <span className="font-mono text-fg-secondary">{baseValue.toFixed(4)}</span></p>
-        )}
-        <div className="space-y-1">
-          {features.map((f, i) => {
-            const maxVal = Math.max(...features.map((x) => Math.abs(x.value)));
-            const pct = maxVal > 0 ? (Math.abs(f.value) / maxVal) * 100 : 0;
-            return (
-              <div key={i} className="flex items-center gap-3">
-                <span className="text-xs text-fg-muted w-24 truncate">{f.feature}</span>
-                <div className="flex-1 h-5 bg-surface rounded-md overflow-hidden relative">
-                  <div
-                    className={`h-full rounded-md ${f.value >= 0 ? "bg-amethyst/30" : "bg-rose-ember/30"} transition-all`}
-                    style={{ width: `${pct}%` }}
-                  />
-                  <span className={`absolute inset-y-0 right-2 flex items-center text-xs font-semibold ${f.value >= 0 ? "text-amethyst" : "text-rose-ember"}`}>
-                    {f.value.toFixed(4)}
-                  </span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-        <details className="text-xs">
-          <summary className="text-fg-faint cursor-pointer">Raw JSON</summary>
-          <pre className="bg-surface rounded-lg p-2 overflow-x-auto mt-1">
-            {JSON.stringify(detail, null, 2)}
-          </pre>
-        </details>
-      </div>
-    );
-  }
-
-  // SDD rich view
-  if (method === "sdd" && detail.regions) {
-    const regions = detail.regions as Array<{ region: string; saliency: number }>;
-    const dominant = detail.dominant_region as string | undefined;
-    return (
-      <div className="space-y-3">
-        <h4 className="text-sm font-semibold text-cyan">SDD Saliency Regions</h4>
-        {dominant && (
-          <p className="text-xs text-fg-muted">Dominant region: <span className="font-mono text-cyan">{dominant}</span></p>
-        )}
-        <div className="space-y-1">
-          {regions.map((r, i) => {
-            const maxSal = Math.max(...regions.map((x) => x.saliency));
-            const pct = maxSal > 0 ? (r.saliency / maxSal) * 100 : 0;
-            return (
-              <div key={i} className="flex items-center gap-3">
-                <span className="text-xs text-fg-muted w-24 truncate">{r.region}</span>
-                <div className="flex-1 h-5 bg-surface rounded-md overflow-hidden relative">
-                  <div
-                    className="h-full rounded-md bg-cyan/30 transition-all"
-                    style={{ width: `${pct}%` }}
-                  />
-                  <span className="absolute inset-y-0 right-2 flex items-center text-xs font-semibold text-cyan">
-                    {r.saliency.toFixed(4)}
-                  </span>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-        <details className="text-xs">
-          <summary className="text-fg-faint cursor-pointer">Raw JSON</summary>
-          <pre className="bg-surface rounded-lg p-2 overflow-x-auto mt-1">
-            {JSON.stringify(detail, null, 2)}
-          </pre>
-        </details>
-      </div>
-    );
-  }
-
-  // Fallback for computed but unknown structure
-  return (
-    <pre className="text-xs bg-surface rounded-lg p-2 overflow-x-auto">
-      {JSON.stringify(detail, null, 2)}
-    </pre>
-  );
-}
-
-function CompareColumn({
-  title,
-  count,
-  items,
-  color,
-}: {
-  title: string;
-  count: number;
-  items: ExplanationRecord[];
-  color: string;
-}) {
-  const colorMap: Record<string, { border: string; bg: string; text: string }> = {
-    teal: { border: "border-teal/20", bg: "bg-teal/5", text: "text-teal" },
-    amethyst: { border: "border-amethyst/20", bg: "bg-amethyst/5", text: "text-amethyst" },
-    cyan: { border: "border-cyan/20", bg: "bg-cyan/5", text: "text-cyan" },
+  const generate = () => {
+    setError("");
+    setResult(null);
+    if (!eventId.trim()) { setError("Event ID is required"); return; }
+    setLoading(true);
+    fetch("/api/v1/explainability/shap", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        event_id: eventId.trim(),
+        num_samples: samples,
+        random_state: randomState,
+      }),
+    })
+      .then((r) => { if (!r.ok) throw new Error(`${r.status}`); return r.json(); })
+      .then(setResult)
+      .catch((e) => setError(`SHAP error: ${e.message}`))
+      .finally(() => setLoading(false));
   };
 
-  const colors = colorMap[color] || colorMap.cyan;
+  const features = result?.top_features ?? [];
+  const maxVal = features.length > 0 ? Math.max(...features.map((f) => Math.abs(f.value))) : 0;
 
   return (
-    <div className={`rounded-lg border-2 ${colors.border} ${colors.bg} p-3`}>
-      <div className="flex items-center justify-between mb-2">
-        <span className={`font-semibold ${colors.text}`}>{title}</span>
-        <span className="text-xs text-fg-muted">{count} result{count !== 1 ? "s" : ""}</span>
+    <div className="space-y-4">
+      {error && <ErrorBanner message={error} onDismiss={() => setError("")} />}
+
+      <div className="flex flex-wrap gap-4 items-end">
+        <label className="text-sm text-fg-secondary">
+          Event ID
+          <input
+            type="text"
+            value={eventId}
+            onChange={(e) => setEventId(e.target.value)}
+            className="ff-input font-mono text-xs w-72 block mt-1"
+            placeholder="Inference event UUID"
+          />
+        </label>
+        <label className="text-sm text-fg-secondary">
+          Samples
+          <input type="number" value={samples} onChange={(e) => setSamples(+e.target.value)}
+            className="ff-input w-20 block mt-1" min={10} />
+        </label>
+        <label className="text-sm text-fg-secondary">
+          Random State
+          <input type="number" value={randomState} onChange={(e) => setRandomState(+e.target.value)}
+            className="ff-input w-20 block mt-1" />
+        </label>
       </div>
-      {items.length === 0 ? (
-        <p className="text-xs text-fg-faint">No explanations</p>
-      ) : (
-        <div className="space-y-2">
-          {items.map((item) => (
-            <div key={item.explanation_id} className="glass-card p-2 text-xs">
-              <p className="font-mono text-fg-secondary">{item.explanation_id.slice(0, 12)}...</p>
-              <p className="text-fg-faint">{new Date(item.timestamp).toLocaleString()}</p>
-              {item.num_samples !== undefined && <p>Samples: {item.num_samples}</p>}
-              {item.num_superpixels !== undefined && <p>Superpixels: {item.num_superpixels}</p>}
-              {item.num_regions !== undefined && <p>Regions: {item.num_regions}</p>}
+
+      <LoadingButton onClick={generate} loading={loading} className="btn-accent" loadingText="Generating...">
+        Generate SHAP
+      </LoadingButton>
+
+      {loading && <SkeletonCard className="h-32" />}
+
+      {result && !loading && (
+        <div className="space-y-3 animate-fade-in">
+          <div className="flex items-center justify-between">
+            <h4 className="text-sm font-semibold text-amethyst">Feature Contributions</h4>
+            <CopyJsonButton data={result} />
+          </div>
+          {result.base_value !== undefined && (
+            <p className="text-xs text-fg-muted">
+              Base value: <span className="font-mono text-fg-secondary">{result.base_value.toFixed(4)}</span>
+            </p>
+          )}
+          {features.length > 0 ? (
+            <div className="space-y-1">
+              {features.map((f, i) => {
+                const pct = maxVal > 0 ? (Math.abs(f.value) / maxVal) * 100 : 0;
+                const positive = f.value >= 0;
+                return (
+                  <div key={i} className="flex items-center gap-3">
+                    <span className="text-xs text-fg-muted w-24 truncate">{f.feature}</span>
+                    <div className="flex-1 h-5 bg-surface rounded-md overflow-hidden relative">
+                      <div
+                        className={`h-full rounded-md ${positive ? "bg-teal/30" : "bg-rose-ember/30"} transition-all`}
+                        style={{ width: `${pct}%` }}
+                      />
+                      <span className={`absolute inset-y-0 right-2 flex items-center text-xs font-semibold ${positive ? "text-teal" : "text-rose-ember"}`}>
+                        {positive ? "+" : ""}{f.value.toFixed(4)}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
             </div>
-          ))}
+          ) : (
+            <pre className="text-xs bg-surface rounded-lg p-3 overflow-x-auto">{JSON.stringify(result, null, 2)}</pre>
+          )}
         </div>
       )}
+    </div>
+  );
+}
+
+function SddSection() {
+  const [eventId, setEventId] = useState("");
+  const [result, setResult] = useState<SddResult | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const generate = () => {
+    setError("");
+    setResult(null);
+    if (!eventId.trim()) { setError("Event ID is required"); return; }
+    setLoading(true);
+    fetch("/api/v1/explainability/sdd", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ event_id: eventId.trim() }),
+    })
+      .then((r) => { if (!r.ok) throw new Error(`${r.status}`); return r.json(); })
+      .then(setResult)
+      .catch((e) => setError(`SDD error: ${e.message}`))
+      .finally(() => setLoading(false));
+  };
+
+  return (
+    <div className="space-y-4">
+      {error && <ErrorBanner message={error} onDismiss={() => setError("")} />}
+
+      <div className="flex gap-4 items-end">
+        <label className="text-sm text-fg-secondary">
+          Event ID
+          <input
+            type="text"
+            value={eventId}
+            onChange={(e) => setEventId(e.target.value)}
+            className="ff-input font-mono text-xs w-72 block mt-1"
+            placeholder="Inference event UUID"
+          />
+        </label>
+      </div>
+
+      <LoadingButton onClick={generate} loading={loading} loadingText="Generating...">
+        Generate SDD
+      </LoadingButton>
+
+      {loading && <SkeletonCard className="h-32" />}
+
+      {result && !loading && (
+        <div className="space-y-3 animate-fade-in">
+          <div className="flex items-center justify-between">
+            <h4 className="text-sm font-semibold text-cyan">SDD Saliency</h4>
+            <CopyJsonButton data={result} />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+            {result.gradient_magnitude !== undefined && (
+              <div className="bg-surface rounded-lg p-3">
+                <p className="text-[11px] uppercase tracking-wider text-fg-faint">Gradient Magnitude</p>
+                <p className="text-lg font-bold text-cyan mt-1">{result.gradient_magnitude.toFixed(4)}</p>
+              </div>
+            )}
+            {result.class_label !== undefined && (
+              <div className="bg-surface rounded-lg p-3">
+                <p className="text-[11px] uppercase tracking-wider text-fg-faint">Class Label</p>
+                <p className="text-lg font-bold text-fg mt-1">{result.class_label}</p>
+              </div>
+            )}
+            {result.confidence !== undefined && (
+              <div className="bg-surface rounded-lg p-3">
+                <p className="text-[11px] uppercase tracking-wider text-fg-faint">Confidence</p>
+                <p className="text-lg font-bold text-teal mt-1">{(result.confidence * 100).toFixed(1)}%</p>
+              </div>
+            )}
+          </div>
+
+          {result.dominant_region && (
+            <p className="text-xs text-fg-muted">
+              Dominant region: <span className="font-mono text-cyan">{result.dominant_region}</span>
+            </p>
+          )}
+
+          {result.regions && result.regions.length > 0 && (
+            <div className="space-y-1">
+              {result.regions.map((r, i) => {
+                const maxSal = Math.max(...(result.regions ?? []).map((x) => x.saliency));
+                const pct = maxSal > 0 ? (r.saliency / maxSal) * 100 : 0;
+                return (
+                  <div key={i} className="flex items-center gap-3">
+                    <span className="text-xs text-fg-muted w-24 truncate">{r.region}</span>
+                    <div className="flex-1 h-5 bg-surface rounded-md overflow-hidden relative">
+                      <div className="h-full rounded-md bg-cyan/30 transition-all" style={{ width: `${pct}%` }} />
+                      <span className="absolute inset-y-0 right-2 flex items-center text-xs font-semibold text-cyan">
+                        {r.saliency.toFixed(4)}
+                      </span>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {!result.regions && !result.gradient_magnitude && (
+            <pre className="text-xs bg-surface rounded-lg p-3 overflow-x-auto">{JSON.stringify(result, null, 2)}</pre>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+export default function Explainability() {
+  const [activeTab, setActiveTab] = useState<Tab>("lime");
+
+  const tabs: { key: Tab; label: string; color: string }[] = [
+    { key: "lime", label: "LIME", color: "teal" },
+    { key: "shap", label: "SHAP", color: "amethyst" },
+    { key: "sdd", label: "SDD", color: "cyan" },
+  ];
+
+  return (
+    <div className="space-y-6">
+      {/* Tab switcher */}
+      <div className="inline-flex bg-surface rounded-full p-1">
+        {tabs.map((tab) => (
+          <button
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            className={`px-5 py-1.5 rounded-full text-sm font-medium transition-colors ${
+              activeTab === tab.key
+                ? `bg-${tab.color} text-white`
+                : "text-fg-muted hover:text-fg-secondary"
+            }`}
+          >
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Tab content */}
+      <div className="glass-card p-5">
+        <h3 className="font-semibold text-fg-secondary mb-4">
+          {activeTab === "lime" && "LIME — Local Interpretable Model-agnostic Explanations"}
+          {activeTab === "shap" && "SHAP — SHapley Additive exPlanations"}
+          {activeTab === "sdd" && "SDD — Saliency-Driven Decomposition"}
+        </h3>
+
+        {activeTab === "lime" && <LimeSection />}
+        {activeTab === "shap" && <ShapSection />}
+        {activeTab === "sdd" && <SddSection />}
+      </div>
     </div>
   );
 }

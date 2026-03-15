@@ -8,11 +8,83 @@ nodes tracking client contributions to the aggregated global model.
 from __future__ import annotations
 
 import hashlib
+import logging
+import os
 import pickle
+import sqlite3
 from dataclasses import dataclass, field
+from pathlib import Path
 from typing import Any
 
 import numpy as np
+
+logger = logging.getLogger(__name__)
+
+# Minimum records in recognition_results before we use real data
+_MIN_RECOGNITION_RECORDS = 100
+
+
+def _query_recognition_data_sizes(
+    n_clients: int,
+    db_path: str | Path | None = None,
+) -> list[int] | None:
+    """Query recognition_results for per-client data volumes.
+
+    Groups results by ``demographic_group`` and returns the top *n_clients*
+    groups by record count.  Returns ``None`` when the table has fewer than
+    ``_MIN_RECOGNITION_RECORDS`` rows so the caller can fall back to
+    synthetic data.
+    """
+    if db_path is None:
+        db_path = os.environ.get("FF_DB_PATH", "friendlyface.db")
+    db_path = Path(db_path)
+    if not db_path.exists():
+        logger.debug("recognition_results: DB not found at %s", db_path)
+        return None
+
+    try:
+        conn = sqlite3.connect(str(db_path))
+        cursor = conn.cursor()
+
+        # Check total row count first (fast path)
+        cursor.execute("SELECT COUNT(*) FROM recognition_results")
+        total = cursor.fetchone()[0]
+        if total < _MIN_RECOGNITION_RECORDS:
+            logger.info(
+                "recognition_results has %d records (< %d); using synthetic data",
+                total,
+                _MIN_RECOGNITION_RECORDS,
+            )
+            conn.close()
+            return None
+
+        # Per-client volumes: group by demographic_group, top n_clients
+        cursor.execute(
+            "SELECT demographic_group, COUNT(*) AS cnt "
+            "FROM recognition_results "
+            "GROUP BY demographic_group "
+            "ORDER BY cnt DESC "
+            "LIMIT ?",
+            (n_clients,),
+        )
+        rows = cursor.fetchall()
+        conn.close()
+
+        if len(rows) < n_clients:
+            logger.info(
+                "recognition_results has %d groups but %d clients requested; "
+                "using synthetic data",
+                len(rows),
+                n_clients,
+            )
+            return None
+
+        sizes = [row[1] for row in rows]
+        logger.info("FL using real recognition data sizes: %s", sizes)
+        return sizes
+    except Exception:
+        logger.warning("Failed to query recognition_results; falling back to synthetic", exc_info=True)
+        return None
 
 from friendlyface.core.models import (
     EventType,
@@ -159,7 +231,8 @@ def run_fl_simulation(
     if weight_shapes is None:
         weight_shapes = [(128, 64), (64,)]
     if client_data_sizes is None:
-        client_data_sizes = [100] * n_clients
+        # Try real recognition data; fall back to synthetic
+        client_data_sizes = _query_recognition_data_sizes(n_clients) or [100] * n_clients
     if len(client_data_sizes) != n_clients:
         raise ValueError(
             f"client_data_sizes length ({len(client_data_sizes)}) != n_clients ({n_clients})"

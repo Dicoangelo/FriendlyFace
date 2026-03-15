@@ -1,59 +1,97 @@
 import { useEffect, useState } from "react";
 import EmptyState from "../components/EmptyState";
+import LoadingButton from "../components/LoadingButton";
+import { SkeletonCard, SkeletonRow } from "../components/Skeleton";
 
-interface RetentionPolicy {
-  policy_id: string;
-  name: string;
-  entity_type: string;
-  retention_days: number;
+interface PolicyConfig {
+  max_age_days: number;
+  max_events: number;
   action: string;
-  enabled: boolean;
-  created_at: string;
+}
+
+interface PolicyRun {
+  timestamp: string;
+  events_processed: number;
+  events_retained: number;
+  events_expired: number;
+  dry_run?: boolean;
 }
 
 export default function RetentionPolicies() {
-  const [policies, setPolicies] = useState<RetentionPolicy[]>([]);
+  const [policy, setPolicy] = useState<PolicyConfig | null>(null);
+  const [loadingPolicy, setLoadingPolicy] = useState(true);
   const [error, setError] = useState("");
 
-  // Create form
-  const [name, setName] = useState("");
-  const [entityType, setEntityType] = useState("consent");
-  const [retentionDays, setRetentionDays] = useState(365);
-  const [action, setAction] = useState("erase");
-  const [creating, setCreating] = useState(false);
-  const [createResult, setCreateResult] = useState<Record<string, unknown> | null>(null);
+  // Edit form
+  const [editing, setEditing] = useState(false);
+  const [maxAgeDays, setMaxAgeDays] = useState(365);
+  const [maxEvents, setMaxEvents] = useState(10000);
+  const [action, setAction] = useState("archive");
+  const [saving, setSaving] = useState(false);
 
-  // Evaluate
-  const [evaluating, setEvaluating] = useState(false);
-  const [evalResult, setEvalResult] = useState<Record<string, unknown> | null>(null);
+  // Apply
+  const [applying, setApplying] = useState(false);
+  const [applyResult, setApplyResult] = useState<PolicyRun | null>(null);
+  const [dryRun, setDryRun] = useState(false);
 
-  const fetchPolicies = () => {
+  // History
+  const [history, setHistory] = useState<PolicyRun[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(true);
+
+  const fetchPolicy = () => {
+    setLoadingPolicy(true);
     fetch("/api/v1/retention/policies")
       .then((r) => r.json())
-      .then((data) => setPolicies(data.policies || []))
-      .catch(() => {});
+      .then((data) => {
+        const policies = data.policies || [];
+        const active = policies.find((p: Record<string, unknown>) => p.enabled) || policies[0];
+        if (active) {
+          const p = {
+            max_age_days: active.retention_days ?? active.max_age_days ?? 365,
+            max_events: active.max_events ?? 10000,
+            action: active.action ?? "archive",
+          };
+          setPolicy(p);
+          setMaxAgeDays(p.max_age_days);
+          setMaxEvents(p.max_events);
+          setAction(p.action);
+        } else {
+          setPolicy({ max_age_days: 365, max_events: 10000, action: "archive" });
+        }
+        setLoadingPolicy(false);
+      })
+      .catch(() => {
+        setPolicy({ max_age_days: 365, max_events: 10000, action: "archive" });
+        setLoadingPolicy(false);
+      });
+  };
+
+  const fetchHistory = () => {
+    setLoadingHistory(true);
+    fetch("/api/v1/retention/evaluate/history")
+      .then((r) => r.json())
+      .then((data) => {
+        setHistory(data.runs || data.history || []);
+        setLoadingHistory(false);
+      })
+      .catch(() => setLoadingHistory(false));
   };
 
   useEffect(() => {
-    fetchPolicies();
+    fetchPolicy();
+    fetchHistory();
   }, []);
 
-  const handleCreate = () => {
-    if (!name.trim()) {
-      setError("Policy name is required");
-      return;
-    }
+  const savePolicy = () => {
     setError("");
-    setCreateResult(null);
-    setCreating(true);
-
+    setSaving(true);
     fetch("/api/v1/retention/policies", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
-        name: name.trim(),
-        entity_type: entityType,
-        retention_days: retentionDays,
+        name: `Policy ${new Date().toISOString().slice(0, 10)}`,
+        entity_type: "event",
+        retention_days: maxAgeDays,
         action,
         enabled: true,
       }),
@@ -62,44 +100,36 @@ export default function RetentionPolicies() {
         if (!r.ok) throw new Error(`${r.status}`);
         return r.json();
       })
-      .then((data) => {
-        setCreateResult(data);
-        setCreating(false);
-        setName("");
-        fetchPolicies();
+      .then(() => {
+        setPolicy({ max_age_days: maxAgeDays, max_events: maxEvents, action });
+        setEditing(false);
+        setSaving(false);
       })
       .catch((e) => {
-        setError(`Create error: ${e.message}`);
-        setCreating(false);
+        setError(`Save error: ${e.message}`);
+        setSaving(false);
       });
   };
 
-  const deletePolicy = (policyId: string) => {
-    fetch(`/api/v1/retention/policies/${policyId}`, { method: "DELETE" })
-      .then((r) => {
-        if (!r.ok) throw new Error(`${r.status}`);
-        fetchPolicies();
-      })
-      .catch((e) => setError(`Delete error: ${e.message}`));
-  };
-
-  const handleEvaluate = () => {
-    setEvaluating(true);
-    setEvalResult(null);
+  const applyPolicy = () => {
     setError("");
+    setApplyResult(null);
+    setApplying(true);
 
-    fetch("/api/v1/retention/evaluate", { method: "POST" })
+    const params = dryRun ? "?dry_run=true" : "";
+    fetch(`/api/v1/retention/evaluate${params}`, { method: "POST" })
       .then((r) => {
         if (!r.ok) throw new Error(`${r.status}`);
         return r.json();
       })
       .then((data) => {
-        setEvalResult(data);
-        setEvaluating(false);
+        setApplyResult(data);
+        setApplying(false);
+        fetchHistory();
       })
       .catch((e) => {
-        setError(`Evaluate error: ${e.message}`);
-        setEvaluating(false);
+        setError(`Apply error: ${e.message}`);
+        setApplying(false);
       });
   };
 
@@ -111,106 +141,150 @@ export default function RetentionPolicies() {
         </div>
       )}
 
-      {/* Create policy */}
-      <div className="glass-card p-4 space-y-3">
-        <h3 className="font-semibold text-fg-secondary">Create Retention Policy</h3>
-        <div className="flex flex-wrap gap-4 items-end">
-          <label className="text-sm text-fg-secondary">
-            Name
-            <input
-              type="text"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              className="ff-input w-48 block mt-1"
-              placeholder="e.g. Consent 1yr"
-            />
-          </label>
-          <label className="text-sm text-fg-secondary">
-            Entity Type
-            <select
-              value={entityType}
-              onChange={(e) => setEntityType(e.target.value)}
-              className="ff-select block mt-1"
-            >
-              <option value="consent">consent</option>
-              <option value="subject">subject</option>
-              <option value="event">event</option>
-              <option value="model">model</option>
-            </select>
-          </label>
-          <label className="text-sm text-fg-secondary">
-            Retention Days
-            <input
-              type="number"
-              value={retentionDays}
-              onChange={(e) => setRetentionDays(+e.target.value)}
-              className="ff-input w-24 block mt-1"
-              min={1}
-            />
-          </label>
-          <label className="text-sm text-fg-secondary">
-            Action
-            <select
-              value={action}
-              onChange={(e) => setAction(e.target.value)}
-              className="ff-select block mt-1"
-            >
-              <option value="erase">erase</option>
-            </select>
-          </label>
+      {/* Active policy card */}
+      <div className="glass-card p-4">
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-semibold text-fg-secondary">Active Policy</h3>
+          {!editing && (
+            <button onClick={() => setEditing(true)} className="text-xs text-cyan hover:text-cyan/80 px-2 py-1 rounded hover:bg-cyan/10 transition-colors">
+              Edit
+            </button>
+          )}
         </div>
-        <button onClick={handleCreate} disabled={creating} className="btn-primary">
-          {creating ? "Creating..." : "Create Policy"}
-        </button>
-        {createResult && (
-          <div className="bg-teal/10 border border-teal/20 rounded-lg px-3 py-2 text-teal text-sm">
-            Policy created: {String(createResult.name || createResult.policy_id)}
+
+        {loadingPolicy ? (
+          <SkeletonCard className="h-20" />
+        ) : editing ? (
+          <div className="space-y-3">
+            <div className="flex flex-wrap gap-4 items-end">
+              <label className="text-sm text-fg-secondary">
+                Max Age (days)
+                <input
+                  type="number"
+                  value={maxAgeDays}
+                  onChange={(e) => setMaxAgeDays(+e.target.value)}
+                  className="ff-input w-28 block mt-1"
+                  min={1}
+                />
+              </label>
+              <label className="text-sm text-fg-secondary">
+                Max Events
+                <input
+                  type="number"
+                  value={maxEvents}
+                  onChange={(e) => setMaxEvents(+e.target.value)}
+                  className="ff-input w-28 block mt-1"
+                  min={1}
+                />
+              </label>
+              <label className="text-sm text-fg-secondary">
+                Action
+                <select
+                  value={action}
+                  onChange={(e) => setAction(e.target.value)}
+                  className="ff-select block mt-1"
+                >
+                  <option value="archive">archive</option>
+                  <option value="delete">delete</option>
+                  <option value="flag">flag</option>
+                </select>
+              </label>
+            </div>
+            <div className="flex gap-2">
+              <LoadingButton onClick={savePolicy} loading={saving} loadingText="Saving...">
+                Save Policy
+              </LoadingButton>
+              <button onClick={() => setEditing(false)} className="btn-ghost">Cancel</button>
+            </div>
+          </div>
+        ) : policy ? (
+          <div className="grid grid-cols-3 gap-4">
+            <div>
+              <p className="text-xs text-fg-muted">Max Age</p>
+              <p className="text-lg font-bold text-cyan">{policy.max_age_days} days</p>
+            </div>
+            <div>
+              <p className="text-xs text-fg-muted">Max Events</p>
+              <p className="text-lg font-bold text-amethyst">{policy.max_events}</p>
+            </div>
+            <div>
+              <p className="text-xs text-fg-muted">Action</p>
+              <p className="text-lg font-bold text-gold">{policy.action}</p>
+            </div>
+          </div>
+        ) : null}
+      </div>
+
+      {/* Apply policy */}
+      <div className="glass-card p-4 space-y-3">
+        <h3 className="font-semibold text-fg-secondary">Apply Policy</h3>
+        <div className="flex items-center gap-4">
+          <label className="flex items-center gap-2 text-sm text-fg-secondary cursor-pointer">
+            <input
+              type="checkbox"
+              checked={dryRun}
+              onChange={(e) => setDryRun(e.target.checked)}
+              className="rounded border-border-theme"
+            />
+            Dry run (preview only)
+          </label>
+          <LoadingButton
+            onClick={applyPolicy}
+            loading={applying}
+            className={dryRun ? "btn-primary" : "btn-accent"}
+            loadingText="Applying..."
+          >
+            {dryRun ? "Preview Policy" : "Apply Policy Now"}
+          </LoadingButton>
+        </div>
+
+        {applyResult && (
+          <div className="bg-teal/10 border border-teal/20 rounded-lg p-3 animate-fade-in">
+            {applyResult.dry_run && (
+              <p className="text-xs text-gold font-medium mb-2">Dry Run — no changes applied</p>
+            )}
+            <div className="grid grid-cols-3 gap-4">
+              <div>
+                <p className="text-xs text-fg-muted">Processed</p>
+                <p className="text-lg font-bold text-cyan">{applyResult.events_processed}</p>
+              </div>
+              <div>
+                <p className="text-xs text-fg-muted">Retained</p>
+                <p className="text-lg font-bold text-teal">{applyResult.events_retained}</p>
+              </div>
+              <div>
+                <p className="text-xs text-fg-muted">Expired</p>
+                <p className="text-lg font-bold text-rose-ember">{applyResult.events_expired}</p>
+              </div>
+            </div>
           </div>
         )}
       </div>
 
-      {/* Evaluate */}
-      <div className="glass-card p-4 space-y-3">
-        <h3 className="font-semibold text-fg-secondary">Evaluate Policies</h3>
-        <p className="text-xs text-fg-muted">Run all enabled retention policies and erase expired data.</p>
-        <button onClick={handleEvaluate} disabled={evaluating} className="btn-accent">
-          {evaluating ? "Evaluating..." : "Run Evaluation"}
-        </button>
-        {evalResult && (
-          <pre className="text-xs bg-surface rounded-lg p-2 overflow-x-auto">
-            {JSON.stringify(evalResult, null, 2)}
-          </pre>
-        )}
-      </div>
-
-      {/* Policies list */}
+      {/* Policy history */}
       <div className="glass-card p-4">
-        <h3 className="font-semibold text-fg-secondary mb-3">
-          Active Policies <span className="text-fg-faint font-normal">({policies.length})</span>
-        </h3>
-        {policies.length === 0 ? (
-          <EmptyState title="No retention policies" subtitle="Create a policy to automatically manage data lifecycle" />
+        <h3 className="font-semibold text-fg-secondary mb-3">Policy Run History</h3>
+        {loadingHistory ? (
+          <div className="space-y-1">
+            {[...Array(3)].map((_, i) => <SkeletonRow key={i} />)}
+          </div>
+        ) : history.length === 0 ? (
+          <EmptyState title="No policy runs" subtitle="Apply a policy to see run history here" />
         ) : (
           <div className="space-y-2">
-            {policies.map((p) => (
-              <div key={p.policy_id} className="flex items-center justify-between bg-surface rounded-lg px-3 py-2">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <p className="text-sm text-fg-secondary font-medium">{p.name}</p>
-                    <span className={`px-2 py-0.5 rounded text-xs font-medium ${p.enabled ? "bg-teal/10 text-teal" : "bg-fg/5 text-fg-faint"}`}>
-                      {p.enabled ? "Enabled" : "Disabled"}
-                    </span>
-                  </div>
-                  <p className="text-xs text-fg-faint">
-                    {p.entity_type} — {p.retention_days} days — action: {p.action}
-                  </p>
+            {history.map((run, i) => (
+              <div key={i} className="flex items-center justify-between bg-surface rounded-lg px-3 py-2">
+                <div className="flex items-center gap-3">
+                  <p className="text-xs text-fg-faint">{run.timestamp ? new Date(run.timestamp).toLocaleString() : "—"}</p>
+                  {run.dry_run && (
+                    <span className="px-1.5 py-0.5 rounded text-xs bg-gold/10 text-gold">dry-run</span>
+                  )}
                 </div>
-                <button
-                  onClick={() => deletePolicy(p.policy_id)}
-                  className="text-xs text-rose-ember hover:text-rose-ember/80 px-2 py-1 rounded hover:bg-rose-ember/10 transition-colors"
-                >
-                  Delete
-                </button>
+                <div className="flex items-center gap-4 text-xs">
+                  <span className="text-fg-muted">{run.events_processed} processed</span>
+                  <span className="text-teal">{run.events_retained} retained</span>
+                  <span className="text-rose-ember">{run.events_expired} expired</span>
+                </div>
               </div>
             ))}
           </div>
