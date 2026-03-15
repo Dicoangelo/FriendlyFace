@@ -692,6 +692,24 @@ JSON-LD export: 21,518 bytes<br>
     <img src="figures/web-fig3-data-structures.jpg" alt="Hash Chain, Merkle Tree, and Provenance DAG" loading="lazy">
     <div class="fig-caption">Fig. 3 &mdash; Core data structures: SHA-256 hash chain, append-only Merkle tree, and provenance DAG linking forensic events</div>
   </div>
+
+  <h3>Cryptographic Data Structures</h3>
+  <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(340px,1fr)); gap:1rem; margin-top:1rem;">
+    <div class="fig-wrap">
+      <img src="figures/web-fig5-hash-chain.jpg" alt="SHA-256 Hash Chain Construction" loading="lazy">
+      <div class="fig-caption">Fig. 5 &mdash; SHA-256 hash chain: each event $e_i$ hashes with $H_{i-1}$ to create tamper-evident append-only log</div>
+    </div>
+    <div class="fig-wrap">
+      <img src="figures/web-fig6-merkle-tree.jpg" alt="Append-only Merkle Tree" loading="lazy">
+      <div class="fig-caption">Fig. 6 &mdash; Merkle tree with O(log n) inclusion proofs for membership verification</div>
+    </div>
+  </div>
+
+  <h3>Federated Learning Pipeline</h3>
+  <div class="fig-wrap">
+    <img src="figures/web-fig7-fl-dp-pipeline.jpg" alt="DP-FedAvg Pipeline with Poisoning Detection" loading="lazy">
+    <div class="fig-caption">Fig. 7 &mdash; Differentially-private federated learning with gradient clipping, Gaussian noise injection, and Byzantine poisoning detection</div>
+  </div>
 </section>
 
 <!-- ─── FORENSIC SEAL ─── -->
@@ -699,9 +717,15 @@ JSON-LD export: 21,518 bytes<br>
   <h2><span class="num">3b</span>ForensicSeal &mdash; Verifiable Compliance Certificates</h2>
   <p>The ForensicSeal is a <strong>W3C Verifiable Credential</strong> that certifies an AI system's compliance posture. Signed with Ed25519 DID:key, it provides cryptographic proof that an AI system meets EU AI Act requirements at the time of issuance.</p>
 
-  <div class="fig-wrap">
-    <img src="figures/web-fig2-seal-lifecycle.jpg" alt="ForensicSeal Lifecycle" loading="lazy">
-    <div class="fig-caption">Fig. 2 &mdash; ForensicSeal lifecycle: issuance with 7-check verification, continuous compliance monitoring, renewal, and revocation</div>
+  <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(340px,1fr)); gap:1rem; margin-top:1rem;">
+    <div class="fig-wrap">
+      <img src="figures/web-fig2-seal-lifecycle.jpg" alt="ForensicSeal Lifecycle" loading="lazy">
+      <div class="fig-caption">Fig. 2 &mdash; ForensicSeal lifecycle: issuance, verification, renewal, and revocation</div>
+    </div>
+    <div class="fig-wrap">
+      <img src="figures/web-fig8-forensicseal-vc.jpg" alt="ForensicSeal W3C Verifiable Credential Structure" loading="lazy">
+      <div class="fig-caption">Fig. 8 &mdash; W3C Verifiable Credential structure with Ed25519 DID:key proof and 6-dimension compliance scoring</div>
+    </div>
   </div>
 
   <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(260px,1fr)); gap:1rem; margin-top:1.5rem;">
@@ -728,6 +752,18 @@ JSON-LD export: 21,518 bytes<br>
   <div class="fig-wrap">
     <img src="figures/web-fig4-compliance-proxy.jpg" alt="Compliance Proxy Architecture" loading="lazy">
     <div class="fig-caption">Fig. 4 &mdash; Compliance proxy: forensic logging, consent check, bias audit, and evidence bundling wrapping any upstream recognition API</div>
+  </div>
+
+  <h3>Explainability &amp; Compliance</h3>
+  <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(340px,1fr)); gap:1rem; margin-top:1rem;">
+    <div class="fig-wrap">
+      <img src="figures/web-fig9-explainability-methods.jpg" alt="Triple Explainability Methods" loading="lazy">
+      <div class="fig-caption">Fig. 9 &mdash; LIME superpixels, KernelSHAP values, and SDD saliency &mdash; three forensic explanation methods hash-chained as evidence</div>
+    </div>
+    <div class="fig-wrap">
+      <img src="figures/web-fig10-compliance-scoring.jpg" alt="EU AI Act Compliance Scoring" loading="lazy">
+      <div class="fig-caption">Fig. 10 &mdash; EU AI Act compliance scoring: 6 weighted dimensions with sub-component decomposition and threshold classification</div>
+    </div>
   </div>
 </section>
 
