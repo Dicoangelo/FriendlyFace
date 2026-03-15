@@ -743,6 +743,16 @@ def get_engine(engine_name: str | None = None, **kwargs: Any) -> RecognitionEngi
     if engine_name in ("fallback", "auto", "deep", "mediapipe"):
         return FallbackEngine(**kwargs)
     if engine_name == "onnx":
+        if "model_path" not in kwargs:
+            from friendlyface.config import settings
+
+            # Use explicit path if set, otherwise default to models/arcface_r100.onnx
+            if settings.onnx_model_path:
+                kwargs["model_path"] = settings.onnx_model_path
+            else:
+                default_model = Path(settings.model_dir) / "arcface_r100.onnx"
+                if default_model.exists():
+                    kwargs["model_path"] = str(default_model)
         return ONNXEngine(**kwargs)
     if engine_name == "proxy":
         return ProxyEngine(**kwargs)

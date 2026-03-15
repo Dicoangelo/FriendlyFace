@@ -45,7 +45,7 @@
 \maketitle
 
 \begin{abstract}
-Facial recognition systems are increasingly deployed in law enforcement, border security, and access control, yet no existing commercial or academic system provides end-to-end forensic accountability. Mohammed's ICDF2C 2024 schema proposes a six-layer forensic-friendly architecture for AI facial recognition---spanning recognition, federated learning, blockchain forensic integrity, fairness auditing, explainability, and consent governance---but provides no implementation. We present FriendlyFace, the first complete implementation of this schema, integrating five additional state-of-the-art research contributions: zero-knowledge biometric verification via Schnorr proofs (BioZero), trustworthy blockchain-based federated learning with Ed25519 DID:key credentials (TBFL), fairness-aware federated learning with differential privacy (FedFDP), saliency-driven decomposition for explainability (SDD), and automated EU AI Act compliance reporting. FriendlyFace comprises 15,000 lines of Python backend code, 7,700 lines of React frontend code, 1,415 tests achieving 93\% coverage, 20 database tables, and 84+ REST API endpoints. Every operation produces a \texttt{ForensicEvent} that is SHA-256 hash-chained, inserted into an append-only Merkle tree, and linked into a directed acyclic provenance graph---forming self-verifiable forensic bundles suitable for court presentation. We introduce the ForensicSeal, a composite cryptographic attestation combining W3C Verifiable Credentials, Schnorr ZK proofs, and six-layer compliance checking, with measured issuance latency of 3.3\,ms and verification latency of 6.0\,ms. FriendlyFace is deployed at \url{friendlyface.metaventionsai.com} and open-sourced at \url{github.com/Dicoangelo/FriendlyFace}.
+Facial recognition systems are increasingly deployed in law enforcement, border security, and access control, yet no existing commercial or academic system provides end-to-end forensic accountability. Mohammed's ICDF2C 2024 schema proposes a six-layer forensic-friendly architecture for AI facial recognition---spanning recognition, federated learning, blockchain forensic integrity, fairness auditing, explainability, and consent governance---but provides no implementation. We present FriendlyFace, the first complete implementation of this schema, integrating five additional state-of-the-art research contributions: zero-knowledge biometric verification via Schnorr proofs (BioZero), trustworthy blockchain-based federated learning with Ed25519 DID:key credentials (TBFL), fairness-aware federated learning with differential privacy (FedFDP), saliency-driven decomposition for explainability (SDD), and automated EU AI Act compliance reporting. FriendlyFace comprises 15,000 lines of Python backend code, 7,700 lines of React frontend code, 1,545 tests achieving 93\% coverage, 20 database tables, and 84+ REST API endpoints. Every operation produces a \texttt{ForensicEvent} that is SHA-256 hash-chained, inserted into an append-only Merkle tree, and linked into a directed acyclic provenance graph---forming self-verifiable forensic bundles suitable for court presentation. We introduce the ForensicSeal, a composite cryptographic attestation combining W3C Verifiable Credentials, Schnorr ZK proofs, and six-layer compliance checking, with measured issuance latency of 3.3\,ms and verification latency of 6.0\,ms. FriendlyFace is deployed at \url{friendlyface.metaventionsai.com} and open-sourced at \url{github.com/Dicoangelo/FriendlyFace}.
 \end{abstract}
 
 \begin{IEEEkeywords}
@@ -73,7 +73,7 @@ Mohammed's ICDF2C 2024 schema~\cite{mohammed2024forensic} addresses this gap at 
 
 \item \textbf{Quantitative evaluation} across integrity verification, fairness auditing, explainability coverage, privacy accounting, and regulatory compliance.
 
-\item \textbf{Open-source reference implementation} with 1,415 tests (93\% coverage) and a production deployment.
+\item \textbf{Open-source reference implementation} with 1,545 tests (93\% coverage) and a production deployment.
 \end{enumerate}
 
 %===================================================================
@@ -129,7 +129,7 @@ FriendlyFace implements Mohammed's six-layer schema as a monolithic Python appli
 
 \begin{figure}[h]
 \centering
-\includegraphics[width=\columnwidth]{figures/fig1-architecture.png}
+\includegraphics[width=\columnwidth]{fig1-architecture.png}
 \caption{FriendlyFace six-layer architecture with ForensicSeal. Layer~3 (Blockchain Forensic Layer) serves as the central backbone receiving forensic events from all other layers.}
 \label{fig:architecture}
 \end{figure}
@@ -159,7 +159,7 @@ H_{\text{bundle}} = \text{SHA-256}(\text{canonical}(\text{id}, \text{created\_at
 
 \begin{figure}[h]
 \centering
-\includegraphics[width=\columnwidth]{figures/fig3-data-structures.png}
+\includegraphics[width=\columnwidth]{fig3-data-structures.png}
 \caption{Forensic data structures: SHA-256 hash chain for tamper detection, Merkle tree for efficient inclusion proofs, and provenance DAG for lineage tracking, aggregated into self-verifiable forensic bundles.}
 \label{fig:data-structures}
 \end{figure}
@@ -234,7 +234,7 @@ Backend Python LOC & 14,974 \\
 Test Python LOC & 20,039 \\
 Frontend TypeScript/React LOC & 7,692 \\
 Total LOC & 42,705 \\
-Test functions & 1,415 \\
+Test functions & 1,545 \\
 Test coverage & 93\% \\
 Database tables & 20 \\
 API endpoints & 84+ \\
@@ -291,7 +291,7 @@ The ForensicSeal is a composite cryptographic attestation that binds all six lay
 
 \begin{figure}[h]
 \centering
-\includegraphics[width=\columnwidth]{figures/fig2-seal-lifecycle.png}
+\includegraphics[width=\columnwidth]{fig2-seal-lifecycle.png}
 \caption{ForensicSeal lifecycle: issuance with 6-layer compliance checks (threshold $\geq 80\%$), public verification without authentication, continuous compliance via expiry and renewal, and irreversible revocation.}
 \label{fig:seal-lifecycle}
 \end{figure}
@@ -300,7 +300,7 @@ The ForensicSeal is a composite cryptographic attestation that binds all six lay
 
 \begin{figure}[h]
 \centering
-\includegraphics[width=\columnwidth]{figures/fig4-compliance-proxy.png}
+\includegraphics[width=\columnwidth]{fig4-compliance-proxy.png}
 \caption{Compliance proxy architecture: FriendlyFace transparently wraps third-party recognition APIs with forensic logging, consent checking, and compliance scoring.}
 \label{fig:compliance-proxy}
 \end{figure}
@@ -435,7 +435,7 @@ FriendlyFace extends the original schema with: (1)~Schnorr ZK proofs and Ed25519
 
 We presented FriendlyFace, the first complete implementation of Mohammed's ICDF2C 2024 forensic-friendly AI schema. The system integrates six architectural layers around a central forensic backbone, with six additional contributions: BioZero ZK proofs, TBFL DID credentials, FedFDP differential privacy, SDD saliency, EU AI Act compliance, and the ForensicSeal.
 
-The system comprises 42,705 lines of code with 1,415 tests (93\% coverage). Timing instrumentation demonstrates practical performance: forensic events recorded in 5.3\,ms (median), bundles created in 12.3\,ms, ZK proofs generated in 5.2\,ms, ForensicSeals issued in 3.3\,ms, and the full 11-step pipeline completes in 2.7\,seconds.
+The system comprises 42,705 lines of code with 1,545 tests (93\% coverage). Timing instrumentation demonstrates practical performance: forensic events recorded in 5.3\,ms (median), bundles created in 12.3\,ms, ZK proofs generated in 5.2\,ms, ForensicSeals issued in 3.3\,ms, and the full 11-step pipeline completes in 2.7\,seconds.
 
 \subsection{Future Work}
 
@@ -446,6 +446,12 @@ The system comprises 42,705 lines of code with 1,415 tests (93\% coverage). Timi
 \item Real-time WebSocket audit dashboard with fairness drift monitoring.
 \item Cross-organizational multi-party provenance DAGs.
 \end{enumerate}
+
+%===================================================================
+\section*{Acknowledgments}
+%===================================================================
+
+The authors gratefully acknowledge Safiia Mohammed, whose ICDF2C 2024 forensic-friendly schema for AI-based facial recognition systems~\cite{mohammed2024forensic} provided the foundational six-layer architecture that FriendlyFace implements. This work would not have been possible without that architectural vision.
 
 %===================================================================
 % References

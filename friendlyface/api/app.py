@@ -84,6 +84,7 @@ from starlette.responses import StreamingResponse  # noqa: E402
 
 from friendlyface.api.sse import EventBroadcaster  # noqa: E402
 from friendlyface.auth import require_api_key, require_role  # noqa: E402
+from friendlyface.billing.gate import require_plan  # noqa: E402
 from friendlyface.config import settings  # noqa: E402
 from friendlyface.exceptions import FriendlyFaceError  # noqa: E402
 from friendlyface.logging_config import log_startup_info, setup_logging  # noqa: E402
@@ -2491,7 +2492,7 @@ class SealIssueRequest(BaseModel):
     status_code=201,
     tags=["ForensicSeal"],
     summary="Issue a ForensicSeal compliance certificate",
-    dependencies=[Depends(require_role("admin"))],
+    dependencies=[Depends(require_plan("professional", "enterprise"))],
 )
 async def issue_seal(req: SealIssueRequest):
     """Run 6-layer compliance checks and issue a ForensicSeal if passing."""
@@ -2612,9 +2613,10 @@ async def list_seals(system_id: str | None = None, limit: int = 50, offset: int 
     "/seal/status/{seal_id}",
     tags=["ForensicSeal"],
     summary="Get seal status",
+    dependencies=[Depends(require_plan("starter", "professional", "enterprise"))],
 )
 async def get_seal_status(seal_id: str):
-    """Get current seal status including days until expiry. No auth required."""
+    """Get current seal status including days until expiry. Requires starter plan or higher."""
     from friendlyface.governance.compliance import ComplianceReporter
     from friendlyface.seal.service import ForensicSealService
 
@@ -2632,7 +2634,7 @@ async def get_seal_status(seal_id: str):
     status_code=201,
     tags=["ForensicSeal"],
     summary="Renew an expiring seal",
-    dependencies=[Depends(require_role("admin"))],
+    dependencies=[Depends(require_plan("professional", "enterprise"))],
 )
 async def renew_seal(seal_id: str):
     """Re-run compliance checks and issue a new seal linked to the previous one."""
@@ -2660,7 +2662,7 @@ class SealRevokeRequest(BaseModel):
     "/seal/revoke/{seal_id}",
     tags=["ForensicSeal"],
     summary="Revoke a ForensicSeal",
-    dependencies=[Depends(require_role("admin"))],
+    dependencies=[Depends(require_plan("professional", "enterprise"))],
 )
 async def revoke_seal(seal_id: str, req: SealRevokeRequest):
     """Revoke a seal. Irreversible. Records a forensic event in the hash chain."""

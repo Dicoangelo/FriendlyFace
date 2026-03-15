@@ -16,6 +16,13 @@ PLAN_RATE_LIMITS = {
     "enterprise": 2000,
 }
 
+# ForensicSeal limits per plan (-1 = unlimited)
+PLAN_SEAL_LIMITS = {
+    "starter": 1,
+    "professional": 10,
+    "enterprise": -1,  # unlimited
+}
+
 
 def require_plan(*plans: str):
     """FastAPI dependency factory: require user to have one of the given plans.

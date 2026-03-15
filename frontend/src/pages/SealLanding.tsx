@@ -408,7 +408,7 @@ export default function SealLanding() {
             <tbody>
               {[
                 { criteria: "Time to Certificate", seal: "Minutes", manual: "Weeks to months", none: "N/A" },
-                { criteria: "Cost", seal: "From \u20AC99/mo", manual: "\u20AC10,000-50,000+", none: "Up to \u20AC35M fine" },
+                { criteria: "Cost", seal: "From $99/mo", manual: "$10,000-50,000+", none: "Up to \u20AC35M fine" },
                 { criteria: "Verifiability", seal: "Cryptographic (W3C VC)", manual: "PDF report", none: "None" },
                 { criteria: "Automation", seal: "Fully automated", manual: "Manual review", none: "None" },
                 { criteria: "Continuous Monitoring", seal: "Yes, with renewal", manual: "Point-in-time only", none: "None" },
@@ -436,26 +436,29 @@ export default function SealLanding() {
           {[
             {
               name: "Starter",
-              price: "\u20AC99",
+              price: "$99",
               period: "/month",
-              features: ["1 AI system", "Quarterly compliance checks", "Basic seal credential", "Email support"],
-              cta: "Coming Soon",
+              features: ["1 ForensicSeal certificate", "Quarterly compliance checks", "Basic compliance report", "Email support"],
+              cta: "Get Started",
+              href: "/signup",
               highlight: false,
             },
             {
               name: "Professional",
-              price: "\u20AC499",
+              price: "$299",
               period: "/month",
-              features: ["Up to 10 AI systems", "Monthly compliance checks", "Full 6-layer assessment", "Continuous monitoring", "Priority support"],
-              cta: "Coming Soon",
+              features: ["10 ForensicSeal certificates", "Monthly compliance checks", "Full 6-layer assessment", "Compliance proxy", "Priority support"],
+              cta: "Get Started",
+              href: "/signup",
               highlight: true,
             },
             {
               name: "Enterprise",
-              price: "Custom",
-              period: "",
-              features: ["Unlimited AI systems", "Real-time compliance", "Dedicated compliance officer", "Custom integration", "SLA guarantee", "On-premise option"],
+              price: "$999",
+              period: "/month",
+              features: ["Unlimited ForensicSeal certificates", "Real-time compliance monitoring", "Conformity assessment (Annex IV)", "Dedicated support", "SLA guarantee", "On-premise option"],
               cta: "Contact Us",
+              href: "#demo-request",
               highlight: false,
             },
           ].map((plan) => (
@@ -487,16 +490,17 @@ export default function SealLanding() {
               </ul>
               <button
                 onClick={() => {
-                  if (plan.cta === "Contact Us") {
+                  if (plan.href === "#demo-request") {
                     document.getElementById("demo-request")?.scrollIntoView({ behavior: "smooth" });
+                  } else {
+                    navigate(plan.href);
                   }
                 }}
                 className={`w-full py-2.5 text-sm font-medium rounded-lg transition-colors ${
                   plan.highlight
                     ? "bg-cyan text-white hover:bg-cyan/90"
                     : "border border-border-theme text-fg hover:bg-fg/5"
-                } ${plan.cta === "Coming Soon" ? "opacity-60 cursor-not-allowed" : ""}`}
-                disabled={plan.cta === "Coming Soon"}
+                }`}
               >
                 {plan.cta}
               </button>

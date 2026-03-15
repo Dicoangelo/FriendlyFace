@@ -217,6 +217,25 @@
     line-height: 1.7;
   }
 
+  /* ── FIGURE ── */
+  .fig-wrap {
+    margin: 1.5rem 0;
+    text-align: center;
+  }
+  .fig-wrap img {
+    max-width: 100%;
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    transition: transform 0.2s;
+  }
+  .fig-wrap img:hover { transform: scale(1.02); }
+  .fig-caption {
+    font-size: 0.82rem;
+    color: var(--text-muted);
+    margin-top: 0.6rem;
+    font-style: italic;
+  }
+
   /* ── ARCHITECTURE LAYERS ── */
   .layers {
     display: flex;
@@ -433,6 +452,8 @@
     <a href="#summary">Summary</a>
     <a href="#activation">Activation</a>
     <a href="#architecture">Architecture</a>
+    <a href="#seal">ForensicSeal</a>
+    <a href="#proxy">Proxy</a>
     <a href="#competitive">Competitive</a>
     <a href="#market">Market</a>
     <a href="#ip">IP Portfolio</a>
@@ -469,7 +490,7 @@
       <div class="label">LOC React Frontend</div>
     </div>
     <div class="stat-card">
-      <div class="value">1,422</div>
+      <div class="value">1,545</div>
       <div class="label">Tests</div>
     </div>
     <div class="stat-card">
@@ -477,11 +498,11 @@
       <div class="label">Coverage</div>
     </div>
     <div class="stat-card">
-      <div class="value">20</div>
+      <div class="value">22</div>
       <div class="label">DB Tables</div>
     </div>
     <div class="stat-card">
-      <div class="value">84+</div>
+      <div class="value">100+</div>
       <div class="label">API Endpoints</div>
     </div>
     <div class="stat-card">
@@ -616,6 +637,11 @@ JSON-LD export: 21,518 bytes<br>
   <h2><span class="num">3</span>6-Layer Architecture</h2>
   <p>Each layer builds on the one below, creating an end-to-end forensic chain from recognition through governance.</p>
 
+  <div class="fig-wrap">
+    <img src="figures/web-fig1-architecture.jpg" alt="FriendlyFace 6-Layer Architecture" loading="lazy">
+    <div class="fig-caption">Fig. 1 &mdash; FriendlyFace 6-layer forensic-friendly AI architecture implementing Mohammed's ICDF2C 2024 schema</div>
+  </div>
+
   <div class="layers">
     <div class="layer l6">
       <div class="ln">6</div>
@@ -659,6 +685,48 @@ JSON-LD export: 21,518 bytes<br>
         <div class="desc">PCA + SVM face recognition, voice MFCC analysis, multi-modal fusion pipeline</div>
       </div>
     </div>
+  </div>
+
+  <div class="fig-wrap">
+    <img src="figures/web-fig3-data-structures.jpg" alt="Hash Chain, Merkle Tree, and Provenance DAG" loading="lazy">
+    <div class="fig-caption">Fig. 3 &mdash; Core data structures: SHA-256 hash chain, append-only Merkle tree, and provenance DAG linking forensic events</div>
+  </div>
+</section>
+
+<!-- ─── FORENSIC SEAL ─── -->
+<section id="seal">
+  <h2><span class="num">3b</span>ForensicSeal &mdash; Verifiable Compliance Certificates</h2>
+  <p>The ForensicSeal is a <strong>W3C Verifiable Credential</strong> that certifies an AI system's compliance posture. Signed with Ed25519 DID:key, it provides cryptographic proof that an AI system meets EU AI Act requirements at the time of issuance.</p>
+
+  <div class="fig-wrap">
+    <img src="figures/web-fig2-seal-lifecycle.jpg" alt="ForensicSeal Lifecycle" loading="lazy">
+    <div class="fig-caption">Fig. 2 &mdash; ForensicSeal lifecycle: issuance with 7-check verification, continuous compliance monitoring, renewal, and revocation</div>
+  </div>
+
+  <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(260px,1fr)); gap:1rem; margin-top:1.5rem;">
+    <div class="card">
+      <h3 style="color:var(--green);">Issuance</h3>
+      <p style="margin-bottom:0;">7-check verification: chain integrity, Merkle proof, bias audit, consent status, explanation coverage, provenance completeness, and overall compliance score.</p>
+    </div>
+    <div class="card">
+      <h3 style="color:var(--accent);">Verification</h3>
+      <p style="margin-bottom:0;">Public verification API &mdash; no auth required. Any party can verify a seal's validity by ID, confirming the credential signature, expiry, and revocation status.</p>
+    </div>
+    <div class="card">
+      <h3 style="color:var(--orange);">Lifecycle</h3>
+      <p style="margin-bottom:0;">Seals expire after 90 days by default. Renewal re-runs the full compliance check. Revocation is irreversible and immediately flagged on verification.</p>
+    </div>
+  </div>
+</section>
+
+<!-- ─── COMPLIANCE PROXY ─── -->
+<section id="proxy">
+  <h2><span class="num">3c</span>Compliance Proxy Architecture</h2>
+  <p>The Compliance Proxy wraps any third-party recognition API (NEC, Amazon Rekognition, Cognitec) with the full forensic evidence chain. Existing recognition pipelines gain compliance without changing their inference code.</p>
+
+  <div class="fig-wrap">
+    <img src="figures/web-fig4-compliance-proxy.jpg" alt="Compliance Proxy Architecture" loading="lazy">
+    <div class="fig-caption">Fig. 4 &mdash; Compliance proxy: forensic logging, consent check, bias audit, and evidence bundling wrapping any upstream recognition API</div>
   </div>
 </section>
 
@@ -826,7 +894,7 @@ JSON-LD export: 21,518 bytes<br>
     <div class="ip-card">
       <div class="ip-icon" style="color:var(--green);">&#9783;</div>
       <h4>Codebase</h4>
-      <p>52,000+ LOC across Python backend and React frontend. 1,422 tests at 93% coverage. 20 database tables, 84+ API endpoints.</p>
+      <p>52,000+ LOC across Python backend and React frontend. 1,545 tests at 93% coverage. 22 database tables, 100+ API endpoints. Python SDK published.</p>
     </div>
     <div class="ip-card">
       <div class="ip-icon" style="color:var(--orange);">&#9881;</div>
@@ -864,13 +932,38 @@ JSON-LD export: 21,518 bytes<br>
 <section id="next">
   <h2><span class="num">8</span>Next Steps</h2>
 
+  <h3 style="color:var(--green); margin-bottom:1rem;">Completed</h3>
+  <div style="display:grid; gap:0.5rem; margin-bottom:2rem;">
+    <div style="display:flex; align-items:center; gap:0.6rem; padding:0.5rem 1rem; background:var(--green-dim); border-radius:8px; font-size:0.9rem;">
+      <span class="yes">&#10003;</span> <span style="color:var(--text-secondary);">Pluggable recognition engine (Fallback/ONNX/Proxy) with forensic wrapping</span>
+    </div>
+    <div style="display:flex; align-items:center; gap:0.6rem; padding:0.5rem 1rem; background:var(--green-dim); border-radius:8px; font-size:0.9rem;">
+      <span class="yes">&#10003;</span> <span style="color:var(--text-secondary);">Blockchain anchoring (Polygon/Base L2) for immutable Merkle root proofs</span>
+    </div>
+    <div style="display:flex; align-items:center; gap:0.6rem; padding:0.5rem 1rem; background:var(--green-dim); border-radius:8px; font-size:0.9rem;">
+      <span class="yes">&#10003;</span> <span style="color:var(--text-secondary);">EU AI Act Conformity Assessment Generator (Annex IV, 10-section automated report)</span>
+    </div>
+    <div style="display:flex; align-items:center; gap:0.6rem; padding:0.5rem 1rem; background:var(--green-dim); border-radius:8px; font-size:0.9rem;">
+      <span class="yes">&#10003;</span> <span style="color:var(--text-secondary);">Compliance Proxy API wrapping third-party recognition systems</span>
+    </div>
+    <div style="display:flex; align-items:center; gap:0.6rem; padding:0.5rem 1rem; background:var(--green-dim); border-radius:8px; font-size:0.9rem;">
+      <span class="yes">&#10003;</span> <span style="color:var(--text-secondary);">ForensicSeal (W3C VC issuance, public verification, renewal, revocation)</span>
+    </div>
+    <div style="display:flex; align-items:center; gap:0.6rem; padding:0.5rem 1rem; background:var(--green-dim); border-radius:8px; font-size:0.9rem;">
+      <span class="yes">&#10003;</span> <span style="color:var(--text-secondary);">Python SDK (<code>friendlyface-sdk</code>) with typed client, decorator, context manager</span>
+    </div>
+    <div style="display:flex; align-items:center; gap:0.6rem; padding:0.5rem 1rem; background:var(--green-dim); border-radius:8px; font-size:0.9rem;">
+      <span class="yes">&#10003;</span> <span style="color:var(--text-secondary);">Publication-quality architecture diagrams (4 figures via PaperBanana pipeline)</span>
+    </div>
+  </div>
+
+  <h3 style="color:var(--accent); margin-bottom:1rem;">Remaining</h3>
   <ol class="steps-list">
-    <li>Production recognition engine &mdash; ArcFace/AdaFace ONNX integration for state-of-the-art accuracy</li>
-    <li>Blockchain anchoring &mdash; Polygon/Base L2 for immutable forensic event anchoring at low cost</li>
-    <li>EU AI Act Conformity Assessment Generator &mdash; automated compliance report generation</li>
-    <li>Compliance-as-a-Service API &mdash; hosted forensic bundling endpoint for third-party integrations</li>
-    <li>Enterprise SDK &mdash; drop-in library for wrapping existing recognition pipelines</li>
+    <li>ArcFace/AdaFace ONNX model weights &mdash; production-grade recognition accuracy via ONNX engine slot</li>
+    <li>SDK PyPI publishing &mdash; public release after pricing model is finalized</li>
     <li>ICDF2C 2026 paper submission &mdash; academic validation at Mohammed's conference</li>
+    <li>Patent provisional filing &mdash; 25 claims ready, needs attorney review</li>
+    <li>Enterprise pilot &mdash; first customer integration via Compliance Proxy</li>
   </ol>
 </section>
 
